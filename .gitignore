@@ -2,9 +2,9 @@
 larmap_env
 
 # fastq, genome, ref files
-demo_files/demo_fastq_files_250k_bp/
-demo_files/genomes/
-demo_files/reference_files/
+demo_files/demo_fastq_files_250k_bp
+demo_files/genomes
+demo_files/reference_files
 
 # demo results to be generated
 demo_no_slurm/logs
