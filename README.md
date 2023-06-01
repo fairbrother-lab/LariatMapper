@@ -1,5 +1,7 @@
 # Lariat mapping pipeline
 
+(to be modified)
+
 ## Environment
 
 This pipeline depends on the command line tools and python packages contained in the conda environment at `/datasets2/lariat_mapping/larmap_env` and outline in the `environment.yaml` file in the `lariat_mapping` directory
