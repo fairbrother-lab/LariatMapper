@@ -11,11 +11,10 @@ dependencies:
   - numpy
   - intervaltree
   - pyfaidx
-# M1 mac non-pypi packages:
+# M1 mac:
 # arch -arm64 brew install bowtie2
 # arch -arm64 brew install bedtools
 # arch -arm64 brew install samtools
 
-# pip install -r requirements.txt
 # conda env create -f environment.yaml
 
