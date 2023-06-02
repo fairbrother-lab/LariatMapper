@@ -12,7 +12,7 @@ setup(
     name='larmap-test',
     version='1.0.0',
     packages=find_packages(),
-    install_requires=get_dependencies_from_yaml('env.yaml'),
+    install_requires=get_dependencies_from_yaml('environment.yaml'),
     author='nealneal',
     description='lariat mapping (test package)',
     url='https://github.com/nyin01/lariat_mapping_test',
