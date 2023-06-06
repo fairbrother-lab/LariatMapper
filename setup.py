@@ -1,4 +1,3 @@
-import yaml
 from setuptools import setup, find_packages
 
 def get_dependencies_from_yaml(yaml_file):
@@ -12,7 +11,12 @@ setup(
     name='larmap-test',
     version='1.0.0',
     packages=find_packages(),
-    install_requires=get_dependencies_from_yaml('environment.yaml'),
+    install_requires=[
+        'numpy',
+        'intervaltree',
+        'pyfaidx'
+    ],
+    python_requires='>=3.7.6',
     author='nealneal',
     description='lariat mapping (test package)',
     url='https://github.com/nyin01/lariat_mapping_test',

@@ -8,19 +8,6 @@ demo_files/demo_fastq_files_250k_bp
 demo_files/genomes
 demo_files/reference_files
 
-# demo results to be generated
-demo_no_slurm/logs
-demo_no_slurm/output
-demo_no_slurm/scripts
-demo_no_slurm/demo_mapped_reads_250k.txt
-demo_slurm/logs
-demo_slurm/output
-demo_slurm/scripts
-demo_slurm/demo_mapped_reads_250k.txt
-
-# notes
-neal_notes_references
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
