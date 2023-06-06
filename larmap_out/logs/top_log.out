@@ -1,0 +1,26 @@
+05:19:54 06/06  -  0h:0m:0s    |  START TIME: 06/06/23 05:19:54
+05:19:54 06/06  -  0h:0m:0s    |  Run parameters from info file:
+05:19:54 06/06  -  0h:0m:0s    |  Fastq Files Directory: demo_files/demo_fastq_files_250k_bp
+05:19:54 06/06  -  0h:0m:0s    |  Scripts Directory: larmap_out/scripts
+05:19:54 06/06  -  0h:0m:0s    |  Log Directory: larmap_out/logs
+05:19:54 06/06  -  0h:0m:0s    |  Mapping Output Directory: larmap_out/output
+05:19:54 06/06  -  0h:0m:0s    |  Final Results Path: larmap_out/demo_mapped_reads_250k.txt
+05:19:54 06/06  -  0h:0m:0s    |  Number of CPUs: 4
+05:19:54 06/06  -  0h:0m:0s    |  Bowtie2 Genome Index Base: demo_files/genomes/indices/bowtie2/mm39.fa
+05:19:54 06/06  -  0h:0m:0s    |  Genome FASTA File: demo_files/genomes/fasta_files/mm39.fa
+05:19:54 06/06  -  0h:0m:0s    |  Genome GTF Annotation File: demo_files/genomes/annotations/mm39.gencode.basic.M32.annotation.gtf.gz
+05:19:54 06/06  -  0h:0m:0s    |  5p Splice Sites File: demo_files/reference_files/mouse/mm39.gencode.basic.M32.fivep_sites.fa
+05:19:54 06/06  -  0h:0m:0s    |  3p Splice Sites Bowtie2 Index Base: demo_files/reference_files/mouse/mm39.gencode.basic.M32.threep_sites.fa
+05:19:54 06/06  -  0h:0m:0s    |  3p Sequence Lengths File: demo_files/reference_files/mouse/mm39.gencode.basic.M32.threep_seq_lens.txt
+05:19:54 06/06  -  0h:0m:0s    |  Introns BED File: demo_files/genomes/annotations/mm39.gencode.basic.M32.introns.bed.gz
+05:19:54 06/06  -  0h:0m:0s    |  RepeatMasker BED File: demo_files/genomes/annotations/mm39.repeat_masker.bed.gz
+05:19:54 06/06  -  0h:0m:0s    |  3 categories pulled from info file: ['read_one_file', 'read_two_file', 'output_base_name']
+05:19:54 06/06  -  0h:0m:0s    |  Pulled row: ['250k_cWT_1.fq.gz', '250k_cWT_2.fq.gz', 'WT']
+05:19:54 06/06  -  0h:0m:0s    |  Pulled row: ['250k_cDBR1-Y17H_1.fq.gz', '250k_cDBR1-Y17H_2.fq.gz', 'Y17H']
+05:19:54 06/06  -  0h:0m:0s    |  Run data has passed inspection
+05:19:54 06/06  -  0h:0m:0s    |  Directories have been prepared.
+05:19:54 06/06  -  0h:0m:0s    |  Creating mapping script for 250k_cWT_1.fq.gz
+05:19:54 06/06  -  0h:0m:0s    |  Creating mapping script for 250k_cWT_2.fq.gz
+05:19:54 06/06  -  0h:0m:0s    |  Creating mapping script for 250k_cDBR1-Y17H_1.fq.gz
+05:19:54 06/06  -  0h:0m:0s    |  Creating mapping script for 250k_cDBR1-Y17H_2.fq.gz
+05:19:54 06/06  -  0h:0m:0s    |  Creating top level mapping script at larmap_out/scripts/bash_all.sh

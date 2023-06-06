@@ -1,0 +1,56 @@
+Log file path = larmap_out/logs/child_logs/larmap_WT_R1.out
+Warning: 'larmap_env' already in 'envs_dirs' list, moving to the bottom
+conda environment = /Users/yinzheng/Documents/GitHub/lariat_mapping_test/larmap_env/larmap_env
+Beginning WT read one lariat mapping...
+Run parameters:
+READ_FILE: demo_files/demo_fastq_files_250k_bp/250k_cWT_1.fq.gz 
+OUTPUT_BASE: larmap_out/output/WT_R1/WT_R1 
+CPUS: 4 
+GENOME_BOWTIE2_INDEX: demo_files/genomes/indices/bowtie2/mm39.fa 
+GENOME_FASTA: demo_files/genomes/fasta_files/mm39.fa 
+GTF_FILE: demo_files/genomes/annotations/mm39.gencode.basic.M32.annotation.gtf.gz 
+FIVEP_FASTA: demo_files/reference_files/mouse/mm39.gencode.basic.M32.fivep_sites.fa 
+THREEP_BOWTIE2_INDEX: demo_files/reference_files/mouse/mm39.gencode.basic.M32.threep_sites.fa 
+THREEP_LENGTHS: demo_files/reference_files/mouse/mm39.gencode.basic.M32.threep_seq_lens.txt
+
+17:19:55 06/06  -  0h:0m:0s |    (1/7) Mapping reads and extracting unmapped reads
+250000 reads; of these:
+  250000 (100.00%) were unpaired; of these:
+    84124 (33.65%) aligned 0 times
+    165876 (66.35%) aligned exactly 1 time
+    0 (0.00%) aligned >1 times
+66.35% overall alignment rate
+
+17:20:02 06/06  -  0h:0m:7s |    (2/7) Creating fasta file of unmapped reads
+[M::bam2fq_mainloop] discarded 0 singletons
+[M::bam2fq_mainloop] processed 84124 reads
+
+17:20:02 06/06  -  0h:0m:7s |    (3/7) Building bowtie index of unmapped fasta
+Building a LARGE index
+Renaming larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.3.bt2l.tmp to larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.3.bt2l
+Renaming larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.4.bt2l.tmp to larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.4.bt2l
+Renaming larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.1.bt2l.tmp to larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.1.bt2l
+Renaming larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.2.bt2l.tmp to larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.2.bt2l
+Renaming larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.rev.1.bt2l.tmp to larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.rev.1.bt2l
+Renaming larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.rev.2.bt2l.tmp to larmap_out/output/WT_R1/WT_R1_unmapped_reads.fa.rev.2.bt2l
+
+17:20:08 06/06  -  0h:0m:13s |   (4/7) Mapping 5' splice sites to reads
+224459 reads; of these:
+  224459 (100.00%) were unpaired; of these:
+    223125 (99.41%) aligned 0 times
+    636 (0.28%) aligned exactly 1 time
+    698 (0.31%) aligned >1 times
+0.59% overall alignment rate
+
+17:20:09 06/06  -  0h:0m:14s |   (5/7) Finding 5' read alignments and trimming reads
+
+17:20:09 06/06  -  0h:0m:14s |   (6/7) Mapping 5' trimmed reads to 3' sites
+459 reads; of these:
+  459 (100.00%) were unpaired; of these:
+    418 (91.07%) aligned 0 times
+    18 (3.92%) aligned exactly 1 time
+    23 (5.01%) aligned >1 times
+8.93% overall alignment rate
+
+17:20:10 06/06  -  0h:0m:15s |   (7/7) Filtering 3' alignments and outputting final table
+Mapping of WT read one file complete
