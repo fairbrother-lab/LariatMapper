@@ -2,7 +2,7 @@ import subprocess
 from dataclasses import dataclass, fields
 
 @dataclass
-class larmap:
+class LarMap:
 
     fastq_dir: str
     read_1_a: str
@@ -35,7 +35,7 @@ class larmap:
         self.read_2_b = read_2_b
         self.output_base_name_a = output_base_name_a
         self.output_base_name_b = output_base_name_b
-        self.num_cpus = num_cpus
+        self.num_cpus = str(num_cpus)
         self.ref_b2index = ref_b2index
         self.ref_fasta = ref_fasta
         self.ref_gtf = ref_gtf
