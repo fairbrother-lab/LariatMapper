@@ -5,9 +5,9 @@ channels:
   - defaults
 dependencies:
   - python>=3.7.6
-  # - bowtie2>=2.4.5
-  # - bedtools>=2.29.2
-  # - samtools
+  - bowtie2>=2.4.5
+  - bedtools>=2.29.2
+  - samtools
   - numpy
   - intervaltree
   - pyfaidx

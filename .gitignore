@@ -3,6 +3,9 @@
 # environment
 larmap_env
 
+# output
+larmap_out
+
 # fastq, genome, ref files
 demo_files/demo_fastq_files_250k_bp
 demo_files/genomes

@@ -1,8 +1,0 @@
-02:20:59 06/08  -  0h:0m:0s    |  START TIME: 06/08/23 02:20:59
-02:20:59 06/08  -  0h:0m:0s    |  Arguments: ['scripts/merge_filter_lariats_no_slurm.py', 'larmap_out/info.06.08.2023-14.19.txt']
-02:20:59 06/08  -  0h:0m:0s    |  Run parameters from info file:
-02:20:59 06/08  -  0h:0m:0s    |  Fastq Files Directory: a
-02:20:59 06/08  -  0h:0m:0s    |  Scripts Directory: larmap_out/scripts
-02:20:59 06/08  -  0h:0m:0s    |  Log Directory: larmap_out/logs
-02:20:59 06/08  -  0h:0m:0s    |  Mapping Output Directory: larmap_out/output
-02:20:59 06/08  -  0h:0m:0s    |  Final Results Path: larmap_out/
