@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+# import subprocess
 
 setup(
     name='larmap',
@@ -14,3 +15,5 @@ setup(
     description='lariat mapping (test package)',
     url='https://github.com/nyin01/lariat_mapping_test',
 )
+
+# subprocess.run(["python", "set_alias.py"])

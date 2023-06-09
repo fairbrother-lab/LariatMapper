@@ -2,6 +2,10 @@
 
 # environment
 larmap_env
+environment.yaml
+
+# demo output
+larmap_out
 
 # output
 larmap_out
