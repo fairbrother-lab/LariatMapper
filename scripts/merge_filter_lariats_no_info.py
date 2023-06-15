@@ -7,7 +7,7 @@ from collections import Counter
 from subprocess import run, DEVNULL
 from shutil import move
 from gzip import open as gzipopen
-from map_lariats_top_no_slurm import RunData
+from rundata import RunData
 from logger import setup_logger
 
 
@@ -301,12 +301,9 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites:dict, fivep_sites:dic
 if __name__ == '__main__' :
 
 	log = setup_logger(LOG_NAME)
-	log.info(f'Arguments: {argv}')
+	log.info(f'Arguments: {argv[1:]}')
 
-	info_file = argv[1]
-	assert isfile(info_file), f'{info_file} is not a file'
-
-	run_data = RunData(info_file, log)
+	run_data = RunData(*argv[1:], log)
 	# Make sure the run's attributes have appropriate values
 	run_data.validate()
 

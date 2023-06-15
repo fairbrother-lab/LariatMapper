@@ -1,4 +1,5 @@
 
+from sys import argv
 from logging import Logger
 from os.path import join, getsize, isdir, isfile
 from os import listdir, mkdir, chmod
@@ -9,7 +10,7 @@ from csv import reader
 from dataclasses import dataclass
 from logger import setup_logger
 from argparse import ArgumentParser
-
+from rundata import RunData
 
 # =============================================================================#
 #                                   Constants                                  #
@@ -40,146 +41,11 @@ TRANSLATE_TO_LOG = {'fastq_dir': 'Fastq Files Directory',
                     }
 RMAP = {'one': 'R1', 'two': 'R2'}
 
-
-# =====================================================================#
-#                           RunData Class                              #
-# =====================================================================#
-@dataclass
-class RunData:
-    ATTRS = ['fastq_dir', 'scripts_dir', 'log_dir', 'output_dir', 'results_path', 'num_cpus',
-             'ref_b2index', 'ref_fasta', 'ref_gtf', 'ref_5p_fasta', 'ref_3p_b2index', 'ref_3p_lengths',
-             'ref_introns', 'ref_repeatmasker', 'sample_info', 'sample_categories']
-
-    fastq_dir: str
-    scripts_dir: str
-    log_dir: str
-    output_dir: str
-    results_path: str
-    num_cpus: int
-    ref_b2index: str
-    ref_fasta: str
-    ref_gtf: str
-    ref_5p_fasta: str
-    ref_3p_b2index: str
-    ref_3p_lengths: str
-    ref_introns: str
-    ref_repeatmasker: str
-    sample_info: list
-    sample_categories: list
-
-    def __init__(self, info_file, log) -> None:
-        with open(info_file, 'r') as info:
-            info_reader = reader(info, delimiter='\t')
-
-            log.info('Run parameters from info file:')
-            for row in info_reader:
-
-                # Remove any empty values from extra tabs
-                row = [item for item in row if item != '']
-
-                if row == [] or row[0].startswith('#'):
-                    continue
-                if row[0] in TRANSLATE_TO_LOG.keys():
-                    variable, value = row[:2]
-                    log.info(f'{TRANSLATE_TO_LOG[variable]}: {value}')
-                    setattr(self, variable, value)
-
-                if row[0] == 'read_one_file':
-                    break
-
-            self.sample_categories = row
-            self.sample_info = []
-            log.info(
-                f'{len(self.sample_categories)} categories pulled from info file: {self.sample_categories}')
-
-            for row in info_reader:
-                print(row)
-                if row[0].startswith('#'):
-                    continue
-                log.info(f'Pulled row: {row}')
-
-                sample = {}
-                for i in range(len(self.sample_categories)):
-                    sample[self.sample_categories[i]] = row[i]
-                self.sample_info.append(sample)
-
-            self.sample_info, self.sample_categories = tuple(
-                self.sample_info), tuple(self.sample_categories)
-
-    def __repr__(self):
-        rep = ""
-        for attr, val in vars(self).items():
-            if not attr.startswith('__'):
-                rep += f'{attr}: {val}\t\t({type(val)})\n\t\t'
-        return rep
-
-    def validate(self) -> None:
-        '''
-        Double-checks the provided info file for common errors
-        '''
-        # Do all the attributes have values?
-        for attr in RunData.ATTRS:
-            if vars(self)[attr] in ('', None):
-                raise ValueError(
-                    f"Invalid value ({vars(self)[attr]}) for {attr} attribute")
-
-        # Does the fastq directory exist?
-        if not isdir(self.fastq_dir):
-            raise ValueError(
-                f'The directory for the raw fastq files, "{self.fastq_dir}", was not found.')
-
-        # Is the num_cpus setting valid?
-        if not self.num_cpus.isdigit() or int(self.num_cpus) < 1:
-            raise ValueError(
-                f'num_cpus value {self.num_cpus} is not a positive integer')
-
-        # Does the bowtie2 index exist?
-        for suffix in ('.1.bt2', '.2.bt2', '.3.bt2', '.4.bt2', '.rev.1.bt2', '.rev.2.bt2'):
-            if not isfile(self.ref_b2index + suffix):
-                raise ValueError(
-                    f'The Bowtie2 index file "{self.ref_b2index + suffix}" does not exist')
-
-        # Do the reference files exist?
-        for ref in (self.ref_b2index + '.1.bt2',
-                    self.ref_b2index + '.rev.2.bt2',
-                    self.ref_fasta,
-                    self.ref_gtf,
-                    self.ref_5p_fasta,
-                    self.ref_3p_b2index + '.1.bt2',
-                    self.ref_3p_b2index + '.rev.2.bt2',
-                    self.ref_3p_lengths,
-                    self.ref_introns,
-                    self.ref_repeatmasker):
-            if not isfile(ref):
-                raise ValueError(f'The reference file "{ref}" does not exist.')
-
-        # Are the values for each sample file's variables valid?
-        for sample in self.sample_info:
-            read_one_path = join(self.fastq_dir, sample['read_one_file'])
-            read_two_path = join(self.fastq_dir, sample['read_two_file'])
-            if not isfile(read_one_path):
-                raise ValueError(
-                    f'The read one fastq file "{read_one_path}" was not found.')
-            if not isfile(read_two_path):
-                raise ValueError(
-                    f'The read two fastq file "{read_two_path}" was not found.')
-            for bad_char in ('split', 'map', '$', '%', '#', "'", '"', '/', '\\', '{', '}', ','):
-                if bad_char in sample['read_one_file']:
-                    raise ValueError(
-                        f'{sample["read_one_file"]} cannot contain the character " {bad_char} "')
-                if bad_char in sample['read_two_file']:
-                    raise ValueError(
-                        f'{sample["read_two_file"]} cannot contain the character " {bad_char} "')
-                if bad_char in sample['output_base_name']:
-                    raise ValueError(
-                        f'The output base name for the file {sample["output_base_name"]} cannot contain the character " {bad_char} "')
-
-
 # =============================================================================#
 #                                  Functions                                  #
 # =============================================================================#
 
-def write_mapping_scripts(sample: dict, args: dict, run_data: RunData, log: Logger) -> None:
+def write_mapping_scripts(sample: dict, run_data: RunData, log: Logger) -> None:
     '''
     For each sample write two lariat mapping scripts which process the sample's read one and read two files
     '''
@@ -267,18 +133,14 @@ def write_bash_all(run_data: RunData, log: Logger) -> None:
 def main():
 
     log = setup_logger('top_log.out')
-
-    # Parse info file argument and load information into RunData object
-    parser = ArgumentParser(
-        description='Top-level script for mapping lariats reads from RNA-seq data')
-    parser.add_argument('info_file',
-                        help='The path to the information file that contains the settings and fastq file '
-                        'details needed for the lariat mapping process')
-    args = vars(parser.parse_args())
-    run_data = RunData(args['info_file'], log)
+    run_data = RunData(*argv[1:], log)
     # make sure the run attributes have appropriate values
     run_data.validate()
     log.info('Run data has passed inspection')
+
+    # NEAL: create top output dir if doesn't exist
+    if not isdir(run_data.top_output_dir):
+        mkdir(run_data.top_output_dir)
 
     # Prepare script, log and output directories needed for the mapping run
     dir_types = ['script', 'log', 'child logs', 'output']
@@ -297,7 +159,7 @@ def main():
     # For each sample (one line in fastq files table) write two scripts which perform the lariat mapping
     # of the sample's read one and read two files
     for sample in run_data.sample_info:
-        write_mapping_scripts(sample, args, run_data, log)
+        write_mapping_scripts(sample, run_data, log)
 
     write_bash_all(run_data, log)
 

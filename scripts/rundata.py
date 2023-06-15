@@ -1,16 +1,29 @@
+
+from sys import argv
+from logging import Logger
+from os.path import join, getsize, isdir, isfile
+from os import listdir, mkdir, chmod
+import stat
+from shutil import move
+from subprocess import run
+from csv import reader
+from dataclasses import dataclass
+from logger import setup_logger
+from argparse import ArgumentParser
+
 # =====================================================================#
 #                          RunData Class                              #
 # =====================================================================#
 @dataclass
 class RunData:
-    
+
     ATTRS = ['fastq_dir', 'scripts_dir', 'log_dir', 'output_dir', 'top_output_dir', 'results_path', 'num_cpus',
              'ref_b2index', 'ref_fasta', 'ref_gtf', 'ref_5p_fasta', 'ref_3p_b2index', 'ref_3p_lengths',
              'ref_introns', 'ref_repeatmasker', 'sample_info', 'sample_categories']
 
     fastq_dir: str
-    read_1_file: str
-    read_2_file: str
+    read_one_file: str
+    read_two_file: str
     output_base_name: str
     results_path: str
     num_cpus: int
@@ -31,13 +44,28 @@ class RunData:
     sample_info: list       # default: dict {read_1_file: , read_2_file: , output_base_name: }
 
 
-    def __init__(self, log) -> None:
+    def __init__(self, 
+        fastq_dir: str, 
+        read_one_file: str,
+        read_two_file: str,
+        output_base_name: str,
+        results_path: str,
+        num_cpus: int,
+        ref_b2index: str,
+        ref_fasta: str,
+        ref_gtf: str,
+        ref_5p_fasta: str,
+        ref_3p_b2index: str,
+        ref_3p_lengths: str,
+        ref_introns: str,
+        ref_repeatmasker: str,
+        log: Logger) -> None:
+
         # custom params
         setattr(self, 'fastq_dir', fastq_dir)
-        setattr(self, 'read_1_file', results_path)
-        setattr(self, 'read_2_file', num_cpus)
-        setattr(self, 'output_base_name', ref_b2index)
-        setattr(self, 'results_path', results_path)
+        setattr(self, 'read_one_file', read_one_file)
+        setattr(self, 'read_two_file', read_two_file)
+        setattr(self, 'output_base_name', output_base_name)
         setattr(self, 'num_cpus', num_cpus)
         setattr(self, 'ref_b2index', ref_b2index)
         setattr(self, 'ref_fasta', ref_fasta)
@@ -48,12 +76,13 @@ class RunData:
         setattr(self, 'ref_introns', ref_introns)
         setattr(self, 'ref_repeatmasker', ref_repeatmasker)
         # default params
+        setattr(self, 'results_path', 'larmap_out/' + results_path)
         setattr(self, 'top_output_dir', 'larmap_out')
-        setattr(self, 'scripts_dir', top_output_dir + '/scripts')
-        setattr(self, 'log_dir', top_output_dir + '/logs')
-        setattr(self, 'output_dir', top_output_dir + '/output')
-        setattr(self, 'sample_categories', ['read_1_file', 'read_2_file', 'output_base_name'])
-        setattr(self, 'sample_info', [{'read_1_file': read_1_file, 'read_2_file': read_2_file, 'output_base_name': output_base_name}])
+        setattr(self, 'scripts_dir', 'larmap_out' + '/scripts')
+        setattr(self, 'log_dir', 'larmap_out' + '/logs')
+        setattr(self, 'output_dir', 'larmap_out' + '/output')
+        setattr(self, 'sample_categories', ['read_one_file', 'read_two_file', 'output_base_name'])
+        setattr(self, 'sample_info', [{'read_one_file': read_one_file, 'read_two_file': read_two_file, 'output_base_name': output_base_name}])
 
         log.info(f'{self.sample_info[0]}')
 
