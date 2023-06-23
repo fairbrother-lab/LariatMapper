@@ -132,30 +132,6 @@ fi
 
 NOW="$(date +'%m.%d.%Y-%H.%M')"
 LARMAP_OUTPUT_DIR="larmap_out"
-# INFO_FILE="$LARMAP_OUTPUT_DIR/info.$NOW.txt"
-# INFO="fastq_dir"$'\t'"$fastq_dir""
-# scripts_dir"$'\t'"$LARMAP_OUTPUT_DIR/scripts""
-# log_dir"$'\t'"$LARMAP_OUTPUT_DIR/logs""
-# output_dir"$'\t'"$LARMAP_OUTPUT_DIR/output""
-# results_path"$'\t'"$LARMAP_OUTPUT_DIR/$results_filename""
-# num_cpus"$'\t'"$num_cpus""
-
-# ref_b2index"$'\t'"$ref_b2index""
-# ref_fasta"$'\t'"$ref_fasta""
-# ref_gtf"$'\t'"$ref_gtf""
-# ref_5p_fasta"$'\t'"$ref_5p_fasta""
-# ref_3p_b2index"$'\t'"$ref_3p_b2index""
-# ref_3p_lengths"$'\t'"$ref_3p_lengths""
-# ref_introns"$'\t'"$ref_introns""
-# ref_repeatmasker"$'\t'"$ref_repeatmasker""
-
-# read_one_file"$'\t'"read_two_file"$'\t'"output_base_name""
-# $read_1_file"$'\t'"$read_2_file"$'\t'"$output_base_name"""
-
-# mkdir -p "$LARMAP_OUTPUT_DIR"
-# touch "$INFO_FILE"
-# echo "$INFO" > "$INFO_FILE"
-
 #=============================================================================#
 #                                    MAPPING                                  #
 #=============================================================================#
