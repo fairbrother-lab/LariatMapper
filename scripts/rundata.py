@@ -29,11 +29,14 @@ class RunData:
     num_cpus: int
     ref_b2index: str
     ref_fasta: str
+    ############################
+    # can provide these 5 in package
     ref_gtf: str
     ref_5p_fasta: str
     ref_3p_b2index: str
     ref_3p_lengths: str
     ref_introns: str
+    ############################
     ref_repeatmasker: str
 
     top_output_dir: str     # default: larmap_out
