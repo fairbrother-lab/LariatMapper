@@ -336,7 +336,10 @@ if __name__ == '__main__' :
 	with open(run_data.results_path, 'w') as results_file:
 		# make and write the header row
 		output_categories = run_data.sample_categories[3:]
-		header = "\t".join(output_categories) + '\t' + '\t'.join(BASE_RESULTS_COLUMNS) + "\n"
+		header = ''
+		if output_categories:
+			header += ",".join(output_categories) + ',' 
+		header += ','.join(BASE_RESULTS_COLUMNS) + "\n"
 		results_file.write(header)
 
 		# now loop through all read lists
@@ -348,5 +351,5 @@ if __name__ == '__main__' :
 			sample_aligned_count = max(sample_read_counts[f'{sample}_R1'], sample_read_counts[f'{sample}_R2'])
 			for read_info in merged_filtered_lariats[sample].values():
 				read_output = sample_categories + read_info + [sample_aligned_count]
-				results_file.write('\t'.join([str(e) for e in read_output]) + '\n')
+				results_file.write(','.join([str(e) for e in read_output]) + '\n')
 	log.info('Results file complete.')
