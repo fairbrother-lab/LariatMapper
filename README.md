@@ -1,10 +1,12 @@
-# Lariat-Mapping Pipeline
+# Lariat-Mapping - The Fairbrother Lab
 
 ## Environment
 
 This pipeline depends on the command line tools and python packages contained in the conda environment at `larmap_env` outlined in `environment.yaml`. To build the virtual environment, run `conda env create -f environment.yaml`. 
 
 For M1 mac users: please install packages `bowtie2`, `bedtools`, and `samtools` using the command `arch -arm64 brew install [package]` before running `conda`, if any of the above pacakges has not previously been installed.
+
+For all other systems: please un-comment the three lines in `environment.yaml` regarding the above three packages before running `conda`.
 
 ## Running the Pipeline
 
@@ -46,7 +48,7 @@ Or: `./larmap_top.sh --fastq_dir demo_files/demo_fastq_files_250k_bp ...`
 
 A default directory `larmap_out` will be created upon running the pipeline; after completion of the pipeline it will contain three directories `larmap_out/logs`, `larmap_out/scripts`, and `larmap_out/output`, as well as a `.txt` file (as specified in the arguments) which stores the final mapping results.
 
-## Workflow
+## Pipeline Workflow
 
 1. The `map_lariats_top.py` script prepares the directories and scripts for the lariat mapping run. This script will read the settings and read file information from the command line arguments, and generate scripts in `larmap_out/scripts` for mapping each of the sample's read one and read two files. Each read's script is titled `larmap*[output_base_name]\_[R1/R2].sh`. In addition, it creates a `bash_all.sh` script that runs each of the bash scripts upon execution. Logs will be written in `larmap_out/logs/top_log.out`.
 
