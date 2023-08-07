@@ -1,4 +1,8 @@
-# Lariat-Mapping - The Fairbrother Lab
+# Lariat-Mapping | The Fairbrother Lab
+
+## Overview
+
+(to be updated) A splicing branchpoint reporter pipeline.
 
 ## Environment
 
