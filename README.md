@@ -44,13 +44,13 @@ For example:
 
 Or: `./larmap_top.sh --fastq_dir demo_files/demo_fastq_files_250k_bp ...`
 
+A default directory `larmap_out` will be created upon running the pipeline; after completion of the pipeline it will contain three directories `larmap_out/logs`, `larmap_out/scripts`, and `larmap_out/output`, as well as a `.txt` file (as specified in the arguments) which stores the final mapping results.
+
 ## Workflow
 
-1. A default directory `larmap_out` will be created upon running the pipeline; after completion of the pipeline it will contain three directories `larmap_out/logs`, `larmap_out/scripts`, and `larmap_out/output`, as well as a `.txt` file (as specified in the arguments) which stores the final mapping results.
+1. The `map_lariats_top.py` script prepares the directories and scripts for the lariat mapping run. This script will read the settings and read file information from the command line arguments, and generate scripts in `larmap_out/scripts` for mapping each of the sample's read one and read two files. Each read's script is titled `larmap*[output_base_name]\_[R1/R2].sh`. In addition, it creates a `bash_all.sh` script that runs each of the bash scripts upon execution. Logs will be written in `larmap_out/logs/top_log.out`.
 
-2. The `map_lariats_top.py` script prepares the directories and scripts for the lariat mapping run. This script will read the settings and read file information from the command line arguments, and generate scripts in `larmap_out/scripts` for mapping each of the sample's read one and read two files. Each read's script is titled `larmap*[output_base_name]\_[R1/R2].sh`. In addition, it creates a `bash_all.sh` script that runs each of the bash scripts upon execution. Logs will be written in `larmap_out/logs/top_log.out`.
-
-3. The `bash_all.sh` script runs all the individual bash scripts, which execute the mapping algorithm.
+2. The `bash_all.sh` script runs all the individual bash scripts, which execute the mapping algorithm.
 
    Each `larmap*/sh` scirpt will:
    
@@ -69,7 +69,7 @@ Or: `./larmap_top.sh --fastq_dir demo_files/demo_fastq_files_250k_bp ...`
         - Align the trimmed reads to a Bowtie2 index of 3'SS regions
         - Take the mapped reads from step 6 and create an output file containing candidate lariat reads
 
-4. The `merge_filter_lariats.py` script loads intron and gene information from provided annotation files, combines the mapping results from each sample's read one and read two files, and performs post-mapping filtering before outputting the final lariat mapping results. 
+3. The `merge_filter_lariats.py` script loads intron and gene information from provided annotation files, combines the mapping results from each sample's read one and read two files, and performs post-mapping filtering before outputting the final lariat mapping results. 
 
     The candidate lariat reads from each sample are filtered based on the following criteria: - BP is within 2bp of a splice site (likely from an intron circle, not a lariat) - 5'SS and 3'SS are not in the correct order - Read maps to a Ubiquitin gene (likely false positive due to repetitive nature of gene) - There is a valid aligment for the 3' segment upstream of the 5' segment - Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive) - NEEDS TO BE IMPLEMENTED: Filter out template switching reads (eg. 5'SS 6bp sequence matches 6bp sequence downstream of BP) - NEEDS TO BE IMPLEMENTED: Correct BP position to account for RT skipping
 
