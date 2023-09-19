@@ -1,4 +1,5 @@
 #!/bin/bash
+
 #=============================================================================#
 #                                  Arguments                                  #
 #=============================================================================#
@@ -49,14 +50,14 @@ bowtie2 --end-to-end --sensitive --score-min L,0,-0.24 -k 1 --n-ceil L,0,0.05 --
 samtools view --bam --with-header --require-flags 4 $output_bam > $unmapped_bam
 mapped_read_count=$(samtools view --count --exclude-flags 4 $output_bam)
 echo "total_reads=$mapped_read_count" > $OUTPUT_BASE"_total_reads.txt"
-rm $output_bam
+# rm $output_bam
 
 ### Create fasta file of unmapped reads 
 timestamp "(2/7) Creating fasta file of unmapped reads" -1
 unmapped_fasta=$OUTPUT_BASE"_unmapped_reads.fa"
 samtools fasta $unmapped_bam > $unmapped_fasta
 samtools faidx $unmapped_fasta
-rm $unmapped_bam
+# rm $unmapped_bam
 
 ### Build a bowtie index of the unmapped reads
 timestamp "(3/7) Building bowtie index of unmapped fasta" -1
@@ -85,4 +86,7 @@ timestamp "(7/7) Filtering 3' alignments and outputting final table" -1
 python $THREEP_SCRIPT $trimmed_reads_to_threep $THREEP_LENGTHS $fivep_info_table $GTF_FILE $GENOME_FASTA $OUTPUT_BASE
 
 ### Delete all intermediate/uneeded files that were created throughout this process
+wait
+rm $output_bam
+rm $unmapped_bam
 rm $unmapped_fasta* $fivep_to_reads* $fivep_trimmed_reads $trimmed_reads_to_threep*  
