@@ -45,6 +45,7 @@ RMAP = {'one': 'R1', 'two': 'R2'}
 #                                  Functions                                  #
 # =============================================================================#
 
+
 def write_mapping_scripts(sample: dict, run_data: RunData, log: Logger) -> None:
     '''
     For each sample write two lariat mapping scripts which process the sample's read one and read two files
@@ -113,13 +114,26 @@ def write_bash_all(run_data: RunData, log: Logger) -> None:
     bash_all_path = join(run_data.scripts_dir, 'bash_all.sh')
     with open(bash_all_path, 'w') as script_file:
         script_file.write('#!/bin/bash\n\n')
+        # add parallel
+        script_file.write("(trap 'kill 0' SIGINT; ")
+
+        proc_length = len(run_data.sample_info) * 2
+        count = 0
+
         for sample in run_data.sample_info:
             for read_suffix in ['R1', 'R2']:
                 script_name = f'larmap_{sample["output_base_name"]}_{read_suffix}'
                 script_path = join(run_data.scripts_dir, f'{script_name}.sh')
                 logfile_path = join(
                     run_data.log_dir, 'child_logs', f'{script_name}.out')
-                script_file.write(f'bash {script_path} &> {logfile_path}\n')
+                # script_file.write(f'bash {script_path} &> {logfile_path}\n')
+                count += 1
+                if (count < proc_length):
+                    script_file.write(
+                        f'bash {script_path} &> {logfile_path} & ')
+                else:
+                    script_file.write(
+                        f'bash {script_path} &> {logfile_path} )')
 
     # Set the child's permissions so everyone group can rwx
     chmod(bash_all_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)

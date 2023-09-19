@@ -9,6 +9,7 @@ from shutil import move
 from gzip import open as gzipopen
 from rundata import RunData
 from logger import setup_logger
+import os
 
 
 # =============================================================================#
@@ -187,6 +188,12 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
             - There is a valid aligment for the 3' segment upstream of the 5' segment
             - Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive)
     '''
+
+    # create temporary directory in the output dir
+    temp_dir = run_data.output_dir + '/temp'
+    if not os.path.exists(temp_dir):
+        os.mkdir(temp_dir)
+
     log.info('Filtering lariat reads...')
     filtered_reads = {sample: {} for sample in merged_lariats}
     for sample in merged_lariats:
@@ -231,7 +238,7 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
                 fail_reason['ubiquitin_gene'] += 1
 
         # Filter reads were the 3' segment has a valid alignment upstream of the 5' segment
-        seq_tmp_fa, seq_tmp_sam = 'trim_seq_tmp.fa', 'trim_seq_tmp.sam'
+        seq_tmp_fa, seq_tmp_sam = f'{temp_dir}/trim_seq_tmp.fa', f'{temp_dir}/trim_seq_tmp.sam'
         with open(seq_tmp_fa, 'w') as out_file:
             for rid in trim_reads:
                 out_file.write('>{}\n{}\n'.format(rid, trim_reads[rid]))
@@ -261,7 +268,7 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
         fail_reason['upstream_found'] += len(upstream_rids)
 
         # Filter reads where both the 5'SS and the BP overlap with repetitive regions
-        fivep_tmp_bed, bp_tmp_bed = 'fivep_tmp.bed', 'bp_tmp.bed'
+        fivep_tmp_bed, bp_tmp_bed = f'{temp_dir}/fivep_tmp.bed', f'{temp_dir}/bp_tmp.bed'
         with open(fivep_tmp_bed, 'w') as fivep_out:
             with open(bp_tmp_bed, 'w') as bp_out:
                 for rid in filtered_reads[sample]:
@@ -272,7 +279,7 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
                         bp_out.write('{}\t{}\t{}\t{}\n'.format(
                             chrom, bp_site-1, bp_site+1, rid))
 
-        fivep_overlap_bed, bp_overlap_bed = 'fivep_repeat_overlaps.bed', 'bp_repeat_overlaps.bed'
+        fivep_overlap_bed, bp_overlap_bed = f'{temp_dir}/fivep_repeat_overlaps.bed', f'{temp_dir}/bp_repeat_overlaps.bed'
         with open(fivep_overlap_bed, 'w') as out_file:
             run(f'bedtools intersect -u -a {fivep_tmp_bed} -b {run_data.ref_repeatmasker}'.split(' '),
                 stdout=out_file)
@@ -312,6 +319,7 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
 
     # Delete all temporary files
     run(f'rm {seq_tmp_fa} {seq_tmp_sam} {fivep_tmp_bed} {bp_tmp_bed} {fivep_overlap_bed} {bp_overlap_bed}'.split(' '))
+    os.rmdir(temp_dir)
 
     return filtered_reads
 
