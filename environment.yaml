@@ -8,15 +8,11 @@ dependencies:
   - numpy
   - intervaltree
   - pyfaidx
-  - matplotlib
-  - pandas
-  # - bowtie2>=2.4.5
-  # - bedtools>=2.29.2
-  # - samtools
+  - bowtie2>=2.4.5
+  - bedtools>=2.29.2
+  - samtools
 # M1 mac:
 # arch -arm64 brew install bowtie2
 # arch -arm64 brew install bedtools
 # arch -arm64 brew install samtools
-
-# conda env create -f environment.yaml
 
