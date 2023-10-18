@@ -16,21 +16,21 @@ For all other systems: please un-comment the three lines in `environment.yaml` r
 
 To run the larmap pipeline, use `./larmap_run.sh` with the following arguments:
 
-   -d, --fastq_dir           Directory containing the FASTQ files
-   -1, --read_1_file         Read one (R1) FASTQ file
-   -2, --read_2_file         Read two (R2) FASTQ file
-   -o, --output_dir          Directory for output files
-   -e, --output_base_name    Prefix to add to output files
-   -c, --num_cpus            Number of CPUs available
-   -i, --ref_b2index         Bowtie2 index of the full reference genome
-   -f, --ref_fasta           FASTA file of the full reference genome
-   -g, --ref_gtf             GTF file with gene annotation of the reference genome
-   -5, --ref_5p_fasta        FASTA file with sequences of first 20nt from reference 5' splice sites (first 20nt of introns)
-   -u, --ref_5p_upstream     Custom file of sequences in 5nt window upstream of 5' splice sites
-   -3, --ref_3p_b2index      Bowtie2 index file of last 250nt from reference 3' splice sites (last 250nt of introns)
-   -l, --ref_3p_lengths      Custom file with the lengths of the sequences in ref_3p_b2index (some introns are <250nt)
-   -n, --ref_introns         BED file of all introns in the reference genome
-   -m, --ref_repeatmasker    BED file of repetitive elements from repeatmasker
+      -d, --fastq_dir           Directory containing the FASTQ files
+      -1, --read_1_file         Read one (R1) FASTQ file
+      -2, --read_2_file         Read two (R2) FASTQ file
+      -o, --output_dir          Directory for output files
+      -e, --output_base_name    Prefix to add to output files
+      -c, --num_cpus            Number of CPUs available
+      -i, --ref_b2index         Bowtie2 index of the full reference genome
+      -f, --ref_fasta           FASTA file of the full reference genome
+      -g, --ref_gtf             GTF file with gene annotation of the reference genome
+      -5, --ref_5p_fasta        FASTA file with sequences of first 20nt from reference 5' splice sites (first 20nt of introns)
+      -u, --ref_5p_upstream     Custom file of sequences in 5nt window upstream of 5' splice sites
+      -3, --ref_3p_b2index      Bowtie2 index file of last 250nt from reference 3' splice sites (last 250nt of introns)
+      -l, --ref_3p_lengths      Custom file with the lengths of the sequences in ref_3p_b2index (some introns are <250nt)
+      -n, --ref_introns         BED file of all introns in the reference genome
+      -m, --ref_repeatmasker    BED file of repetitive elements from repeatmasker
 
 For example: 
 `./larmap_run.sh 
