@@ -15,7 +15,7 @@ This pipeline has the following dependencies:
 - [pyfaidx](https://pypi.org/project/pyfaidx/) (tested with v0.7.2.1)
 - [intervaltree](https://pypi.org/project/intervaltree/) (tested with v3.1.0)
 
-These dependencies are included in the file `environment.yaml` which can be used to make a conda environment for the pipeline by running `conda env create -f environment.yaml`. Then, activat the environment with `conda activate larmap_env` 
+These dependencies are included in the file `environment.yaml` which can be used to make a conda environment for the pipeline by running `conda env create -f environment.yaml`. Then, activate the environment with `conda activate larmap_env` 
 
 For M1 mac users: please install packages `bowtie2`, `bedtools`, and `samtools` using the command `arch -arm64 brew install [package]` before running `conda`, if any of the above pacakges has not previously been installed.
 
@@ -39,30 +39,24 @@ To run the larmap pipeline, use `./larmap_run.sh` with the following arguments:
       -n, --ref_introns         BED file of all introns in the reference genome
       -m, --ref_repeatmasker    BED file of repetitive elements from repeatmasker
 
-An directory named `[output_base_name]_lariat_mapping` will be created in `output_dir`. Upon completion of the pipeline, this directory will contain a tab-separated results file with lariat read info called `[output_base_name]_lariat_reads.txt`.
+A directory named `[output_base_name]_lariat_mapping` will be created in `output_dir`. Upon completion of the pipeline, this directory will contain a tab-separated results file with lariat read info called `[output_base_name]_lariat_reads.txt`.
 
 ## Pipeline Workflow
 
-1. The `map_lariats_top.py` script prepares the directories and scripts for the lariat mapping run. This script will read the settings and read file information from the command line arguments, and generate scripts in `larmap_out/scripts` for mapping each of the sample's read one and read two files. Each read's script is titled `larmap*[output_base_name]\_[R1/R2].sh`. In addition, it creates a `bash_all.sh` script that runs each of the bash scripts upon execution. Logs will be written in `larmap_out/logs/top_log.out`.
-
-2. The `bash_all.sh` script runs all the individual bash scripts, which execute the mapping algorithm.
-
-   Each `larmap*/sh` scirpt will:
-   
-        - Activate the `larmap_env` conda virtual environment
-        - Make a directory under `larmap_out/output` named `[output_base_name]*[R1/R2]`
-        - Run the `map_lariats.sh` script on the read file. This will produce three files in the read output directory: `[output_base_name]*[R1/R2]_total_reads.txt` (one line file containing count of linearly-aligned reads from read file), `[output_base_name]_[R1/R2]_fivep_info_table.txt` (intermediate file containing info on the mapping of the 5'SS sequences to the unmapped reads), and `[output_base_name]_[R1/R2]\_final_info_table.txt` (results file containing candidate lariat reads obtained after mapping the 5'SS trimmed reads to the 3'SS region sequences).
-        - Output logs to its own log file within the `larmap_out/logs/child_logs` directory.
+1. `larmap_run.sh` calls `map_lariats.sh` sequentially for the read one (R1) and read two (R2) FASTQ files. This will produce three files in the output subdirectory for the read file:
+  - `[output_base_name]*[R1/R2]_total_reads.txt` (one line file containing count of linearly-aligned reads from read file)
+  - `[output_base_name]_[R1/R2]_fivep_info_table.txt` (intermediate file containing info on the mapping of the 5'SS sequences to the unmapped reads)
+  - `[output_base_name]_[R1/R2]\_final_info_table.txt` (results file containing candidate lariat reads obtained after mapping the 5'SS trimmed reads to the 3'SS region sequences).
 
     The mapping script `map_lariats.sh` will:
    
-        - Align reads to the reference genome with bowtie2 and create a BAM file of the unmapped reads with samtools
+        - Align reads to the reference genome with bowtie2; save mapped read count and proceed with unmapped reads
         - Convert the unmapped reads bam file to FASTA format with samtools
-        - Build a bowtie2 index of the unmapped reads
-        - Align a fasta file of 5'SS to the unmapped reads index
-        - Trim reads with 5'SS alignments and write trimmed reads to fasta file
+        - Build a bowtie2 index of the unmapped reads FASTA file
+        - Align a FASTA file of 5'SS to the unmapped reads index
+        - Trim reads with 5'SS alignments and write trimmed reads to FASTA file
         - Align the trimmed reads to a Bowtie2 index of 3'SS regions
-        - Take the mapped reads from step 6 and create an output file containing candidate lariat reads
+        - Take the mapped trimmed reads from and create an output file containing candidate lariat reads
 
 3. The `merge_filter_lariats.py` script loads intron and gene information from provided annotation files, combines the mapping results from each sample's read one and read two files, and performs post-mapping filtering before outputting the final lariat mapping results. 
 
