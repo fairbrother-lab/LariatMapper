@@ -14,7 +14,7 @@ For all other systems: please un-comment the three lines in `environment.yaml` r
 
 ## Running the Pipeline
 
-To run the larmap pipeline, use `./larmap_top.sh` followed by arguments listed below:
+To run the larmap pipeline, use `./larmap_run.sh` followed by arguments listed below:
 
         -d, --fastq_dir                           Path to the directory containing the fastq files
         -1, --read_1_file                         Read 1 file
@@ -32,7 +32,7 @@ To run the larmap pipeline, use `./larmap_top.sh` followed by arguments listed b
         -s, --results_path                        Path to the .txt file where the final lariat mapping results will be written
 
 For example: 
-`./larmap_top.sh 
+`./larmap_run.sh 
 -d demo_files/demo_fastq_files_250k_bp 
 -1 250k_cWT_1.fq.gz 
 -2 250k_cWT_2.fq.gz 
@@ -48,7 +48,7 @@ For example:
 -m demo_files/genomes/annotations/mm39.repeat_masker.bed.gz 
 -s demo_mapped_reads_250k.txt`
 
-Or: `./larmap_top.sh --fastq_dir demo_files/demo_fastq_files_250k_bp ...`
+Or: `./larmap_run.sh --fastq_dir demo_files/demo_fastq_files_250k_bp ...`
 
 A default directory `larmap_out` will be created upon running the pipeline; after completion of the pipeline it will contain three directories `larmap_out/logs`, `larmap_out/scripts`, and `larmap_out/output`, as well as a `.txt` file (as specified in the arguments) which stores the final mapping results.
 
