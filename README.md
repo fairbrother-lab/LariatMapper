@@ -44,12 +44,11 @@ A directory named `[output_base_name]_lariat_mapping` will be created in `output
 ## Pipeline Workflow
 
 1. `larmap_run.sh` calls `map_lariats.sh` sequentially for the read one (R1) and read two (R2) FASTQ files. This will produce three files in the output subdirectory for the read file:
-        - `[output_base_name]*[R1/R2]_total_reads.txt` (one line file containing count of linearly-aligned reads from read file)
-        - `[output_base_name]_[R1/R2]_fivep_info_table.txt` (intermediate file containing info on the mapping of the 5'SS sequences to the unmapped reads)
-        - `[output_base_name]_[R1/R2]\_final_info_table.txt` (results file containing candidate lariat reads obtained after mapping the 5'SS trimmed reads to the 3'SS region sequences).
+      - `[output_base_name]*[R1/R2]_total_reads.txt` (one line file containing count of linearly-aligned reads from read file)
+      - `[output_base_name]_[R1/R2]_fivep_info_table.txt` (intermediate file containing info on the mapping of the 5'SS sequences to the unmapped reads)
+      - `[output_base_name]_[R1/R2]\_final_info_table.txt` (results file containing candidate lariat reads obtained after mapping the 5'SS trimmed reads to the 3'SS region sequences)
 
     The mapping script `map_lariats.sh` will:
-   
         - Align reads to the reference genome with bowtie2; save mapped read count and proceed with unmapped reads
         - Convert the unmapped reads bam file to FASTA format with samtools
         - Build a bowtie2 index of the unmapped reads FASTA file
