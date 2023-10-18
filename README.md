@@ -4,13 +4,20 @@
 
 (to be updated) A splicing branchpoint reporter pipeline.
 
-## Environment
+## Dependencies
 
-This pipeline depends on the command line tools and python packages contained in the conda environment at `larmap_env` outlined in `environment.yaml`. To build the virtual environment, run `conda env create -f environment.yaml`. 
+This pipeline has the following dependencies:
+- python3 (tested with v3.10.6)
+- bowtie2 (tested with v2.4.5)
+- samtools (tested with v1.15.1)
+- bedtools (tested with v2.30.0)
+- numpy (tested with v1.23.2)
+- [pyfaidx](https://pypi.org/project/pyfaidx/) (tested with v0.7.2.1)
+- [intervaltree](https://pypi.org/project/intervaltree/) (tested with v3.1.0)
+
+These dependencies are included in the file `environment.yaml` which can be used to make a conda environment for the pipeline by running `conda env create -f environment.yaml`. Then, activat the environment with `conda activate larmap_env` 
 
 For M1 mac users: please install packages `bowtie2`, `bedtools`, and `samtools` using the command `arch -arm64 brew install [package]` before running `conda`, if any of the above pacakges has not previously been installed.
-
-For all other systems: please un-comment the three lines in `environment.yaml` regarding the above three packages before running `conda`.
 
 ## Running the Pipeline
 
@@ -32,26 +39,7 @@ To run the larmap pipeline, use `./larmap_run.sh` with the following arguments:
       -n, --ref_introns         BED file of all introns in the reference genome
       -m, --ref_repeatmasker    BED file of repetitive elements from repeatmasker
 
-For example: 
-`./larmap_run.sh 
--d demo_files/demo_fastq_files_250k_bp 
--1 250k_cWT_1.fq.gz 
--2 250k_cWT_2.fq.gz 
--e WT 
--c 4 
--i demo_files/genomes/indices/bowtie2/mm39.fa 
--f demo_files/genomes/fasta_files/mm39.fa 
--g demo_files/genomes/annotations/mm39.gencode.basic.M32.annotation.gtf.gz 
--5 demo_files/reference_files/mouse/mm39.gencode.basic.M32.fivep_sites.fa 
--3 demo_files/reference_files/mouse/mm39.gencode.basic.M32.threep_sites.fa 
--l demo_files/reference_files/mouse/mm39.gencode.basic.M32.threep_seq_lens.txt 
--n demo_files/genomes/annotations/mm39.gencode.basic.M32.introns.bed.gz 
--m demo_files/genomes/annotations/mm39.repeat_masker.bed.gz 
--s demo_mapped_reads_250k.txt`
-
-Or: `./larmap_run.sh --fastq_dir demo_files/demo_fastq_files_250k_bp ...`
-
-A default directory `larmap_out` will be created upon running the pipeline; after completion of the pipeline it will contain three directories `larmap_out/logs`, `larmap_out/scripts`, and `larmap_out/output`, as well as a `.txt` file (as specified in the arguments) which stores the final mapping results.
+An directory named `[output_base_name]_lariat_mapping` will be created in `output_dir`. Upon completion of the pipeline, this directory will contain a tab-separated results file with lariat read info called `[output_base_name]_lariat_reads.txt`.
 
 ## Pipeline Workflow
 
