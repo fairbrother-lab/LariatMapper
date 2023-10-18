@@ -149,6 +149,12 @@ scripts/map_lariats.sh $fastq_dir/$read_one_file \
     $num_cpus $ref_b2index $ref_fasta $ref_gtf \
     $ref_5p_fasta $ref_5p_upstream \
     $ref_3p_b2index $ref_3p_lengths
+exit_code=$?
+# Check the exit code and handle errors
+if [ $exit_code -ne 0 ]; then
+    printf "Error: Failed to execute map_lariats.sh on read one file. Exit code: $exit_code"
+    exit $exit_code
+fi
 
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Processing read two file...\n"
 SECONDS=0
@@ -157,14 +163,22 @@ scripts/map_lariats.sh $fastq_dir/$read_two_file \
     $num_cpus $ref_b2index $ref_fasta $ref_gtf \
     $ref_5p_fasta $ref_5p_upstream \
     $ref_3p_b2index $ref_3p_lengths
-
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Filtering results...\n"
-# combines the mapping results from each sample's read one and read two files and performs post-mapping filtering before outputting the final lariat mapping results
-python -u scripts/filter_lariats.py $fastq_dir $read_one_file $read_two_file $output_dir $output_base_name $num_cpus $ref_b2index $ref_fasta $ref_gtf $ref_5p_fasta $ref_3p_b2index $ref_3p_lengths $ref_introns $ref_repeatmasker
 exit_code=$?
 # Check the exit code and handle errors
 if [ $exit_code -ne 0 ]; then
-    printf "Error: Failed to execute merge_filter_lariats_no_info.py. Exit code: $exit_code"
+    printf "Error: Failed to execute map_lariats.sh on read two file. Exit code: $exit_code"
+    exit $exit_code
+fi
+
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Filtering results...\n"
+# combines the mapping results from each sample's read one and read two files and performs post-mapping filtering before outputting the final lariat mapping results
+python -u scripts/filter_lariats.py $fastq_dir $read_one_file $read_two_file \
+    $output_dir $output_base_name $num_cpus $ref_b2index $ref_fasta $ref_gtf \
+    $ref_5p_fasta $ref_3p_b2index $ref_3p_lengths $ref_introns $ref_repeatmasker
+exit_code=$?
+# Check the exit code and handle errors
+if [ $exit_code -ne 0 ]; then
+    printf "Error: Failed to execute filter_lariats.py. Exit code: $exit_code"
     exit $exit_code
 fi
 
