@@ -16,7 +16,7 @@ For all other systems: please un-comment the three lines in `environment.yaml` r
 
 To run the larmap pipeline, use `./larmap_run.sh` with the following arguments:
 
-        -d, --fastq_dir           Directory containing the FASTQ files
+-d, --fastq_dir           Directory containing the FASTQ files
         -1, --read_1_file         Read one (R1) FASTQ file
         -2, --read_2_file         Read two (R2) FASTQ file
         -o, --output_dir          Directory for output files
