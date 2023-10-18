@@ -78,7 +78,7 @@ def filter_threep_reads(reads_to_threep, threep_lengths, read_info, gene_ranges,
 					reference_start = int(reference_start)-1
 					alignment_len = sum(c[0] for c in read_cig if c[1] in ('M', 'D', 'N'))
 					bit_flags = bin(int(flag))
-					is_reverse = True if len(bit_flags)>=7 and bit_flags[-5]==1 else False
+					is_reverse = True if len(bit_flags)>=7 and bit_flags[-5]=='1' else False
 					if rid not in threep_info:
 						threep_info[rid] = []
 					threep_info[rid].append((chrom, strand, threep_coord, reference_start, reference_start+alignment_len, is_reverse, read_seq, int(mapping_quality)))
@@ -126,34 +126,42 @@ def filter_threep_reads(reads_to_threep, threep_lengths, read_info, gene_ranges,
 								if rid not in potential_alignments:
 									potential_alignments[rid] = []
 								potential_alignments[rid].append([read_seq, threep_chrom, threep_strand, fivep_site, read_is_reverse, fivep_start, fivep_end, threep_site, bp_site, read_bp_nt])
-
+							
+	out_rids = [rid[:-4] for rid in potential_alignments]
 	temp_bp_bed, temp_bp_seq = output_base+'temp_bp_seqs.bed', output_base+'temp_bp_seqs.txt'
 	with open(output_base+'_final_info_table.txt', 'w') as out_file:
 		out_file.write('read_id\tread_seq\tchrom\tstrand\tfivep_site\tread_is_reverse\tfivep_read_start\tfivep_read_end\t')
 		out_file.write('threep_site\tbp_site\tread_bp_nt\tgenomic_bp_nt\tgenomic_bp_window\n')
-		for rid in potential_alignments:
-			align_mismatch = {True:[], False:[]}
-			for align_info in potential_alignments[rid]:
-				read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_start, fivep_end, threep_site, bp_site, read_bp_nt = align_info
-				temp_file = open(temp_bp_bed, 'w')
-				if strand == '+':
-					bp_start, bp_end = bp_site-4, bp_site+6
-				else:
-					bp_start, bp_end = bp_site-5, bp_site+5
-				temp_file.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(chrom, bp_start, bp_end, '{};{};{}'.format(chrom, bp_site, strand), 0, strand))
-				temp_file.close()
-				run('bedtools getfasta -fi {} -bed {} -fo {} -nameOnly -s -tab'.format(genome_file, temp_bp_bed, temp_bp_seq).split(' '))
-				temp_file = open(temp_bp_seq)
-				name, genomic_bp_window = temp_file.readline().strip().split()
-				temp_file.close()
-				genomic_bp_window = genomic_bp_window.upper()
-				genomic_bp_nt = genomic_bp_window[4]
-				align_mismatch[genomic_bp_nt!=read_bp_nt].append(align_info+[genomic_bp_nt, genomic_bp_window])
-				
-			if len(align_mismatch[True]) > 0:
-				output = [rid] + sample(align_mismatch[True], 1)[0]
+		for rid in out_rids:
+			align_mismatch = {'_for':{True:[], False:[]}, '_rev':{True:[], False:[]}}
+			output_rev = False
+			for fivep_dir in ['_for', '_rev']:
+				if rid+fivep_dir in potential_alignments:
+					for align_info in potential_alignments[rid+fivep_dir]:
+						read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_start, fivep_end, threep_site, bp_site, read_bp_nt = align_info
+						temp_file = open(temp_bp_bed, 'w')
+						if strand == '+':
+							bp_start, bp_end = bp_site-4, bp_site+6
+						else:
+							bp_start, bp_end = bp_site-5, bp_site+5
+						temp_file.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(chrom, bp_start, bp_end, '{};{};{}'.format(chrom, bp_site, strand), 0, strand))
+						temp_file.close()
+						run('bedtools getfasta -fi {} -bed {} -fo {} -nameOnly -s -tab'.format(genome_file, temp_bp_bed, temp_bp_seq).split(' '))
+						temp_file = open(temp_bp_seq)
+						name, genomic_bp_window = temp_file.readline().strip().split()
+						temp_file.close()
+						genomic_bp_window = genomic_bp_window.upper()
+						genomic_bp_nt = genomic_bp_window[4]
+						align_mismatch[fivep_dir][genomic_bp_nt!=read_bp_nt].append(align_info+[genomic_bp_nt, genomic_bp_window])
+			if len(align_mismatch['_for'][True]) > 0:
+				output = [rid] + sample(align_mismatch['_for'][True], 1)[0]
+			elif len(align_mismatch['_rev'][True]) > 0:
+				output = [rid] + sample(align_mismatch['_rev'][True], 1)[0]
+			elif len(align_mismatch['_for'][False]) > 0:
+				output = [rid] + sample(align_mismatch['_for'][False], 1)[0]
 			else:
-				output = [rid] + sample(align_mismatch[False], 1)[0]
+				output = [rid] + sample(align_mismatch['_rev'][False], 1)[0]
+
 			out_file.write('\t'.join([str(e) for e in output]) + '\n')
 			
 	run('rm {} {}'.format(temp_bp_bed, temp_bp_seq).split(' '))
