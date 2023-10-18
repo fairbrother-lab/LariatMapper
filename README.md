@@ -14,22 +14,23 @@ For all other systems: please un-comment the three lines in `environment.yaml` r
 
 ## Running the Pipeline
 
-To run the larmap pipeline, use `./larmap_run.sh` followed by arguments listed below:
+To run the larmap pipeline, use `./larmap_run.sh` with the following arguments:
 
-        -d, --fastq_dir                           Path to the directory containing the fastq files
-        -1, --read_1_file                         Read 1 file
-        -2, --read_2_file                         Read 2 file
-        -e, --output_base_name                    Output base name
-        -c, --num_cpus                            Number of CPUs available for the mapping run
-        -i, --ref_b2index                         Path to file containing Bowtie2 index of the whole genome
-        -f, --ref_fasta                           Path to Fasta file of the whole genome
-        -g, --ref_gtf                             Path to GTF file providing the gene annotation of the whole genome
-        -5, --ref_5p_fasta                        Path to Fasta file containing the 5' sequences of all the annotated introns (first 20bp of the introns)
-        -3, --ref_3p_b2index                      Path to file containing Bowtie2 index of a custom 3' intronic genome (last 250bp of all annotated introns)
-        -l, --ref_3p_lengths                      Path to file containing lengths of all the sequences in the custom 3' genome (not all introns are >=250bp, so some lengths will be shorter)
-        -n, --ref_introns                         Path to BED file containing the intron annotation of the whole genome
-        -m, --ref_repeatmasker                    Path to BED file containing the RepeatMasker annotation of the whole genome
-        -s, --results_path                        Path to the .txt file where the final lariat mapping results will be written
+        -d, --fastq_dir           Directory containing the FASTQ files
+        -1, --read_1_file         Read one (R1) FASTQ file
+        -2, --read_2_file         Read two (R2) FASTQ file
+        -o, --output_dir          Directory for output files
+        -e, --output_base_name    Prefix to add to output files
+        -c, --num_cpus            Number of CPUs available
+        -i, --ref_b2index         Bowtie2 index of the full reference genome
+        -f, --ref_fasta           FASTA file of the full reference genome
+        -g, --ref_gtf             GTF file with gene annotation of the reference genome
+        -5, --ref_5p_fasta        FASTA file with sequences of first 20nt from reference 5' splice sites (first 20nt of introns)
+        -u, --ref_5p_upstream     Custom file of sequences in 5nt window upstream of 5' splice sites
+        -3, --ref_3p_b2index      Bowtie2 index file of last 250nt from reference 3' splice sites (last 250nt of introns)
+        -l, --ref_3p_lengths      Custom file with the lengths of the sequences in ref_3p_b2index (some introns are <250nt)
+        -n, --ref_introns         BED file of all introns in the reference genome
+        -m, --ref_repeatmasker    BED file of repetitive elements from repeatmasker
 
 For example: 
 `./larmap_run.sh 
