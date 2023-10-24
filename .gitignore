@@ -8,7 +8,7 @@ environment.yaml
 larmap_out
 
 # output
-larmap_out
+result_250k
 
 # fastq, genome, ref files
 demo_files/demo_fastq_files_250k_bp
