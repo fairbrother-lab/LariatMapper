@@ -2,7 +2,7 @@
 
 ## Overview
 
-(to be updated) A splicing branchpoint reporter pipeline.
+A splicing branchpoint reporter pipeline.
 
 ## Dependencies
 
@@ -18,6 +18,10 @@ This pipeline has the following dependencies:
 These dependencies are included in the file `environment.yaml` which can be used to make a conda environment for the pipeline by running `conda env create -f environment.yaml`. Then, activate the environment with `conda activate larmap_env` 
 
 For M1 mac users: please install packages `bowtie2`, `bedtools`, and `samtools` using the command `arch -arm64 brew install [package]` before running `conda`, if any of the above pacakges has not previously been installed.
+
+## Additional Reference File
+
+Prior to running the pipeline, please use `python get_splice_site_seqs.py [introns].bed [genome].fa [output_name_prefix]` to produce the reference file of sequences in 5nt window upstream of 5' splice sites; the output is to be used as the input of the `-u`, or `--ref_5p_upstream` option in the pipeline.
 
 ## Running the Pipeline
 
