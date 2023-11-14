@@ -39,27 +39,6 @@ samtools view --bam --with-header --require-flags 4 $output_bam > $unmapped_bam
 mapped_read_count=$(samtools view --count --exclude-flags 4 $output_bam)
 echo "total_reads=$mapped_read_count" > $OUTPUT_BASE"_total_reads.txt"
 
-### Produce files for Shapeshifter analysis
-echo ""
-echo "SHAPESHIFTER"
-# do bedtools covreage on output_bam to produce files required for shapeshifter
-sorted_bam=$OUTPUT_BASE"_mapped_reads_sorted.bam"
-echo "samtools sort"
-samtools sort $output_bam -o $sorted_bam -@ $CPUS
-coverage=$OUTPUT_BASE"_coverage.bedgraph"
-echo "bedtools coverage"
-bedtools genomecov -trackline -bg -ibam $sorted_bam > $coverage
-# Extract the first 50 nt of each intron from the input intron bed file
-echo "extract the first 50 nt"
-awk '{print $1"\t"$2"\t"$2+50"\t"$4}' $coverage > $OUTPUT_BASE"_50nt.bed"
-# Sort and remove duplicates based on the first three columns (chromosome, start, end)
-echo "sort and remove duplicates"
-sort -k1,1 -k2,2n -k3,3n -u $OUTPUT_BASE"_50nt.bed" > $OUTPUT_BASE"_50nt_sorted.bed"
-# Use bedtools intersect to get coverage for the 5' intron segments
-echo "bedtools intersect"
-bedtools intersect -wo -a $coverage -b $OUTPUT_BASE"_50nt_sorted.bed" > $OUTPUT_BASE"_intron_cov.txt"
-
-
 ### Create fasta file of unmapped reads 
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Creating fasta file of unmapped reads...\n"
