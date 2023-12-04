@@ -3,7 +3,7 @@
 usage() {
     echo ""
     echo "Options:"
-    echo "  -d, --fastq_dir <fastq_dir>               Directory containing the FASTQ files"
+    # echo "  -d, --fastq_dir <fastq_dir>               Directory containing the FASTQ files"
     echo "  -1, --read_1_file <read_1_file>           Read one (R1) FASTQ file"
     echo "  -2, --read_2_file <read_2_file>           Read two (R2) FASTQ file"
     echo "  -o, --output_dir <output_dir>             Directory for output files"
@@ -30,11 +30,12 @@ exit_abnormal() {
 
 # https://stackoverflow.com/questions/402377/using-getopts-to-process-long-and-short-command-line-options
 echo ""
-while getopts :d:1:2:o:e:c:i:f:g:5:u:3:l:n:m:-: opt; do        
+# while getopts :d:1:2:o:e:c:i:f:g:5:u:3:l:n:m:-: opt; do        
+while getopts :1:2:o:e:c:i:f:g:5:u:3:l:n:m:-: opt; do        
     case $opt in                    
-        d) 
-            fastq_dir=$OPTARG
-            echo "fastq_dir: $fastq_dir" ;;
+        # d) 
+            # fastq_dir=$OPTARG
+            # echo "fastq_dir: $fastq_dir" ;;
         1) 
             read_one_file=$OPTARG 
             echo "read_1_file: $read_one_file" ;;
@@ -79,10 +80,10 @@ while getopts :d:1:2:o:e:c:i:f:g:5:u:3:l:n:m:-: opt; do
             echo "ref_repeatmasker: $ref_repeatmasker" ;;
         -) 
             case "${OPTARG}" in
-                fastq_dir)
-                    val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                    fastq_dir=$val
-                    echo "fastq_dir: $fastq_dir" ;;
+                # fastq_dir)
+                    # val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
+                    # fastq_dir=$val
+                    # echo "fastq_dir: $fastq_dir" ;;
                 read_1_file)
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                     read_one_file=$val  
@@ -156,7 +157,7 @@ done
 
 
 # Check if all required arguments are provided
-if [[ -z $fastq_dir || -z $read_one_file || -z $read_two_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_3p_b2index || -z $ref_3p_lengths || -z $ref_introns || -z $ref_repeatmasker ]]; then
+if [[ -z $read_one_file || -z $read_two_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_3p_b2index || -z $ref_3p_lengths || -z $ref_introns || -z $ref_repeatmasker ]]; then
   echo ""
   echo "All arguments are required."
   exit_abnormal
@@ -181,7 +182,8 @@ mkdir -p $output_dir/$output_base_name"_R2"
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Processing read one file...\n"
 SECONDS=0
-scripts/map_lariats.sh $fastq_dir/$read_one_file \
+# scripts/map_lariats.sh $fastq_dir/$read_one_file \
+scripts/map_lariats.sh $read_one_file \
     $output_dir/$output_base_name"_R1/"$output_base_name"_R1" \
     $num_cpus $ref_b2index $ref_fasta $ref_gtf \
     $ref_5p_fasta $ref_5p_upstream \
@@ -197,7 +199,8 @@ fi
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Processing read two file...\n"
 SECONDS=0
-scripts/map_lariats.sh $fastq_dir/$read_two_file \
+# scripts/map_lariats.sh $fastq_dir/$read_two_file \
+scripts/map_lariats.sh $read_two_file \
     $output_dir/$output_base_name"_R2/"$output_base_name"_R2" \
     $num_cpus $ref_b2index $ref_fasta $ref_gtf \
     $ref_5p_fasta $ref_5p_upstream \
