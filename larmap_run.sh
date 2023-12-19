@@ -3,9 +3,10 @@
 usage() {
     echo ""
     echo "Options:"
-    echo "  -d, --fastq_dir <fastq_dir>               Directory containing the FASTQ files"
-    echo "  -1, --read_1_file <read_1_file>           Read one (R1) FASTQ file"
-    echo "  -2, --read_2_file <read_2_file>           Read two (R2) FASTQ file"
+    # echo "  -d, --fastq_dir <fastq_dir>               Directory containing the FASTQ files"
+    # echo "  -1, --read_1_file <read_1_file>           Read one (R1) FASTQ file"
+    # echo "  -2, --read_2_file <read_2_file>           Read two (R2) FASTQ file"
+    echo "  -r, --read_file <read_file>               FASTQ file"
     echo "  -o, --output_dir <output_dir>             Directory for output files"
     echo "  -e, --output_base_name <output_base_name> Prefix to add to output files"
     echo "  -c, --num_cpus <num_cpus>                 Number of CPUs available"
@@ -18,6 +19,7 @@ usage() {
     echo "  -l, --ref_3p_lengths <ref_3p_lengths>     Custom file with the lengths of the sequences in ref_3p_b2index (some introns are <250nt)"
     echo "  -n, --ref_introns <ref_introns>           BED file of all introns in the reference genome"
     echo "  -m, --ref_repeatmasker <ref_repeatmasker> BED file of repetitive elements from repeatmasker"
+    # echo "  -k, --keep_intermediates <keep> 		Optional. Don't delete the intermediate files created"
     echo ""
     exit 1
 }
@@ -30,17 +32,21 @@ exit_abnormal() {
 
 # https://stackoverflow.com/questions/402377/using-getopts-to-process-long-and-short-command-line-options
 echo ""
-while getopts :d:1:2:o:e:c:i:f:g:5:u:3:l:n:m:-: opt; do        
+# while getopts :d:1:2:o:e:c:i:f:g:5:u:3:l:n:m:-: opt; do        
+while getopts :r:o:e:c:i:f:g:5:u:3:l:n:m:-: opt; do        
     case $opt in                    
-        d) 
-            fastq_dir=$OPTARG
-            echo "fastq_dir: $fastq_dir" ;;
-        1) 
-            read_one_file=$OPTARG 
-            echo "read_1_file: $read_one_file" ;;
-        2) 
-            read_two_file=$OPTARG
-            echo "read_two_file: $read_two_file" ;;
+        # d) 
+        #     fastq_dir=$OPTARG
+        #     echo "fastq_dir: $fastq_dir" ;;
+        # 1) 
+        #     read_one_file=$OPTARG 
+        #     echo "read_1_file: $read_one_file" ;;
+        # 2) 
+        #     read_two_file=$OPTARG
+        #     echo "read_two_file: $read_two_file" ;;
+        a) 
+            read_file=$OPTARG 
+            echo "read_file: $read_file" ;;
         o) 
             output_dir=$OPTARG 
             echo "output_dir: $output_dir" ;;
@@ -79,18 +85,22 @@ while getopts :d:1:2:o:e:c:i:f:g:5:u:3:l:n:m:-: opt; do
             echo "ref_repeatmasker: $ref_repeatmasker" ;;
         -) 
             case "${OPTARG}" in
-                fastq_dir)
+                # fastq_dir)
+                #     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
+                #     fastq_dir=$val
+                #     echo "fastq_dir: $fastq_dir" ;;
+                # read_1_file)
+                #     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
+                #     read_one_file=$val  
+                #     echo "read_1_file: $read_one_file" ;;
+                # read_2_file)
+                #     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
+                #     read_two_file=$val  
+                #     echo "read_2_file: $read_two_file" ;;
+                read_file)
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                    fastq_dir=$val
-                    echo "fastq_dir: $fastq_dir" ;;
-                read_1_file)
-                    val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                    read_one_file=$val  
-                    echo "read_1_file: $read_one_file" ;;
-                read_2_file)
-                    val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                    read_two_file=$val  
-                    echo "read_2_file: $read_two_file" ;;
+                    read_file=$val  
+                    echo "read_file: $read_file" ;;
                 output_dir)
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                     output_dir=$val  
@@ -156,7 +166,8 @@ done
 
 
 # Check if all required arguments are provided
-if [[ -z $fastq_dir || -z $read_one_file || -z $read_two_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_3p_b2index || -z $ref_3p_lengths || -z $ref_introns || -z $ref_repeatmasker ]]; then
+# if [[ -z $fastq_dir || -z $read_one_file || -z $read_two_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_3p_b2index || -z $ref_3p_lengths || -z $ref_introns || -z $ref_repeatmasker ]]; then
+if [[ -z $read_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_3p_b2index || -z $ref_3p_lengths || -z $ref_introns || -z $ref_repeatmasker ]]; then
   echo ""
   echo "All arguments are required."
   exit_abnormal
@@ -165,7 +176,7 @@ fi
 echo ""
 
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Starting lariat mapping run...\n"
-script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd $script_dir
 #=============================================================================#
 #                                    MAPPING                                  #
@@ -175,47 +186,75 @@ echo ""
 # prepares the directories and scripts for the lariat mapping run
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Preparing directories...\n"
 output_dir=$output_dir/$output_base_name"_lariat_mapping"
-mkdir -p $output_dir/$output_base_name"_R1"
-mkdir -p $output_dir/$output_base_name"_R2"
+# mkdir -p $output_dir/$output_base_name"_R1"
+# mkdir -p $output_dir/$output_base_name"_R2"
+mkdir -p $output_dir
 
-echo ""
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Processing read one file...\n"
+# echo ""
+# printf "$(date +'%m/%d/%y - %H:%M:%S') | Processing read one file...\n"
+# SECONDS=0
+# scripts/map_lariats.sh $fastq_dir/$read_two_file \
+#     $output_dir/$output_base_name"_R2/"$output_base_name"_R2" \
+#     $num_cpus $ref_b2index $ref_fasta $ref_gtf \
+#     $ref_5p_fasta $ref_5p_upstream \
+#     $ref_3p_b2index $ref_3p_lengths
+# exit_code=$?
+# # Check the exit code and handle errors
+# if [ $exit_code -ne 0 ]; then
+#     echo ""
+#     printf "Error: Failed to execute map_lariats.sh on read one file. Exit code: $exit_code"
+#     exit $exit_code
+# fi
+
+# echo ""
+# printf "$(date +'%m/%d/%y - %H:%M:%S') | Processing read two file...\n"
+# SECONDS=0
+# scripts/map_lariats.sh $fastq_dir/$read_one_file \
+#     $output_dir/$output_base_name"_R1/"$output_base_name"_R1" \
+#     $num_cpus $ref_b2index $ref_fasta $ref_gtf \
+#     $ref_5p_fasta $ref_5p_upstream \
+#     $ref_3p_b2index $ref_3p_lengths
+# exit_code=$?
+# # Check the exit code and handle errors
+# if [ $exit_code -ne 0 ]; then
+#     echo ""
+#     printf "Error: Failed to execute map_lariats.sh on read two file. Exit code: $exit_code"
+#     exit $exit_code
+# fi
+
+# echo ""
+# printf "$(date +'%m/%d/%y - %H:%M:%S') | Processing read file...\n"
 SECONDS=0
-scripts/map_lariats.sh $fastq_dir/$read_one_file \
-    $output_dir/$output_base_name"_R1/"$output_base_name"_R1" \
-    $num_cpus $ref_b2index $ref_fasta $ref_gtf \
-    $ref_5p_fasta $ref_5p_upstream \
-    $ref_3p_b2index $ref_3p_lengths
+scripts/map_lariats.sh $read_file \
+    $output_dir \
+	$output_base_name \
+    $num_cpus \
+	$ref_b2index \
+	$ref_fasta \
+	$ref_gtf \
+    $ref_5p_fasta \
+	$ref_5p_upstream \
+    $ref_3p_b2index \
+	$ref_3p_lengths
 exit_code=$?
 # Check the exit code and handle errors
 if [ $exit_code -ne 0 ]; then
     echo ""
-    printf "Error: Failed to execute map_lariats.sh on read one file. Exit code: $exit_code"
-    exit $exit_code
-fi
-
-echo ""
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Processing read two file...\n"
-SECONDS=0
-scripts/map_lariats.sh $fastq_dir/$read_two_file \
-    $output_dir/$output_base_name"_R2/"$output_base_name"_R2" \
-    $num_cpus $ref_b2index $ref_fasta $ref_gtf \
-    $ref_5p_fasta $ref_5p_upstream \
-    $ref_3p_b2index $ref_3p_lengths
-exit_code=$?
-# Check the exit code and handle errors
-if [ $exit_code -ne 0 ]; then
-    echo ""
-    printf "Error: Failed to execute map_lariats.sh on read two file. Exit code: $exit_code"
+    printf "Error: Failed to execute map_lariats.sh. Exit code: $exit_code"
     exit $exit_code
 fi
 
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Filtering results...\n"
 # combines the mapping results from each sample's read one and read two files and performs post-mapping filtering before outputting the final lariat mapping results
-python -u scripts/filter_lariats.py $fastq_dir $read_one_file $read_two_file \
-    $output_dir $output_base_name $num_cpus $ref_b2index $ref_fasta $ref_gtf \
-    $ref_5p_fasta $ref_3p_b2index $ref_3p_lengths $ref_introns $ref_repeatmasker
+# python -u scripts/filter_lariats.py $fastq_dir $read_one_file $read_two_file \
+python -u scripts/filter_lariats.py $output_dir \
+	$output_base_name \
+	$num_cpus \
+	$ref_b2index \
+	$ref_gtf \
+	$ref_introns \
+	$ref_repeatmasker
 exit_code=$?
 # Check the exit code and handle errors
 if [ $exit_code -ne 0 ]; then

@@ -27,9 +27,6 @@ Prior to running the pipeline, please use `python get_splice_site_seqs.py [intro
 
 To run the larmap pipeline, use `./larmap_run.sh` with the following arguments:
 
-      -d, --fastq_dir           Directory containing the FASTQ files
-      -1, --read_1_file         Read one (R1) FASTQ file
-      -2, --read_2_file         Read two (R2) FASTQ file
       -o, --output_dir          Directory for output files
       -e, --output_base_name    Prefix to add to output files
       -c, --num_cpus            Number of CPUs available
@@ -48,9 +45,9 @@ A directory named `[output_base_name]_lariat_mapping` will be created in `output
 ## Pipeline Workflow
 
 1. `larmap_run.sh` calls `map_lariats.sh` sequentially for the read one (R1) and read two (R2) FASTQ files. This will produce three files in the output subdirectory for the read file:
-    -`[output_base_name]*[R1/R2]_total_reads.txt` (one line file containing count of linearly-aligned reads from read file)
-    - `[output_base_name]_[R1/R2]_fivep_info_table.txt` (intermediate file containing info on the mapping of the 5'SS sequences to the unmapped reads)
-    - `[output_base_name]_[R1/R2]\_final_info_table.txt` (results file containing candidate lariat reads obtained after mapping the 5'SS trimmed reads to the 3'SS region sequences)
+    -`[output_base_name]_total_reads.txt` (one line file containing count of linearly-aligned reads from read file)
+    - `[output_base_name]_fivep_info_table.txt` (intermediate file containing info on the mapping of the 5'SS sequences to the unmapped reads)
+    - `[output_base_name]_final_info_table.txt` (results file containing candidate lariat reads obtained after mapping the 5'SS trimmed reads to the 3'SS region sequences)
 
     The mapping script `map_lariats.sh` will:
     - Align reads to the reference genome with bowtie2; save mapped read count and proceed with unmapped reads
@@ -61,8 +58,8 @@ A directory named `[output_base_name]_lariat_mapping` will be created in `output
     - Align the trimmed reads to a Bowtie2 index of 3'SS regions
     - Take the mapped trimmed reads from and create an output file containing candidate lariat reads
 
-3. The `merge_filter_lariats.py` script loads intron and gene information from provided annotation files, combines the mapping results from each sample's read one and read two files, and performs post-mapping filtering before outputting the final lariat mapping results. 
+3. The `filter_lariats.py` script loads intron and gene information from provided annotation files and performs post-mapping filtering before outputting the final lariat mapping results. 
 
-    The candidate lariat reads from each sample are filtered based on the following criteria: - BP is within 2bp of a splice site (likely from an intron circle, not a lariat) - 5'SS and 3'SS are not in the correct order - Read maps to a Ubiquitin gene (likely false positive due to repetitive nature of gene) - There is a valid aligment for the 3' segment upstream of the 5' segment - Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive) - NEEDS TO BE IMPLEMENTED: Filter out template switching reads (eg. 5'SS 6bp sequence matches 6bp sequence downstream of BP) - NEEDS TO BE IMPLEMENTED: Correct BP position to account for RT skipping
+    The candidate lariat reads are filtered based on the following criteria: - BP is within 2bp of a splice site (likely from an intron circle, not a lariat) - 5'SS and 3'SS are not in the correct order - Read maps to a Ubiquitin gene (likely false positive due to repetitive nature of gene) - There is a valid aligment for the 3' segment upstream of the 5' segment - Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive) - NEEDS TO BE IMPLEMENTED: Filter out template switching reads (eg. 5'SS 6bp sequence matches 6bp sequence downstream of BP) - NEEDS TO BE IMPLEMENTED: Correct BP position to account for RT skipping
 
-    After filtering, the final set of lariat reads for all the samples are merged (so that lariats discovered in both mates are only reported once) and output to the `results_path` file. The initial columns of this tab-delimited file are any additional custom columns which were added to the info file. After these columns, the file contains the following data for each lariat read: - Gene name - Gene Ensembl ID - Gene type (e.g. protein-coding, lncRNA) - Read ID - Read sequence - Chromosome - Strand - 5' splice site coordinate - 3' splice site coordinate - Branchpoint coordinate - Read branchpoint nucleotide - Genomic branchpoint nucleotide - Genomic branchpoint sequence context (10bp window with the BP at position 5) - Branchpoint position relative to nearest 3' splice site - Total count of linearly-aligned reads for the sample the lariat read is from (useful for normalization when comparing lariat levels between samples)
+    After filtering, the final set of lariat reads are output to the `results_path` file. The initial columns of this tab-delimited file are any additional custom columns which were added to the info file. After these columns, the file contains the following data for each lariat read: - Gene name - Gene Ensembl ID - Gene type (e.g. protein-coding, lncRNA) - Read ID - Read sequence - Chromosome - Strand - 5' splice site coordinate - 3' splice site coordinate - Branchpoint coordinate - Read branchpoint nucleotide - Genomic branchpoint nucleotide - Genomic branchpoint sequence context (10bp window with the BP at position 5) - Branchpoint position relative to nearest 3' splice site - Total count of linearly-aligned reads (useful for normalization when comparing lariat levels between samples)
