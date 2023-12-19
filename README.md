@@ -26,6 +26,7 @@ Prior to running the pipeline, please use `python get_splice_site_seqs.py [intro
 ## Running the Pipeline
 
 To run the larmap pipeline, use `./larmap_run.sh` with the following arguments:
+
       -r, --read_file           FASTQ file
       -o, --output_dir          Directory for output files
       -e, --output_base_name    Prefix to add to output files
