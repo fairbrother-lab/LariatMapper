@@ -54,7 +54,8 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 			read_seq = read_fasta[rid][:]
 			fivep_pass = {True:[], False:[]}	# { is reverse: [(first 20bp of intron sequence, (alignment start position in read, alignment end position in read, is reverse (true/false))...], is not reverse: [...] }
 			
-			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. If it does NOT, add the read alignment to fivep_pass
+			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
+			# If it does NOT, add the read alignment to fivep_pass
 			for fp in site_coords[rid]:
 				fivep_start, fivep_end, is_reverse = site_coords[rid][fp]
 				if is_reverse:
