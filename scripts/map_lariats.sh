@@ -26,7 +26,7 @@ FIVEP_FASTA=$8
 FIVEP_UPSTREAM=$9
 # Bowtie2 index of 3' splice sites genome (last 250nts of all introns)
 THREEP_BOWTIE2_INDEX="${10}"
-# 3' splice site lengths
+# TSV file with 3' splice site coordinates and lengths (max 250)
 THREEP_LENGTHS="${11}"
 
 #=============================================================================#
