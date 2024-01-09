@@ -2,6 +2,8 @@ import sys
 from pyfaidx import Fasta
 from collections import Counter
 
+
+
 comp_nts = {'A':'T', 'C':'G', 'T':'A', 'G':'C', 'N':'N'}
 def reverse_complement(seq):
 	return ''.join([comp_nts[seq[i]] for i in range(len(seq)-1,-1,-1)])
@@ -104,7 +106,7 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 				trimmed_out.write('>{}\n{}\n'.format(out_rid, trim_seq))
 
 				fivep_sites = ','.join([fp[0] for fp in fivep_pass_sub])
-				info_out.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(out_rid, read_seq, fivep_seq, fivep_sites, is_reverse, fivep_start, fivep_end))
+				info_out.write(f'{out_rid}\t{read_seq}\t{fivep_seq}\t{fivep_sites}\t{is_reverse}\t{fivep_start}\t{fivep_end}\n')
 
 if __name__ == '__main__' :
 	
