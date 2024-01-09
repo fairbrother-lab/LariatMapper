@@ -154,7 +154,6 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
     '''
     Filter the candidate lariat reads in order to exclude any that meet the following criteria:
             - BP is within 2bp of a splice site (likely an intron circle, not a lariat)
-            - 5'SS and 3'SS are not in the correct order
             - Read maps to a Ubiquitin gene (likely false positive due to repetitive nature of gene)
             - There is a valid aligment for the 3' segment upstream of the 5' segment
             - Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive)
@@ -176,12 +175,10 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
         # Primary exclusion criteria:
         # Branchpoint is not within 2bp of an annotated splice site (filters intron circles)
         outside_ss = not fivep_sites[chrom][strand].overlaps(bp_site) and not threep_sites[chrom][strand].overlaps(bp_site)
-        # The branchpoint is downstream of the 5' splice site
-        correct_order = (strand == '+' and fivep_site < bp_site) or (strand == '-' and fivep_site > bp_site)
         # Read did not map to a ubiquitin gene
         outside_ubiquitin = 'UBB' not in gene_names and 'UBC' not in gene_names
 
-        if outside_ss and correct_order and outside_ubiquitin:
+        if outside_ss and outside_ubiquitin:
             overlap_introns = list(introns[chrom][strand].overlap(bp_site, bp_site+1))
             if len(overlap_introns) > 0:
                 if strand == '+':
@@ -194,8 +191,6 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
                                                threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window, dist_to_threep]
         elif not outside_ss:
             fail_reason['near_ss'] += 1
-        elif not correct_order:
-            fail_reason['fivep_bp_disordered'] += 1
         elif not outside_ubiquitin:
             fail_reason['ubiquitin_gene'] += 1
 
