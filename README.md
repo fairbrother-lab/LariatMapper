@@ -45,8 +45,8 @@ A directory named `[output_base_name]_lariat_mapping` will be created in `output
 
 ## Pipeline Workflow
 
-1. `larmap_run.sh` calls `map_lariats.sh` sequentially for the read one (R1) and read two (R2) FASTQ files. This will produce three files in the output subdirectory for the read file:
-    -`[output_base_name]_total_reads.txt` (one line file containing count of linearly-aligned reads from read file)
+1. `larmap_run.sh` calls `map_lariats.sh` on the FASTQ file. This will produce three files in the output subdirectory for the read file:
+    -`[output_base_name]_total_reads.txt` (one line file containing count of linearly-aligned reads from the read file)
     - `[output_base_name]_fivep_info_table.txt` (intermediate file containing info on the mapping of the 5'SS sequences to the unmapped reads)
     - `[output_base_name]_final_info_table.txt` (results file containing candidate lariat reads obtained after mapping the 5'SS trimmed reads to the 3'SS region sequences)
 
