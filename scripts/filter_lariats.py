@@ -28,7 +28,6 @@ BASE_RESULTS_COLUMNS = ('gene',
                         'bp_dist_to_threep',
                         'total_mapped_reads')
 
-# RMAP = {'one': 'R1', 'two': 'R2'}
 
 
 # =============================================================================#
@@ -117,26 +116,15 @@ def parse_lariat_table(final_info_table: str) -> dict:
     return reads
 
 
-def get_aligned_reads(output_dir, output_base_name) -> int:
+def get_mapped_reads(output_dir, output_base_name) -> int:
 	'''
-	Get total aligned reads for each sample from the *_total_reads.txt file in its results directory
+	Get the number of reads that mapped to the reference genome from the *_run_data.tsv file 
 	'''
-	# sample_read_count = 0
-	# for read_num in ['one', 'two']:
-	#     read_output_name = f'{output_base_name}_{RMAP[read_num]}'
-	#     read_count_path = join(output_dir, read_output_name, f'{read_output_name}_total_reads.txt')
-	#     if not isfile(read_count_path):
-	#         raise FileNotFoundError(f'No total reads found for sample "{read_output_name}"')
-	#     with open(read_count_path, 'r') as count_file:
-	#         # line format: "total_reads=[total aligned reads]"
-	#         aligned_reads = int(count_file.readline().split('=')[1])
-	#         sample_read_count = max(sample_read_count, aligned_reads)
-	read_count_path = join(output_dir, f'{output_base_name}_total_reads.txt')
+	read_count_path = join(output_dir, f'{output_base_name}_run_data.tsv')
 	if not isfile(read_count_path):
-		raise FileNotFoundError(f'No total reads found for sample "{output_base_name}"')
-	with open(read_count_path, 'r') as count_file:
-		# line format: "total_reads=[total aligned reads]"
-		sample_read_count = int(count_file.readline().split('=')[1])
+		raise FileNotFoundError(f'No mapped read count found for "{output_base_name}"')
+	with open(read_count_path, 'r') as file:
+		sample_read_count = int(file.readline().split('\t')[1])
 
 	return sample_read_count
 
@@ -298,6 +286,7 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
 # =============================================================================#
 #                                    Main                                     #
 # =============================================================================#
+
 if __name__ == '__main__':
 	output_dir, output_base_name, num_cpus, ref_b2index, ref_gtf, ref_introns, ref_repeatmasker = argv[1:]
 
@@ -309,26 +298,15 @@ if __name__ == '__main__':
 
 	print(strftime('%m/%d/%y - %H:%M:%S | Parsing lariat reads...'))
 	lariat_reads = {}
-	# for read_num in ['one', 'two']:
-	#     read_output_name = f'{output_base_name}_{RMAP[read_num]}'
-	#     final_info_table = join(output_dir, read_output_name, f'{read_output_name}_final_info_table.txt')
-	#     lariat_reads[read_output_name] = parse_lariat_table(final_info_table)
 	final_info_table = join(output_dir, f'{output_base_name}_final_info_table.txt')
 	lariat_reads = parse_lariat_table(final_info_table)
 
 	# Parse counts of linearly aligned reads 
 	print(strftime('%m/%d/%y - %H:%M:%S | Retrieving total mapped reads...'))
-	sample_read_count = get_aligned_reads(output_dir, output_base_name)
-
-	# # Merge results from read one (R1) and read two (R2) files
-	# print(strftime('%m/%d/%y - %H:%M:%S | Merging R1 and R2 lariat reads...'))
-	# print('sample', lariat_reads)
-	# merged_lariats = merge_opposite_reads(lariat_reads, output_base_name)
-	# print('merged', merged_lariats)
+	sample_read_count = get_mapped_reads(output_dir, output_base_name)
 
 	# Filter lariat reads
 	print(strftime('%m/%d/%y - %H:%M:%S | Filtering lariat reads...'))
-	# merged_filtered_lariats = filter_lariat_reads(merged_lariats, threep_sites, fivep_sites, introns, gene_info, output_dir, num_cpus, ref_b2index, ref_repeatmasker)
 	filtered_lariats = filter_lariat_reads(lariat_reads, threep_sites, fivep_sites, introns, gene_info, output_dir, num_cpus, ref_b2index, ref_repeatmasker)
 
 	# Now write it all to file
