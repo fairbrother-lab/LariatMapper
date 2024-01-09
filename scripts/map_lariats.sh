@@ -26,7 +26,7 @@ FIVEP_FASTA=$8
 FIVEP_UPSTREAM=$9
 # Bowtie2 index of 3' splice sites genome (last 250nts of all introns)
 THREEP_BOWTIE2_INDEX="${10}"
-# 3' splice site lengths
+# TSV file with 3' splice site coordinates and lengths (max 250)
 THREEP_LENGTHS="${11}"
 
 #=============================================================================#
@@ -59,7 +59,6 @@ bowtie2-build --large-index --threads $CPUS $unmapped_fasta $unmapped_fasta > /d
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 fivep_to_reads=$OUTPUT_DIR/$NAME"_fivep_to_reads.sam"
-# bowtie2 --end-to-end --sensitive --no-unal -f --k 10000 --threads $CPUS -x $unmapped_fasta -U $FIVEP_FASTA \
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --threads $CPUS -x $unmapped_fasta -U $FIVEP_FASTA \
 	| samtools view > $fivep_to_reads
 
@@ -86,4 +85,4 @@ python scripts/filter_threep_alignments.py $trimmed_reads_to_threep $THREEP_LENG
 wait
 rm $output_bam
 rm $unmapped_bam
-rm $unmapped_fasta* $fivep_to_reads* $fivep_trimmed_reads $trimmed_reads_to_threep*  
+# rm $unmapped_fasta* $fivep_to_reads* $fivep_trimmed_reads $trimmed_reads_to_threep*  
