@@ -13,6 +13,7 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 	Filter and trim the reads that 5'ss sequences mapped to
 	Write trimmed read sequences to [NAME]_fivep_mapped_reads_trimmed.fa
 	Write trimmed read information and their aligned 5' splice site(s) to [NAME]_fivep_info_table_out.txt
+	fivep info table is TSV format, values are (read id, read sequence, 5'ss sequence, coordinates of all aligned 5'ss's that passed filtering, sequence alignment is reverse-complementary, start of alignment in read, end of alignment in read)
 	'''
 	# Load the collection of 5bp upstream sequences
 	fivep_upstream_seqs = {}
@@ -23,16 +24,18 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 
 	# Extract reads with perfect alignments from the 5'ss mapping 
 	read_sites = {}				# { read id: set(first 20bp of intron sequence) }
-	site_coords = {}			# { read id: {first 20bp of intron sequence: (alignment start position in read, alignment end position in read, is reverse (true/false))} }
+	site_coords = {}			# { read id: {first 20bp of intron sequence: (alignment start position in read, alignment end position in read, is reverse-complementary)} }
 	with open(fivep_to_reads) as fivep_file:
 		# Loop through alignments
 		for line in fivep_file:
 			alignment_info = line.strip().split('\t')
 			fivep_site, flag, rid, reference_start, _, read_cig = alignment_info[:6]
+
 			# Get mismatch count
 			for alignment_tag in alignment_info[11:]:
 				if alignment_tag[:2] == 'XM':
 					num_mismatch = int(alignment_tag.split(':')[-1])
+
 			# If it's a perfect alignment, add it to read_sites and sites_coords
 			if num_mismatch == 0 and read_cig == '20M':
 				reference_start = int(reference_start)-1
@@ -49,10 +52,11 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 	read_fasta = Fasta(unmapped_fasta, as_raw=True)
 	with open(fivep_trimmed_reads_out, 'w') as trimmed_out, open(fivep_info_table_out, 'w') as info_out:
 		info_out.write('read_id\tread_seq\tfivep_seq\tfivep_sites\tfivep_first\tread_fivep_start\tread_fivep_end\n')
+		
 		# Loop through reads with extracted alignments
 		for rid in read_sites:
 			read_seq = read_fasta[rid][:]
-			fivep_pass = {True:[], False:[]}	# { is reverse: [(first 20bp of intron sequence, (alignment start position in read, alignment end position in read, is reverse (true/false))...], is not reverse: [...] }
+			fivep_pass = {True:[], False:[]}	# { is reverse: [(first 20bp of intron sequence, (alignment start position in read, alignment end position in read, is reverse-complementary)...], is not reverse: [...] }
 			
 			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 			# If it does NOT, add the read alignment to fivep_pass
@@ -76,6 +80,7 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 				if is_reverse:
 					# Get the start and end of the rightmost alignment in the read 
 					fivep_start, fivep_end, _ = max(fivep_pass[is_reverse], key=lambda fp:fp[1][0])[1]
+					# Keep the subset of 5'ss alignments that start at the same rightmost position
 					fivep_pass_sub = [fp for fp in fivep_pass[is_reverse] if fp[1][0]==fivep_start]
 					# Trim off the rightmost alignment and everything to the left of it
 					trim_seq = read_seq[fivep_end:]
@@ -84,6 +89,7 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 				else:
 					# Get the start and end of the leftmost alignment in the read 
 					fivep_start, fivep_end, _ = min(fivep_pass[is_reverse], key=lambda fp:fp[1][0])[1]
+					# Keep the subset of 5'ss alignments that start at the same leftmost position
 					fivep_pass_sub = [fp for fp in fivep_pass[is_reverse] if fp[1][0]==fivep_start]
 					# Trim off the leftmost alignment and everything to the right of it
 					trim_seq = read_seq[:fivep_start]
@@ -94,7 +100,6 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 				if len(trim_seq) < 20:
 					continue
 
-				# out_rid = rid + {True:'_rev', False:'_for'}[is_reverse]
 				out_rid = rid + '_rev' if is_reverse else rid + '_for'
 				trimmed_out.write('>{}\n{}\n'.format(out_rid, trim_seq))
 
