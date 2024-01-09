@@ -150,7 +150,7 @@ def merge_opposite_reads(lariat_reads: dict, output_base_name) -> dict:
     return merged_reads
 
 
-def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: dict, introns: dict, gene_info: dict, output_dir:str, num_cpus:str, ref_b2index:str, ref_repeatmasker: str) -> dict:
+def filter_lariat_reads(lariats: dict, threep_sites: dict, fivep_sites: dict, introns: dict, gene_info: dict, output_dir:str, num_cpus:str, ref_b2index:str, ref_repeatmasker: str) -> dict:
     '''
     Filter the candidate lariat reads in order to exclude any that meet the following criteria:
             - BP is within 2bp of a splice site (likely an intron circle, not a lariat)
@@ -167,18 +167,17 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
     filtered_reads = {}
     trim_reads = {}
     fail_reason = Counter()
-    for rid in merged_lariats:
-        trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = merged_lariats[rid]
+    for rid in lariats:
+        trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = lariats[rid]
         gene_data = gene_info[chrom][strand].at(bp_site)
         gene_names = [g.data['gene_name'] for g in gene_data]
 
-        # Primary exclusion criteria:
-        # Branchpoint is not within 2bp of an annotated splice site (filters intron circles)
-        outside_ss = not fivep_sites[chrom][strand].overlaps(bp_site) and not threep_sites[chrom][strand].overlaps(bp_site)
-        # Read did not map to a ubiquitin gene
-        outside_ubiquitin = 'UBB' not in gene_names and 'UBC' not in gene_names
+        # Check if BP is within 2bp of an annotated splice site
+        bp_near_ss = fivep_sites[chrom][strand].overlaps(bp_site) and not threep_sites[chrom][strand].overlaps(bp_site)
+        # Check if read mapped to a ubiquitin gene
+        in_ubiquitin = 'UBB' in gene_names or 'UBC' in gene_names
 
-        if outside_ss and outside_ubiquitin:
+        if bp_near_ss and in_ubiquitin:
             overlap_introns = list(introns[chrom][strand].overlap(bp_site, bp_site+1))
             if len(overlap_introns) > 0:
                 if strand == '+':
@@ -189,12 +188,12 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
                 trim_reads[rid] = trim_seq
                 filtered_reads[rid] = [gene_data, read_seq, chrom, strand, fivep_site,
                                                threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window, dist_to_threep]
-        elif not outside_ss:
+        elif not bp_near_ss:
             fail_reason['near_ss'] += 1
-        elif not outside_ubiquitin:
+        elif not in_ubiquitin:
             fail_reason['ubiquitin_gene'] += 1
 
-    # Filter reads were the 3' segment has a valid alignment upstream of the 5' segment
+    # Filter reads where the 3' segment has a valid alignment upstream of the 5' segment
     seq_tmp_fa, seq_tmp_sam = f'{temp_dir}/trim_seq_tmp.fa', f'{temp_dir}/trim_seq_tmp.sam'
     with open(seq_tmp_fa, 'w') as out_file:
         for rid in trim_reads:
@@ -258,7 +257,7 @@ def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: d
 
     discard_rids = upstream_rids.union(repeat_rids)
 
-    # Discard filtered reads and output final set of lariat reads
+    # Discard filtered reads and return final set of lariat reads
     filtered_reads = {rid:filtered_reads[rid] for rid in filtered_reads if rid not in discard_rids}
     for rid in filtered_reads:
         gene_data = filtered_reads[rid][0].pop()
