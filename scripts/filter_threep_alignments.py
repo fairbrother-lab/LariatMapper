@@ -90,9 +90,9 @@ def filter_threep_reads(trimmed_reads_to_threep, threep_lengths, read_info, gene
 	
 	'''
 	threep_info = {}	# { read id + "_for" or "_rev" : (chromosome, strand, 3'ss coordinate, alignment start in 3'ss sequence, alignment end in 3'ss sequence, alignment to 3'ss is reverse-complementary, read sequence, mapping quality) }
-	with open(trimmed_reads_to_threep) as read_file:
+	with open(trimmed_reads_to_threep) as sam_file:
 		# Loop through lines in SAM file
-		for line in read_file:
+		for line in sam_file:
 			alignment_info = line.strip().split('\t')
 			rid, flag, threep_site, alignment_start, mapping_quality, read_cig, _, _, _, trimmed_read_seq = alignment_info[:10]
 			
@@ -148,7 +148,7 @@ def filter_threep_reads(trimmed_reads_to_threep, threep_lengths, read_info, gene
 			else:
 				fivep_dict[chrom][strand].add(int(end)-1)
 
-		# Loop through top alignment(s) to 3'ss's AND
+		# Loop through top alignment(s) to 3'ss's 
 		for align_info in top_alignments:
 			threep_chrom, threep_strand, threep_coord, alignment_start, alignment_end, threep_is_reverse, trimmed_read_seq, _ = align_info
 			threep_coord, alignment_end = int(threep_coord), int(alignment_end)
