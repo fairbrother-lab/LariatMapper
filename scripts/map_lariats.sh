@@ -6,8 +6,6 @@
 
 # RNA-seq fastq read file
 READ_FILE=$1
-# # Output directory with sample name prefix
-# OUTPUT_BASE=$2
 # Output directory 
 OUTPUT_DIR=$2
 # Output base name 
@@ -41,7 +39,9 @@ bowtie2 --end-to-end --sensitive --score-min L,0,-0.24 -k 1 --n-ceil L,0,0.05 --
 	| samtools view --bam --with-header > $output_bam
 samtools view --bam --with-header --require-flags 4 $output_bam > $unmapped_bam
 mapped_read_count=$(samtools view --count --exclude-flags 4 $output_bam)
-echo "total_reads=$mapped_read_count" > $OUTPUT_DIR/$NAME"_total_reads.txt"
+unmapped_read_count=$(samtools view --count --require-flags 4 $unmapped_bam)
+echo "ref_mapped_reads\t$mapped_read_count" > $OUTPUT_DIR/$NAME"_run_data.tsv"
+echo "ref_unmapped_reads\t$unmapped_read_count" >> $OUTPUT_DIR/$NAME"_run_data.tsv"
 
 ### Create fasta file of unmapped reads 
 echo ""
@@ -61,6 +61,8 @@ printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 fivep_to_reads=$OUTPUT_DIR/$NAME"_fivep_to_reads.sam"
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --threads $CPUS -x $unmapped_fasta -U $FIVEP_FASTA \
 	| samtools view > $fivep_to_reads
+mapped_read_count=$(samtools view --count --exclude-flags 4 $fivep_to_reads)
+echo "fivep_mapped_reads\t$mapped_read_count" >> $OUTPUT_DIR/$NAME"_run_data.tsv"
 
 ### Extract reads with a mapped 5' splice site and trim it off
 echo ""
