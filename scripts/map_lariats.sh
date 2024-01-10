@@ -39,9 +39,10 @@ bowtie2 --end-to-end --sensitive --score-min L,0,-0.24 -k 1 --n-ceil L,0,0.05 --
 	| samtools view --bam --with-header > $output_bam
 samtools view --bam --with-header --require-flags 4 $output_bam > $unmapped_bam
 mapped_read_count=$(samtools view --count --exclude-flags 4 $output_bam)
-unmapped_read_count=$(samtools view --count --require-flags 4 $unmapped_bam)
-echo "ref_mapped_reads\t$mapped_read_count" > $OUTPUT_DIR/$NAME"_run_data.tsv"
-echo "ref_unmapped_reads\t$unmapped_read_count" >> $OUTPUT_DIR/$NAME"_run_data.tsv"
+unmapped_read_count=$(samtools view --count $unmapped_bam)
+run_data=$OUTPUT_DIR/$NAME"_run_data.tsv"
+echo -e "ref_mapped_reads\t$mapped_read_count" > $run_data
+echo -e "ref_unmapped_reads\t$unmapped_read_count" >> $run_data
 
 ### Create fasta file of unmapped reads 
 echo ""
@@ -59,17 +60,15 @@ bowtie2-build --large-index --threads $CPUS $unmapped_fasta $unmapped_fasta > /d
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 fivep_to_reads=$OUTPUT_DIR/$NAME"_fivep_to_reads.sam"
-bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --threads $CPUS -x $unmapped_fasta -U $FIVEP_FASTA \
+bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $CPUS -x $unmapped_fasta -U $FIVEP_FASTA \
 	| samtools view > $fivep_to_reads
-mapped_read_count=$(samtools view --count --exclude-flags 4 $fivep_to_reads)
-echo "fivep_mapped_reads\t$mapped_read_count" >> $OUTPUT_DIR/$NAME"_run_data.tsv"
 
 ### Extract reads with a mapped 5' splice site and trim it off
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
-fivep_info_table=$OUTPUT_DIR/$NAME"_fivep_info_table.txt"
 fivep_trimmed_reads=$OUTPUT_DIR/$NAME"_fivep_mapped_reads_trimmed.fa"
-python scripts/filter_fivep_alignments.py $unmapped_fasta $fivep_to_reads $FIVEP_UPSTREAM $fivep_trimmed_reads $fivep_info_table
+fivep_info_table=$OUTPUT_DIR/$NAME"_fivep_info_table.txt"
+python scripts/filter_fivep_alignments.py $unmapped_fasta $fivep_to_reads $FIVEP_UPSTREAM $fivep_trimmed_reads $fivep_info_table $run_data
 
 ### Map 5' trimmed reads to 3' sites (last 250nts of introns)
 echo ""
