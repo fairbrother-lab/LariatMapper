@@ -60,7 +60,7 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 	# Filter, trim, and write reads
 	read_fasta = Fasta(unmapped_fasta, as_raw=True)
 	with open(fivep_trimmed_reads_out, 'w') as trimmed_out, open(fivep_info_table_out, 'w') as info_out:
-		info_out.write('read_id\tread_seq\tfivep_seq\tfivep_sites\tfivep_first\tread_fivep_start\tread_fivep_end\tpassed_filtering\tfailed_filter\n')
+		info_out.write('read_id\tread_seq\tfivep_seq\tfivep_sites\tfivep_first\tread_fivep_start\tread_fivep_end\tpassed_filtering\tfail_reason\n')
 		
 		# Loop through reads with extracted alignments
 		passed_rids = set()
@@ -87,7 +87,7 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 
 				# Check if there are no alignments for the read in the given orientation
 				if len(fivep_pass[is_reverse]) == 0:
-					info_out.write(f'{out_rid}\t{read_seq}\tn/a\tn/a\t{is_reverse}\tn/a\tn/a\tFalse\tmismatch_5bp_up\n')
+					info_out.write(f'{out_rid}\t{read_seq}\tn/a\tn/a\t{is_reverse}\tn/a\tn/a\tFalse\tmatch_5bp_up\n')
 					continue
 
 				if is_reverse:
@@ -111,7 +111,7 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 
 				# Check if less than 20bp is left in the read
 				if len(trim_seq) < 20:
-					info_out.write(f'{out_rid}\t{read_seq}\t{fivep_seq}\tn/a\t{is_reverse}\t{fivep_sites}\t{is_reverse}\t{fivep_start}\t{fivep_end}\tFalse\ttrimmed_long_enough\n')
+					info_out.write(f'{out_rid}\t{read_seq}\t{fivep_seq}\tn/a\t{is_reverse}\t{fivep_sites}\t{is_reverse}\t{fivep_start}\t{fivep_end}\tFalse\ttrimed_len\n')
 					continue
 				
 				# If passed filtering, add trimmed seq to fasta 
