@@ -124,7 +124,8 @@ def get_mapped_reads(output_dir, output_base_name) -> int:
 	if not isfile(read_count_path):
 		raise FileNotFoundError(f'No mapped read count found for "{output_base_name}"')
 	with open(read_count_path, 'r') as file:
-		sample_read_count = int(file.readline().split('\t')[1])
+		line = file.readline()
+		sample_read_count = int(line.split('\t')[1])
 
 	return sample_read_count
 
@@ -150,7 +151,7 @@ def merge_opposite_reads(lariat_reads: dict, output_base_name) -> dict:
     return merged_reads
 
 
-def filter_lariat_reads(lariats: dict, threep_sites: dict, fivep_sites: dict, introns: dict, gene_info: dict, output_dir:str, num_cpus:str, ref_b2index:str, ref_repeatmasker: str) -> dict:
+def filter_lariat_reads(lariat_reads: dict, threep_sites: dict, fivep_sites: dict, introns: dict, gene_info: dict, output_dir:str, num_cpus:str, ref_b2index:str, ref_repeatmasker: str) -> dict:
     '''
     Filter the candidate lariat reads in order to exclude any that meet the following criteria:
             - BP is within 2bp of a splice site (likely an intron circle, not a lariat)
@@ -167,8 +168,8 @@ def filter_lariat_reads(lariats: dict, threep_sites: dict, fivep_sites: dict, in
     filtered_reads = {}
     trim_reads = {}
     fail_reason = Counter()
-    for rid in lariats:
-        trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = lariats[rid]
+    for rid in lariat_reads:
+        trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = lariat_reads[rid]
         gene_data = gene_info[chrom][strand].at(bp_site)
         gene_names = [g.data['gene_name'] for g in gene_data]
 
@@ -177,7 +178,7 @@ def filter_lariat_reads(lariats: dict, threep_sites: dict, fivep_sites: dict, in
         # Check if read mapped to a ubiquitin gene
         in_ubiquitin = 'UBB' in gene_names or 'UBC' in gene_names
 
-        if bp_near_ss and in_ubiquitin:
+        if not bp_near_ss and not in_ubiquitin:
             overlap_introns = list(introns[chrom][strand].overlap(bp_site, bp_site+1))
             if len(overlap_introns) > 0:
                 if strand == '+':
@@ -188,9 +189,9 @@ def filter_lariat_reads(lariats: dict, threep_sites: dict, fivep_sites: dict, in
                 trim_reads[rid] = trim_seq
                 filtered_reads[rid] = [gene_data, read_seq, chrom, strand, fivep_site,
                                                threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window, dist_to_threep]
-        elif not bp_near_ss:
+        elif bp_near_ss:
             fail_reason['near_ss'] += 1
-        elif not in_ubiquitin:
+        elif in_ubiquitin:
             fail_reason['ubiquitin_gene'] += 1
 
     # Filter reads where the 3' segment has a valid alignment upstream of the 5' segment
@@ -265,7 +266,7 @@ def filter_lariat_reads(lariats: dict, threep_sites: dict, fivep_sites: dict, in
         filtered_reads[rid] = gene_data + filtered_reads[rid][1:]
 
     fail_reason_out = ', '.join([f'{r} ({fail_reason[r]})' for r in fail_reason])
-    print(strftime('%m/%d/%y - %H:%M:%S') + f' | Pre-filter read count = {len(merged_lariats)}')
+    print(strftime('%m/%d/%y - %H:%M:%S') + f' | Pre-filter read count = {len(lariat_reads)}')
     print(strftime('%m/%d/%y - %H:%M:%S') + f' | Post-filter read count = {len(filtered_reads)}')
     print(strftime('%m/%d/%y - %H:%M:%S') + f' | Discarded read counts = {fail_reason_out}')
 
@@ -305,7 +306,7 @@ if __name__ == '__main__':
 
 	# Now write it all to file
 	print(strftime('%m/%d/%y - %H:%M:%S | Writing results to output file...'))
-	with open(join(output_dir, f'{output_base_name}_lariat_reads.txt'), 'w') as results_file:
+	with open(join(output_dir, f'{output_base_name}_lariat_reads.tsv'), 'w') as results_file:
 		# make and write the header row
 		header = '\t'.join(BASE_RESULTS_COLUMNS) + '\n'
 		results_file.write(header)
