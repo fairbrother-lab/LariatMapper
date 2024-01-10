@@ -183,7 +183,6 @@ if [ $exit_code -ne 0 ]; then
     exit $exit_code
 fi
 
-# combines the mapping results from each sample's read one and read two files and performs post-mapping filtering before outputting the final lariat mapping results
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Filtering results...\n"
 python -u scripts/filter_lariats.py $output_dir \

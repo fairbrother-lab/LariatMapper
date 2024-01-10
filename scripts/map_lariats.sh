@@ -67,7 +67,7 @@ bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threa
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
 fivep_trimmed_reads=$OUTPUT_DIR/$NAME"_fivep_mapped_reads_trimmed.fa"
-fivep_info_table=$OUTPUT_DIR/$NAME"_fivep_info_table.txt"
+fivep_info_table=$OUTPUT_DIR/$NAME"_fivep_info_table.tsv"
 python scripts/filter_fivep_alignments.py $unmapped_fasta $fivep_to_reads $FIVEP_UPSTREAM $fivep_trimmed_reads $fivep_info_table $run_data
 
 ### Map 5' trimmed reads to 3' sites (last 250nts of introns)
@@ -81,6 +81,7 @@ bowtie2 --end-to-end --sensitive -k 10 --no-unal --threads $CPUS -f -x $THREEP_B
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Analyzing 3' alignments and outputting lariat table...\n"
 python scripts/filter_threep_alignments.py $trimmed_reads_to_threep $THREEP_LENGTHS $fivep_info_table $GTF_FILE $GENOME_FASTA $OUTPUT_DIR/$NAME
+
 
 ### Delete all intermediate/uneeded files that were created throughout this process
 wait
