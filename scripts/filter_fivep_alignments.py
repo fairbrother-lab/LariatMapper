@@ -12,7 +12,7 @@ def reverse_complement(seq):
 
 def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_trimmed_reads_out, fivep_info_table_out, run_data):
 	'''
-	Filter and trim the reads that 5'ss sequences mapped to
+	Filter and trim the reads to which 5'ss sequences were mapped
 	Write trimmed read sequences to [NAME]_fivep_mapped_reads_trimmed.fa
 	Write trimmed read information and their aligned 5' splice site(s) to [NAME]_fivep_info_table_out.txt
 	fivep info table is in TSV format, values are (read id, read sequence, 5'ss sequence, coordinates of all aligned 5'ss's that passed filtering, sequence alignment is reverse-complementary, start of alignment in read, end of alignment in read)
