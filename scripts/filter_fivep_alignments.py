@@ -26,7 +26,6 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 
 	# # Extract reads with perfect alignments from the 5'ss mapping 
 	# Load alignment data
-	read_sites = {}				# { read id: set(first 20bp of intron sequence) }
 	site_coords = {}			# { read id: {first 20bp of intron sequence: (alignment start position in read, alignment end position in read, is reverse-complementary)} }
 	mapped_rids = set()
 	with open(fivep_to_reads) as fivep_file:
@@ -46,13 +45,11 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 			# if num_mismatch == 0 and read_cig == '20M':
 			reference_start = int(reference_start)-1
 			bit_flags = bin(int(flag))
-			is_reverse = True if len(bit_flags)>=7 and bit_flags[-5]=='1' else False
+			read_is_reverse = True if len(bit_flags)>=7 and bit_flags[-5]=='1' else False
 			fivep_site = fivep_site[:-3]
-			if rid not in read_sites:
-				read_sites[rid] = set()
+			if rid not in site_coords:
 				site_coords[rid] = {}
-			read_sites[rid].add(fivep_site)
-			site_coords[rid][fivep_site] = (reference_start, reference_start+20, is_reverse)
+			site_coords[rid][fivep_site] = (reference_start, reference_start+20, read_is_reverse)
 
 	with open(run_data, 'a') as a:
 		a.write(f'fivep_mapped_reads\t{len(mapped_rids)}\n')
@@ -60,50 +57,49 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 	# Filter, trim, and write reads
 	read_fasta = Fasta(unmapped_fasta, as_raw=True)
 	with open(fivep_trimmed_reads_out, 'w') as trimmed_out, open(fivep_info_table_out, 'w') as info_out:
-		info_out.write('read_id\tread_seq\tfivep_seq\tfivep_sites\tfivep_first\tread_fivep_start\tread_fivep_end\tpassed_filtering\tfail_reason\n')
+		info_out.write('read_id\tread_seq\tfivep_seq\tfivep_sites\tread_is_reverse\tread_fivep_start\tread_fivep_end\n')
 		
 		# Loop through reads with extracted alignments
 		passed_rids = set()
-		for rid in read_sites:
+		for rid in site_coords:
 			read_seq = read_fasta[rid][:]
 			fivep_pass = {True:[], False:[]}	# { is reverse: [(first 20bp of intron sequence, (alignment start position in read, alignment end position in read, is reverse-complementary)...], is not reverse: [...] }
 			
 			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 			# If it does NOT, add the read alignment to fivep_pass
 			for site in site_coords[rid]:
-				fivep_start, fivep_end, is_reverse = site_coords[rid][site]
-				if is_reverse:
+				fivep_start, fivep_end, read_is_reverse = site_coords[rid][site]
+				if read_is_reverse:
 					read_upstream = read_seq[fivep_end:fivep_end+5].upper()
 					upstream_mismatch = read_upstream != reverse_complement(fivep_upstream_seqs[site])
 				else:
 					read_upstream = read_seq[fivep_start-5:fivep_start].upper()
 					upstream_mismatch = read_upstream != fivep_upstream_seqs[site]
 				if upstream_mismatch:
-					fivep_pass[is_reverse].append((site, site_coords[rid][site]))
+					fivep_pass[read_is_reverse].append((site, site_coords[rid][site]))
 
 			# For each orientation, trim off the upstream-most 5'ss and everything upstream of it, then write the trimmed sequence + alignments to file
-			for is_reverse in fivep_pass:
-				out_rid = rid + '_rev' if is_reverse else rid + '_for'
+			for read_is_reverse in fivep_pass:
+				out_rid = rid + '_rev' if read_is_reverse else rid + '_for'
 
 				# Check if there are no alignments for the read in the given orientation
-				if len(fivep_pass[is_reverse]) == 0:
-					info_out.write(f'{out_rid}\t{read_seq}\tn/a\tn/a\t{is_reverse}\tn/a\tn/a\tFalse\tmatch_5bp_up\n')
+				if len(fivep_pass[read_is_reverse]) == 0:
 					continue
 
-				if is_reverse:
+				if read_is_reverse:
 					# Get the start and end of the rightmost alignment in the read 
-					fivep_start, fivep_end, _ = max(fivep_pass[is_reverse], key=lambda fp:fp[1][0])[1]
+					fivep_start, fivep_end, _ = max(fivep_pass[read_is_reverse], key=lambda fp:fp[1][0])[1]
 					# Keep the subset of 5'ss alignments that start at the same rightmost position
-					fivep_pass_sub = [fp for fp in fivep_pass[is_reverse] if fp[1][0]==fivep_start]
+					fivep_pass_sub = [fp for fp in fivep_pass[read_is_reverse] if fp[1][0]==fivep_start]
 					# Trim off the rightmost alignment and everything to the left of it
 					trim_seq = read_seq[fivep_end:]
 					# Get sequence of rightmost alignment
 					fivep_seq = reverse_complement(read_seq[fivep_start:fivep_end])
 				else:
 					# Get the start and end of the leftmost alignment in the read 
-					fivep_start, fivep_end, _ = min(fivep_pass[is_reverse], key=lambda fp:fp[1][0])[1]
+					fivep_start, fivep_end, _ = min(fivep_pass[read_is_reverse], key=lambda fp:fp[1][0])[1]
 					# Keep the subset of 5'ss alignments that start at the same leftmost position
-					fivep_pass_sub = [fp for fp in fivep_pass[is_reverse] if fp[1][0]==fivep_start]
+					fivep_pass_sub = [fp for fp in fivep_pass[read_is_reverse] if fp[1][0]==fivep_start]
 					# Trim off the leftmost alignment and everything to the right of it
 					trim_seq = read_seq[:fivep_start]
 					# Get sequence of leftmost alignment
@@ -111,14 +107,18 @@ def filter_fivep_reads(unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_tri
 
 				# Check if less than 20bp is left in the read
 				if len(trim_seq) < 20:
-					info_out.write(f'{out_rid}\t{read_seq}\t{fivep_seq}\tn/a\t{is_reverse}\t{fivep_sites}\t{is_reverse}\t{fivep_start}\t{fivep_end}\tFalse\ttrimed_len\n')
 					continue
 				
-				# If passed filtering, add trimmed seq to fasta 
+				# If passed filtering, add trimmed seq to fasta
+				passed_rids.add(rid)
 				trimmed_out.write(f'>{out_rid}\n{trim_seq}\n')
 				
-				fivep_sites = ','.join([fp[0] for fp in fivep_pass_sub])
-				info_out.write(f'{out_rid}\t{read_seq}\t{fivep_seq}\t{fivep_sites}\t{is_reverse}\t{fivep_start}\t{fivep_end}\tTrue\tn/a\n')
+				fivep_sites = sorted([fp[0] for fp in fivep_pass_sub])
+				fivep_sites = ','.join(fivep_sites)
+				info_out.write(f'{out_rid}\t{read_seq}\t{fivep_seq}\t{fivep_sites}\t{read_is_reverse}\t{fivep_start}\t{fivep_end}\n')
+	
+	with open(run_data, 'a') as a:
+		a.write(f'fivep_filtered_reads\t{len(passed_rids)}\n')
 
 
 if __name__ == '__main__' :

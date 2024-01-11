@@ -80,7 +80,7 @@ bowtie2 --end-to-end --sensitive -k 10 --no-unal --threads $CPUS -f -x $THREEP_B
 ### Filter 3' splice site alignments and output info table, including the branchpoint site
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Analyzing 3' alignments and outputting lariat table...\n"
-python scripts/filter_threep_alignments.py $trimmed_reads_to_threep $THREEP_LENGTHS $fivep_info_table $GTF_FILE $GENOME_FASTA $OUTPUT_DIR/$NAME
+python scripts/filter_threep_alignments.py $trimmed_reads_to_threep $THREEP_LENGTHS $fivep_info_table $GTF_FILE $GENOME_FASTA $OUTPUT_DIR/$NAME $run_data
 
 
 ### Delete all intermediate/uneeded files that were created throughout this process
