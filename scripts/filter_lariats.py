@@ -25,7 +25,9 @@ BASE_RESULTS_COLUMNS = ('gene',
                         'genomic_bp_nt',
                         'genomic_bp_context',
                         'bp_dist_to_threep',
-                        'total_mapped_reads')
+                        'total_mapped_reads', 
+						'passed_filtering',
+						'fail_reason')
 
 
 
@@ -105,19 +107,15 @@ def parse_lariat_table(threep_info_table: str) -> dict:
 	with open(threep_info_table, 'r') as lariat_file:
 		next(lariat_file)  # Skip the header line
 		for line in lariat_file:
-			read_id, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window, passed_filtering, fail_reason = line.strip().split('\t')			
-			passed_filtering = True if passed_filtering == 'True' else False
+			read_id, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = line.strip().split('\t')			
 
-			if passed_filtering:
-				trim_seq = read_seq[int(fivep_read_end):] if read_is_reverse == 'True' else read_seq[:int(fivep_read_start)]
-				fivep_site = int(fivep_site)
-				threep_site = int(threep_site)
-				bp_site = int(bp_site)
-			else:
-				trim_seq = 'n/a'
+			trim_seq = read_seq[int(fivep_read_end):] if read_is_reverse == 'True' else read_seq[:int(fivep_read_start)]
+			fivep_site = int(fivep_site)
+			threep_site = int(threep_site)
+			bp_site = int(bp_site)
 
 			reads[read_id] = [trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end]
-			reads[read_id] += [threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window, passed_filtering, fail_reason]
+			reads[read_id] += [threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window]
 	return reads
 
 
@@ -173,20 +171,21 @@ def filter_lariat_reads(lariat_reads: dict, threep_sites: dict, fivep_sites: dic
 
 	filtered_reads = {}
 	for rid in lariat_reads:
-		trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window, passed_filtering, fail_reason = lariat_reads[rid]
-		assert fail_reason == 'n/a', f'{lariat_reads[rid]}'
+		trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = lariat_reads[rid]
 
 		gene_data = gene_info[chrom][strand].at(bp_site)
 		gene_names = [g.data['gene_name'] for g in gene_data]
 
+		passed_filtering = True
+		fail_reason = None
 		# Check if BP is within 2bp of an annotated splice site
 		if fivep_sites[chrom][strand].overlaps(bp_site) and not threep_sites[chrom][strand].overlaps(bp_site):
 			passed_filtering = False
-			fail_reason = 'near_ss' if fail_reason == 'n/a' else fail_reason
+			fail_reason = 'near_ss' if fail_reason == None else fail_reason
 		# Check if read mapped to a ubiquitin gene
 		if 'UBB' in gene_names or 'UBC' in gene_names:
 			passed_filtering = False
-			fail_reason = 'ubiquitin_gene' if fail_reason == 'n/a' else fail_reason
+			fail_reason = 'ubiquitin_gene' if fail_reason == None else fail_reason
 
 		overlap_introns = list(introns[chrom][strand].overlap(bp_site, bp_site+1))
 		# if len(overlap_introns) > 0:
@@ -309,11 +308,6 @@ if __name__ == '__main__':
 	lariat_reads = {}
 	threep_info_table = join(output_dir, f'{output_base_name}_threep_info_table.tsv')
 	lariat_reads = parse_lariat_table(threep_info_table)
-	filtered_out_reads = {}
-	for rid in lariat_reads:
-		if lariat_reads[rid][-2] is False:
-			filtered_out_reads[rid] = [rid] + lariat_reads[rid]
-	lariat_reads = {key: values for key, values in lariat_reads.items() if key not in filtered_out_reads}
 
 	# Parse counts of linearly aligned reads 
 	print(strftime('%m/%d/%y - %H:%M:%S | Retrieving total mapped reads...'))
@@ -332,7 +326,4 @@ if __name__ == '__main__':
 			
 		for read_info in filtered_lariats.values():
 			read_output = read_info[:-2] + [sample_read_count] + read_info[-2:]
-			results_file.write('\t'.join([str(e) for e in read_output]) + '\n')
-		for read_info in filtered_out_reads.values():
-			read_output = ['n/a', 'n/a'] + read_info[:-2] + [sample_read_count] + read_info[-2:]
 			results_file.write('\t'.join([str(e) for e in read_output]) + '\n')
