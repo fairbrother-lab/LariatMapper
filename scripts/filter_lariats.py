@@ -312,7 +312,7 @@ if __name__ == '__main__':
 	filtered_out_reads = {}
 	for rid in lariat_reads:
 		if lariat_reads[rid][-2] is False:
-			filtered_out_reads[rid] = lariat_reads[rid]
+			filtered_out_reads[rid] = [rid] + lariat_reads[rid]
 	lariat_reads = {key: values for key, values in lariat_reads.items() if key not in filtered_out_reads}
 
 	# Parse counts of linearly aligned reads 
@@ -334,5 +334,5 @@ if __name__ == '__main__':
 			read_output = read_info[:-2] + [sample_read_count] + read_info[-2:]
 			results_file.write('\t'.join([str(e) for e in read_output]) + '\n')
 		for read_info in filtered_out_reads.values():
-			read_output = read_info[:-2] + [sample_read_count] + read_info[-2:]
+			read_output = ['n/a', 'n/a'] + read_info[:-2] + [sample_read_count] + read_info[-2:]
 			results_file.write('\t'.join([str(e) for e in read_output]) + '\n')
