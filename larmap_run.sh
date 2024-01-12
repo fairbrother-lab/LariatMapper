@@ -156,13 +156,12 @@ cd $script_dir
 #                                    MAPPING                                  #
 #=============================================================================#
 
-echo ""
 # prepares the directories and scripts for the lariat mapping run
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Preparing directories...\n"
+printf "\n$(date +'%m/%d/%y - %H:%M:%S') | Preparing directories...\n"
 output_dir=$output_dir/$output_base_name"_lariat_mapping"
 mkdir -p $output_dir
 
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Processing read file...\n"
+printf "\n$(date +'%m/%d/%y - %H:%M:%S') | Processing read file...\n"
 SECONDS=0
 scripts/map_lariats.sh $read_file \
     $output_dir \
@@ -178,13 +177,11 @@ scripts/map_lariats.sh $read_file \
 exit_code=$?
 # Check the exit code and handle errors
 if [ $exit_code -ne 0 ]; then
-    echo ""
-    printf "Error: Failed to execute map_lariats.sh. Exit code: $exit_code"
+    printf "\nError: Failed to execute map_lariats.sh. Exit code: $exit_code"
     exit $exit_code
 fi
 
-echo ""
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Filtering results...\n"
+printf "\n$(date +'%m/%d/%y - %H:%M:%S') | Filtering results...\n"
 python -u scripts/filter_lariats.py $output_dir \
 	$output_base_name \
 	$num_cpus \
@@ -195,10 +192,8 @@ python -u scripts/filter_lariats.py $output_dir \
 exit_code=$?
 # Check the exit code and handle errors
 if [ $exit_code -ne 0 ]; then
-    echo "" 
-    printf "Error: Failed to execute filter_lariats.py. Exit code: $exit_code"
+    printf "\nError: Failed to execute filter_lariats.py. Exit code: $exit_code"
     exit $exit_code
 fi
 
-echo ""
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Finished.\n"
+printf "\n$(date +'%m/%d/%y - %H:%M:%S') | Finished.\n"
