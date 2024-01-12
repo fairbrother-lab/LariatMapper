@@ -236,11 +236,12 @@ def filter_threep_reads(trimmed_reads_to_threep, threep_lengths, read_info, gene
 					filtered_alignments[rid] = []
 				filtered_alignments[rid].append([read_seq, threep_chrom, threep_strand, fivep_coord, read_is_reverse, fivep_start, fivep_end, threep_coord, bp_coord, read_bp_nt, genomic_bp_nt, genomic_bp_window])
 			else:
-				failed_alignments.append((rid, read_seq, threep_chrom, threep_strand, read_is_reverse, fivep_sites, threep_coord, fail_reason))
+				failed_alignments.append((rid, read_seq, threep_chrom, threep_strand, threep_coord, read_is_reverse, fivep_sites, fail_reason))
 			
 	run(f'rm {temp_bp_bed} {temp_bp_seq}'.split(' '))
 
 	with open(output_base + '_failed_threep_alignments.tsv', 'w') as w:
+		w.write('read_id\tread_seq\t\tthreep_chrom\tthreep_strand\tthreep_coord\tread_is_reverse\tfivep_sites\tfail_reason\n')
 		for alignment in failed_alignments:
 			w.write('\t'.join([str(x) for x in alignment]) + '\n')
 	
