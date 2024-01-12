@@ -142,12 +142,9 @@ done
 
 # Check if all required arguments are provided
 if [[ -z $read_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_3p_b2index || -z $ref_3p_lengths || -z $ref_introns || -z $ref_repeatmasker ]]; then
-  echo ""
   echo "All arguments are required."
   exit_abnormal
 fi
-
-echo ""
 
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Starting lariat mapping run...\n"
 script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
