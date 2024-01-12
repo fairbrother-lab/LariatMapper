@@ -312,6 +312,9 @@ def filter_lariat_reads(lariat_reads: dict, threep_sites: dict, fivep_sites: dic
 
 if __name__ == '__main__':
 	output_dir, output_base_name, num_cpus, ref_b2index, ref_gtf, ref_introns, ref_repeatmasker = argv[1:]
+	keep_failed_reads = True
+
+	run_data = join(output_dir, f'{output_base_name}_run_data.tsv')
 
 	# Load intron, splice site, and gene coordinates
 	print(strftime('%m/%d/%y - %H:%M:%S | Parsing intron info...'))
@@ -331,6 +334,12 @@ if __name__ == '__main__':
 	# Filter lariat reads
 	print(strftime('%m/%d/%y - %H:%M:%S | Filtering lariat reads...'))
 	filtered_lariats = filter_lariat_reads(lariat_reads, threep_sites, fivep_sites, introns, gene_info, output_dir, num_cpus, ref_b2index, ref_repeatmasker)
+	
+	passed_all = sum(1 for val in filtered_lariats.values() if val[-2] is True)
+	with open(run_data, 'a') as a:
+		a.write(f'passed_all_filters_reads\t{passed_all}\n')
+	if not keep_failed_reads:
+		filtered_lariats = {rid: values for rid, values in filtered_lariats.items() if values[-2] is True}
 
 	# Now write it all to file
 	print(strftime('%m/%d/%y - %H:%M:%S | Writing results to output file...'))
