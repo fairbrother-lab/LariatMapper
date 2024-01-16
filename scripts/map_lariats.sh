@@ -68,7 +68,7 @@ echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
 fivep_trimmed_reads=$OUTPUT_DIR/$NAME"_fivep_mapped_reads_trimmed.fa"
 fivep_info_table=$OUTPUT_DIR/$NAME"_fivep_info_table.tsv"
-python scripts/filter_fivep_alignments.py $unmapped_fasta $fivep_to_reads $FIVEP_UPSTREAM $fivep_trimmed_reads $fivep_info_table $run_data
+python scripts/filter_fivep_alignments.py $unmapped_fasta $fivep_to_reads $FIVEP_UPSTREAM $fivep_trimmed_reads $fivep_info_table $OUTPUT_DIR/$NAME
 
 ### Map 5' trimmed reads to 3' sites (last 250nts of introns)
 echo ""
