@@ -84,54 +84,57 @@ def parse_cigar(cig_str):
 	return cig_tuples
 
 
-
-def filter_threep_reads(trimmed_reads_to_threep, threep_lengths, read_info, gene_ranges, genome_fasta, output_base, out_file, run_data):
+def load_alignments(trimmed_reads_to_threep:str) -> dict:
 	'''
-	
+	Load 3'ss alignments to dict
+	Returns { read id + "_for" or "_rev" : (chromosome, strand, 3'ss coordinate, alignment start in 3'ss sequence, alignment end in 3'ss sequence, alignment to 3'ss is reverse-complementary, read sequence, mapping quality, number of mismatches, cigar string) }
 	'''
-	mapped_rids = set()
-	threep_info = {}	# { read id + "_for" or "_rev" : (chromosome, strand, 3'ss coordinate, alignment start in 3'ss sequence, alignment end in 3'ss sequence, alignment to 3'ss is reverse-complementary, read sequence, mapping quality) }
+	alignments = {}
 	with open(trimmed_reads_to_threep) as sam_file:
 		# Loop through lines in SAM file
 		for line in sam_file:
 			alignment_info = line.strip().split('\t')
-			rid, flag, threep_site, alignment_start, mapping_quality, read_cig, _, _, _, trimmed_read_seq = alignment_info[:10]
-			mapped_rids.add(rid[:-4])
+			rid, flag, threep_site, alignment_start, mapping_quality, cigar_string, _, _, _, trimmed_read_seq = alignment_info[:10]
 			
 			# Parse the number of mismatches
 			for alignment_tag in alignment_info[11:]:
 				if alignment_tag[:2] == 'XM':
 					num_mismatch = int(alignment_tag.split(':')[-1])
 			
-			read_cig = parse_cigar(read_cig)
+			cigar_string = parse_cigar(cigar_string)
 
 			# Prep information for addition to dict
 			chrom, start, end, strand = threep_site[:-3].split(';')
 			threep_coord = int(end) if strand=='+' else int(start)
 			alignment_start = int(alignment_start)-1
-			alignment_len = sum(c[0] for c in read_cig if c[1] in ('M', 'D', 'N'))
+			alignment_len = sum(c[0] for c in cigar_string if c[1] in ('M', 'D', 'N'))
 			alignment_end = alignment_start+alignment_len
 			bit_flags = bin(int(flag))
 			threep_is_reverse = True if len(bit_flags)>=7 and bit_flags[-5]=='1' else False
 			mapping_quality = int(mapping_quality)
 
 			# Add alignment to dict
-			if rid not in threep_info:
-				threep_info[rid] = []
-			threep_info[rid].append((chrom, strand, threep_coord, alignment_start, alignment_end, threep_is_reverse, trimmed_read_seq, mapping_quality, num_mismatch, read_cig))
+			if rid not in alignments:
+				alignments[rid] = []
+			alignments[rid].append((chrom, strand, threep_coord, alignment_start, alignment_end, threep_is_reverse, trimmed_read_seq, mapping_quality, num_mismatch, cigar_string))
+
+	return alignments
+
+
+
+def filter_threep_reads(alignments:dict, threep_lengths, read_info, gene_ranges, genome_fasta, output_base, out_file, run_data):
+	'''
 	
-	with open(run_data, 'a') as a:
-		a.write(f'threep_mapped_reads\t{len(mapped_rids)}\n')
-	
+	'''
 	# Filter alignments, grouping by read
 	filtered_alignments = {}			# { read id: [read sequence, chromosome, strand, 5'ss coordinate, alignment to genome is reverse-complementary, 5'ss start in read, 5'ss end in read, 3'ss coordinate, branchpoint coordinate, branchpoint base] }
 	failed_alignments = []
-	for rid in threep_info:
+	for rid in alignments:
 		read_seq, fivep_seq, fivep_sites, read_is_reverse, fivep_start, fivep_end = read_info[rid]
 		read_is_reverse = True if read_is_reverse == 'True' else False
 
 		# Get best mapping quality score
-		max_score = max(s[-3] for s in threep_info[rid])
+		max_score = max(s[-3] for s in alignments[rid])
 
 		# Make a dict with all 5'ss's aligned to the read
 		fivep_dict = {}			# { chromosome: { strand: set(5'ss coordinate) } }
@@ -145,7 +148,7 @@ def filter_threep_reads(trimmed_reads_to_threep, threep_lengths, read_info, gene
 				fivep_dict[chrom][strand].add(int(end)-1)
 
 		# Assess top alignment(s) to 3'ss's
-		for threep_chrom, threep_strand, threep_coord, alignment_start, alignment_end, threep_is_reverse, trimmed_read_seq, mapping_quality, num_mismatch, read_cig in threep_info[rid]:
+		for threep_chrom, threep_strand, threep_coord, alignment_start, alignment_end, threep_is_reverse, trimmed_read_seq, mapping_quality, num_mismatch, cigar_string in alignments[rid]:
 			passed_filtering = True
 			fail_reason = None
 
@@ -160,7 +163,7 @@ def filter_threep_reads(trimmed_reads_to_threep, threep_lengths, read_info, gene
 				fail_reason = 'mismatches' if fail_reason is None else fail_reason
 
 			# Check if if more than one insertion/deletion OR one insertion/deletion that's longer than 3bp
-			indels = [c[0] for c in read_cig if c[1] in ('D', 'I')]
+			indels = [c[0] for c in cigar_string if c[1] in ('D', 'I')]
 			if len(indels) > 1 or (len(indels) == 1 and indels[0] > 3):
 				passed_filtering = False
 				fail_reason = 'indel' if fail_reason is None else fail_reason
@@ -247,12 +250,12 @@ def filter_threep_reads(trimmed_reads_to_threep, threep_lengths, read_info, gene
 	
 	filtered_reads = set( [rid[:-4] for rid in filtered_alignments] )
 	with open(run_data, 'a') as a:
-		a.write(f'threep_filtered_reads\t{len(filtered_reads)}')
+		a.write(f'threep_filtered_reads\t{len(filtered_reads)}\n')
 	
 	# Loop through reads with potential alignments, outputting 1 mapping for each read
 	base_rids = [rid[:-4] for rid in filtered_alignments]
 	with open(out_file, 'w') as out:
-		out.write('read_id\tread_seq\tchrom\tstrand\tfivep_site\tread_is_reverse\tfivep_read_start\tfivep_read_end\t')
+		out.write('read_id\tread_seq\tchrom\tstrand\tfivep_site\tread_is_reverse\tread_fivep_start\tread_fivep_end\t')
 		out.write('threep_site\tbp_site\tread_bp_nt\tgenomic_bp_nt\tgenomic_bp_window\n')
 		
 		for base_rid in base_rids:
@@ -263,24 +266,6 @@ def filter_threep_reads(trimmed_reads_to_threep, threep_lengths, read_info, gene
 
 					bp_mismatch = read_bp_nt != genomic_bp_nt
 					align_mismatch[orientation][bp_mismatch].append(align_info)
-
-				# # Loop through alignments, checking branchpoint read sequence vs genomic sequence
-				# for align_info in alignments[rid+fivep_dir]:
-				# 	read_seq, chrom, strand, fivep_coord, read_is_reverse, fivep_start, fivep_end, _, bp_coord, read_bp_nt, passed_filtering, fail_reason = align_info
-				# 	temp_file = open(temp_bp_bed, 'w')
-				# 	if strand == '+':
-				# 		bp_start, bp_end = bp_coord-4, bp_coord+6
-				# 	else:
-				# 		bp_start, bp_end = bp_coord-5, bp_coord+5
-				# 	temp_file.write(f'{chrom}\t{bp_start}\t{bp_end}\t{chrom};{bp_coord};{strand}\t0\t{strand}\n')
-				# 	temp_file.close()
-				# 	run(f'bedtools getfasta -fi {genome_fasta} -bed {temp_bp_bed} -fo {temp_bp_seq} -nameOnly -s -tab'.split(' '))
-				# 	temp_file = open(temp_bp_seq)
-				# 	name, genomic_bp_window = temp_file.readline().strip().split()
-				# 	temp_file.close()
-				# 	genomic_bp_window = genomic_bp_window.upper()
-				# 	genomic_bp_nt = genomic_bp_window[4]
-				# 	align_mismatch[fivep_dir][genomic_bp_nt!=read_bp_nt].append(align_info+[genomic_bp_nt, genomic_bp_window])
 
 			# Output 1 alignment for the read, prioritizing based on mistmatch and orientation, choosing a random alignment if multiple in same category
 			if len(align_mismatch['_for'][True]) > 0:
@@ -303,8 +288,13 @@ if __name__ == '__main__':
 	gene_ranges = parse_gene_ranges(gtf_file)
 	threep_lengths = parse_threep_lengths(threep_lengths)
 	read_info = parse_read_info(fivep_info_table)
+	alignments = load_alignments(trimmed_reads_to_threep)
+
+	mapped_rids = set([x[:-4] for x in alignments.keys()])
+	with open(run_data, 'a') as a:
+		a.write(f'threep_mapped_reads\t{len(mapped_rids)}\n')
 
 	# Filter trimmed read alignments to 3'ss's and write to final_info_table.txt
 	out_file = output_base + '_threep_info_table.tsv'
-	filter_threep_reads(trimmed_reads_to_threep, threep_lengths, read_info, gene_ranges, genome_fasta, output_base, out_file, run_data)
+	filter_threep_reads(alignments, threep_lengths, read_info, gene_ranges, genome_fasta, output_base, out_file, run_data)
 
