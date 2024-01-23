@@ -17,13 +17,13 @@ if __name__ == '__main__':
 		next(in_file)
 		for line in in_file:
 			sinfo = line.strip().split('\t')
-			sample_output_base = '_'.join(sinfo[:-2])
-			read_one_file, read_two_file = sinfo[-2:]
+			sample_output_base = '_'.join(sinfo[:-1])
+			read_file = sinfo[-1]
 			script_path = sample_output_base + '_larmap.sh'
 			with open(script_path, 'w') as out_file:
 				out_file.write('#!/bin/bash\n\n')
 				out_file.write(f'{run_info["scripts_dir"]}/larmap_run.sh \\\n')
-				out_file.write(f'-d {run_info["fastq_dir"]} \\\n-1 {read_one_file} -2 {read_two_file} \\\n')
+				out_file.write(f'-d {read_file} \\\n')
 				out_file.write(f'-o {run_info["output_dir"]} \\\n')
 				out_file.write(f'-e {sample_output_base} \\\n')
 				out_file.write(f'-c {run_info["num_cpus"]} \\\n')
