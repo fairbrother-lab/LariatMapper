@@ -1,5 +1,5 @@
 ### Current top priority
-
+- Change 3' end mapping to mapping to transcriptome followed by filtering by alignment location
 
 ### Definitely, sometime
 - Move reference files + their args to one reference files folder and add a run-once script to prepare it
@@ -9,7 +9,7 @@
 ### Probably, sometime
 - Add keep-intermediates optional argument to keep intermediate file
 - Add individual arg-checks to larmap_rush.sh
-- Move filter_lariats.py into map_lariats.sh
+- Move filter_lariats.py from larmap_run.sh into map_lariats.sh
 
 ### Maybe
 - Find a way to map reads to 5'ss sequences instead of converting reads to an index and mapping 5'ss sequences to it (this is one of the most time-consuming steps in the pipeline)
