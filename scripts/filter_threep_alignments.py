@@ -162,13 +162,13 @@ def filter_threep_reads(alignments:dict, threep_lengths, read_info, gene_ranges,
 				passed_filtering = False
 				fail_reason = 'mismatches' if fail_reason is None else fail_reason
 
-			# Check if if more than one insertion/deletion OR one insertion/deletion that's longer than 3bp
+			# Check if more than one insertion/deletion OR one insertion/deletion that's longer than 3bp
 			indels = [c[0] for c in cigar_string if c[1] in ('D', 'I')]
 			if len(indels) > 1 or (len(indels) == 1 and indels[0] > 3):
 				passed_filtering = False
 				fail_reason = 'indel' if fail_reason is None else fail_reason
 
-			# Check if the read alignment orientation doesn't match the 3'ss's orientation
+			# Check if the 5'ss alignment orientation doesn't match the 3'ss's orientation
 			if read_is_reverse != threep_is_reverse:
 				passed_filtering = False
 				fail_reason = 'same_orientation' if fail_reason is None else fail_reason
@@ -192,7 +192,7 @@ def filter_threep_reads(alignments:dict, threep_lengths, read_info, gene_ranges,
 			if len(same_gene_fivep) != 1:
 				passed_filtering = False
 				fail_reason = 'one_gene' if fail_reason is None else fail_reason
-				failed_alignments.append((rid, read_seq, threep_chrom, threep_strand, read_is_reverse, fivep_sites, threep_coord, fail_reason))
+				failed_alignments.append((rid, read_seq, threep_chrom, threep_strand, 'n/a', read_is_reverse, 'n/a', 'n/a', threep_coord, 'n/a', 'n/a', 'n/a', 'n/a', fail_reason))
 				continue
 			fivep_coord = same_gene_fivep[0]
 
@@ -233,20 +233,14 @@ def filter_threep_reads(alignments:dict, threep_lengths, read_info, gene_ranges,
 			genomic_bp_nt = genomic_bp_window[4]
 
 			# Add alignment to dict
-			fail_reason = 'n/a' if fail_reason is None else fail_reason
 			if passed_filtering is True: 
 				if rid not in filtered_alignments:
 					filtered_alignments[rid] = []
 				filtered_alignments[rid].append([read_seq, threep_chrom, threep_strand, fivep_coord, read_is_reverse, fivep_start, fivep_end, threep_coord, bp_coord, read_bp_nt, genomic_bp_nt, genomic_bp_window])
 			else:
-				failed_alignments.append((rid, read_seq, threep_chrom, threep_strand, threep_coord, read_is_reverse, fivep_sites, fail_reason))
+				failed_alignments.append((rid, read_seq, threep_chrom, threep_strand, fivep_coord, read_is_reverse, fivep_start, fivep_end, threep_coord, bp_coord, read_bp_nt, genomic_bp_nt, genomic_bp_window, fail_reason))
 			
 	run(f'rm {temp_bp_bed} {temp_bp_seq}'.split(' '))
-
-	with open(output_base + '_failed_threep_alignments.tsv', 'w') as w:
-		w.write('read_id\tread_seq\t\tthreep_chrom\tthreep_strand\tthreep_coord\tread_is_reverse\tfivep_sites\tfail_reason\n')
-		for alignment in failed_alignments:
-			w.write('\t'.join([str(x) for x in alignment]) + '\n')
 	
 	filtered_reads = set( [rid[:-4] for rid in filtered_alignments] )
 	with open(run_data, 'a') as a:
@@ -255,8 +249,7 @@ def filter_threep_reads(alignments:dict, threep_lengths, read_info, gene_ranges,
 	# Loop through reads with potential alignments, outputting 1 mapping for each read
 	base_rids = [rid[:-4] for rid in filtered_alignments]
 	with open(out_file, 'w') as out:
-		out.write('read_id\tread_seq\tchrom\tstrand\tfivep_site\tread_is_reverse\tread_fivep_start\tread_fivep_end\t')
-		out.write('threep_site\tbp_site\tread_bp_nt\tgenomic_bp_nt\tgenomic_bp_window\n')
+		out.write('read_id\tread_seq\tchrom\tstrand\tfivep_site\tread_is_reverse\tread_fivep_start\tread_fivep_end\tthreep_site\tbp_site\tread_bp_nt\tgenomic_bp_nt\tgenomic_bp_window\n')
 		
 		for base_rid in base_rids:
 			align_mismatch = {'_for':{True:[], False:[]}, '_rev':{True:[], False:[]}}
@@ -278,6 +271,19 @@ def filter_threep_reads(alignments:dict, threep_lengths, read_info, gene_ranges,
 				output = [base_rid] + sample(align_mismatch['_rev'][False], 1)[0]
 
 			out.write('\t'.join([str(e) for e in output]) + '\n')
+
+			for orientation in ('_for', '_rev'):
+				for bp_mismatch in (True, False):
+					for align_info in align_mismatch[orientation][bp_mismatch]:
+						if [base_rid, *align_info] != output:
+							failed_alignments.append([base_rid, *align_info, 'not_chosen'])
+
+
+	with open(output_base + '_failed_threep_alignments.tsv', 'w') as w:
+		w.write('read_id\tread_seq\tchrom\tstrand\tfivep_site\tread_is_reverse\tread_fivep_start\tread_fivep_end\tthreep_site\tbp_site\tread_bp_nt\tgenomic_bp_nt\tgenomic_bp_window\tfail_reason\n')
+		for alignment in failed_alignments:
+			w.write('\t'.join([str(x) for x in alignment]) + '\n')
+
 	
 
 
