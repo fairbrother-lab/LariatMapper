@@ -67,3 +67,6 @@ A directory named `[output_base_name]_lariat_mapping` will be created in `output
 
 
 C22_R1_100k.fastq.gz and C22_R2_100k.fastq.gz are the first 100,000 reads in the R1 and R2 files of C22-1 from the DBR1-rescue experiment
+
+## Output
+The genomic coordinates provided are 0-based.
