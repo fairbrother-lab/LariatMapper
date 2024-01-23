@@ -65,5 +65,8 @@ A directory named `[output_base_name]_lariat_mapping` will be created in `output
 
     After filtering, the final set of lariat reads are output to the `results_path` file. The initial columns of this tab-delimited file are any additional custom columns which were added to the info file. After these columns, the file contains the following data for each lariat read: - Gene name - Gene Ensembl ID - Gene type (e.g. protein-coding, lncRNA) - Read ID - Read sequence - Chromosome - Strand - 5' splice site coordinate - 3' splice site coordinate - Branchpoint coordinate - Read branchpoint nucleotide - Genomic branchpoint nucleotide - Genomic branchpoint sequence context (10bp window with the BP at position 5) - Branchpoint position relative to nearest 3' splice site - Total count of linearly-aligned reads (useful for normalization when comparing lariat levels between samples)
 
+
+C22_R1_100k.fastq.gz and C22_R2_100k.fastq.gz are the first 100,000 reads in the R1 and R2 files of C22-1 from the DBR1-rescue experiment
+
 ## Output
 The genomic coordinates provided are 0-based.

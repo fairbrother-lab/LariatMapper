@@ -1,4 +1,3 @@
-
 from sys import argv
 from os import rmdir, mkdir
 from os.path import join, isfile, exists
@@ -28,7 +27,8 @@ BASE_RESULTS_COLUMNS = ('gene',
                         'bp_dist_to_threep',
                         'total_mapped_reads')
 
-# RMAP = {'one': 'R1', 'two': 'R2'}
+
+
 
 
 # =============================================================================#
@@ -71,6 +71,7 @@ def get_intron_info(ref_introns) -> tuple:
     return threep_sites, fivep_sites, introns
 
 
+
 def get_gene_info(ref_gtf) -> dict:
     '''
     Get whole-genome gene info from annotation file
@@ -98,47 +99,42 @@ def get_gene_info(ref_gtf) -> dict:
     return gene_info
 
 
-def parse_lariat_table(final_info_table: str) -> dict:
-    '''
-    For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_final_info_table.txt and put them in a dict, which
-    can then be added to the experiment-wide superset dict
-    '''
-    reads = {}
-    with open(final_info_table, 'r') as lariat_file:
-        next(lariat_file)  # Skip the header line
-        for line in lariat_file:
-            read_id, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = line.strip().split()
-            if read_is_reverse == 'False':
-                trim_seq = read_seq[:int(fivep_read_start)]
-            else:
-                trim_seq = read_seq[int(fivep_read_end):]
-            reads[read_id] = [trim_seq, read_seq, chrom, strand, int(fivep_site), read_is_reverse, fivep_read_start, fivep_read_end]
-            reads[read_id] += [int(threep_site), int(bp_site), read_bp_nt, genomic_bp_nt, genomic_bp_window]
-    return reads
+
+def parse_lariat_table(threep_info_table: str) -> dict:
+	'''
+	For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_threep_info_table.tsv and put them in a dict, which
+	can then be added to the experiment-wide superset dict
+	'''
+	reads = {}
+	with open(threep_info_table, 'r') as lariat_file:
+		next(lariat_file)  # Skip the header line
+		for line in lariat_file:
+			read_id, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = line.strip().split('\t')			
+
+			trim_seq = read_seq[int(fivep_read_end):] if read_is_reverse == 'True' else read_seq[:int(fivep_read_start)]
+			fivep_site = int(fivep_site)
+			threep_site = int(threep_site)
+			bp_site = int(bp_site)
+
+			reads[read_id] = [trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end]
+			reads[read_id] += [threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window]
+	return reads
 
 
-def get_aligned_reads(output_dir, output_base_name) -> int:
+
+def get_mapped_reads(output_dir, output_base_name) -> int:
 	'''
-	Get total aligned reads for each sample from the *_total_reads.txt file in its results directory
+	Get the number of reads that mapped to the reference genome from the *_run_data.tsv file 
 	'''
-	# sample_read_count = 0
-	# for read_num in ['one', 'two']:
-	#     read_output_name = f'{output_base_name}_{RMAP[read_num]}'
-	#     read_count_path = join(output_dir, read_output_name, f'{read_output_name}_total_reads.txt')
-	#     if not isfile(read_count_path):
-	#         raise FileNotFoundError(f'No total reads found for sample "{read_output_name}"')
-	#     with open(read_count_path, 'r') as count_file:
-	#         # line format: "total_reads=[total aligned reads]"
-	#         aligned_reads = int(count_file.readline().split('=')[1])
-	#         sample_read_count = max(sample_read_count, aligned_reads)
-	read_count_path = join(output_dir, f'{output_base_name}_total_reads.txt')
+	read_count_path = join(output_dir, f'{output_base_name}_run_data.tsv')
 	if not isfile(read_count_path):
-		raise FileNotFoundError(f'No total reads found for sample "{output_base_name}"')
-	with open(read_count_path, 'r') as count_file:
-		# line format: "total_reads=[total aligned reads]"
-		sample_read_count = int(count_file.readline().split('=')[1])
+		raise FileNotFoundError(f'No mapped read count found for "{output_base_name}"')
+	with open(read_count_path, 'r') as file:
+		line = file.readline()
+		sample_read_count = int(line.split('\t')[1])
 
 	return sample_read_count
+
 
 
 def merge_opposite_reads(lariat_reads: dict, output_base_name) -> dict:
@@ -162,144 +158,167 @@ def merge_opposite_reads(lariat_reads: dict, output_base_name) -> dict:
     return merged_reads
 
 
-def filter_lariat_reads(merged_lariats: dict, threep_sites: dict, fivep_sites: dict, introns: dict, gene_info: dict, output_dir:str, num_cpus:str, ref_b2index:str, ref_repeatmasker: str) -> dict:
-    '''
-    Filter the candidate lariat reads in order to exclude any that meet the following criteria:
-            - BP is within 2bp of a splice site (likely an intron circle, not a lariat)
-            - 5'SS and 3'SS are not in the correct order
-            - Read maps to a Ubiquitin gene (likely false positive due to repetitive nature of gene)
-            - There is a valid aligment for the 3' segment upstream of the 5' segment
-            - Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive)
-    '''
 
-    # create temporary directory in the output dir
-    temp_dir = output_dir + '/temp'
-    if not exists(temp_dir):
-        mkdir(temp_dir)
+def filter_lariat_reads(lariat_reads: dict, threep_sites: dict, fivep_sites: dict, introns: dict, gene_info: dict, output_dir:str, num_cpus:str, ref_b2index:str, ref_repeatmasker: str) -> dict:
+	'''
+	Filter the candidate lariat reads in order to exclude any that meet the following criteria:
+			- BP is within 2bp of a splice site (likely an intron circle, not a lariat)
+			- Read maps to UBB or UBC (likely false positive due to the repetitive nature of the genes)
+			- There is a valid aligment for the 3' segment upstream of the 5' segment (likely a pre-mRNA read)
+			- Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive due to sequence repetition)
+	'''
 
-    filtered_reads = {}
-    trim_reads = {}
-    fail_reason = Counter()
-    for rid in merged_lariats:
-        trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = merged_lariats[rid]
-        gene_data = gene_info[chrom][strand].at(bp_site)
-        gene_names = [g.data['gene_name'] for g in gene_data]
+	
+	# create temporary directory in the output dir
+	temp_dir = output_dir + '/temp'
+	if not exists(temp_dir):
+		mkdir(temp_dir)
 
-        # Primary exclusion criteria:
-        # Branchpoint is not within 2bp of an annotated splice site (filters intron circles)
-        outside_ss = not fivep_sites[chrom][strand].overlaps(bp_site) and not threep_sites[chrom][strand].overlaps(bp_site)
-        # The branchpoint is downstream of the 5' splice site
-        correct_order = (strand == '+' and fivep_site < bp_site) or (strand == '-' and fivep_site > bp_site)
-        # Read did not map to a ubiquitin gene
-        outside_ubiquitin = 'UBB' not in gene_names and 'UBC' not in gene_names
+	# Check if the 3' segment has a valid alignment upstream of the 5' segment
+	# Write trimmed sequences to fasta
+	trim_seqs = {rid: vals[0] for rid, vals in lariat_reads.items()}
+	seq_tmp_fa, seq_tmp_sam = f'{temp_dir}/trim_seq_tmp.fa', f'{temp_dir}/trim_seq_tmp.sam'
+	with open(seq_tmp_fa, 'w') as out_file:
+		for rid in trim_seqs:
+			out_file.write(f'>{rid}\n{trim_seqs[rid]}\n')
 
-        if outside_ss and correct_order and outside_ubiquitin:
-            overlap_introns = list(introns[chrom][strand].overlap(bp_site, bp_site+1))
-            if len(overlap_introns) > 0:
-                if strand == '+':
-                    threep_site = min(overlap_introns, key=lambda s: s.end-bp_site).end
-                else:
-                    threep_site = min(overlap_introns, key=lambda s: bp_site-s.begin).begin
-                dist_to_threep = bp_site-threep_site if strand == '+' else threep_site-bp_site
-                trim_reads[rid] = trim_seq
-                filtered_reads[rid] = [gene_data, read_seq, chrom, strand, fivep_site,
-                                               threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window, dist_to_threep]
-        elif not outside_ss:
-            fail_reason['near_ss'] += 1
-        elif not correct_order:
-            fail_reason['fivep_bp_disordered'] += 1
-        elif not outside_ubiquitin:
-            fail_reason['ubiquitin_gene'] += 1
+	# Map trimmed sequences to genome
+	map_call = f'bowtie2 --end-to-end --no-unal --threads {num_cpus} -k 30 -f -x {ref_b2index} -U {seq_tmp_fa} -S {seq_tmp_sam}'
+	run(map_call.split(' '), stdout=DEVNULL, stderr=DEVNULL)
 
-    # Filter reads were the 3' segment has a valid alignment upstream of the 5' segment
-    seq_tmp_fa, seq_tmp_sam = f'{temp_dir}/trim_seq_tmp.fa', f'{temp_dir}/trim_seq_tmp.sam'
-    with open(seq_tmp_fa, 'w') as out_file:
-        for rid in trim_reads:
-            out_file.write('>{}\n{}\n'.format(rid, trim_reads[rid]))
+	# Check if the trimmed sequence (which mapped to the 3'ss sequence) maps upstream of the 5'ss
+	# If it does, it's probably a intron-exon junction read from a pre-mRNA instead of a lariat
+	upstream_rids = set()
+	with open(seq_tmp_sam) as read_file:
+		for line in read_file:
+			if line[0] == '@':
+				continue
 
-    map_call = f'bowtie2 --end-to-end --no-unal --threads {num_cpus} -k 30 -f -x {ref_b2index} -U {seq_tmp_fa} -S {seq_tmp_sam}'
-    run(map_call.split(' '), stdout=DEVNULL, stderr=DEVNULL)
+			# Load alignment info and the read's info
+			rid, _, trim_chrom, reference_start = line.strip().split('\t')[:4]
+			reference_start = int(reference_start)-1
+			_, _, chrom, strand, fivep_site, _, _, _, _, bp_site = lariat_reads[rid][:10]
+			gene_data = gene_info[chrom][strand].at(bp_site)
+			gene_names = [g.data['gene_name'] for g in gene_data]
 
-    upstream_rids = set()
-    with open(seq_tmp_sam) as read_file:
-        for line in read_file:
-            if line[0] != '@':
-                rid, _, trim_chrom, reference_start = line.strip().split('\t')[
-                    :4]
-                gene_data, _, chrom, strand, fivep, threep = filtered_reads[rid][:6]
-                gene_names = [g.data['gene_name'] for g in gene_data]
-                if trim_chrom == chrom:
-                    reference_start = int(reference_start)-1
-                    trim_genes = [g.data['gene_name']
-                                  for g in gene_info[chrom][strand].at(reference_start)]
-                    genes_overlap = sum(
-                        1 for g in trim_genes if g in gene_names) > 0
-                    if genes_overlap:
-                        if strand == '+' and reference_start <= fivep:
-                            upstream_rids.add(rid)
-                        elif strand == '-' and reference_start >= fivep:
-                            upstream_rids.add(rid)
-    fail_reason['upstream_found'] += len(upstream_rids)
+			if trim_chrom != chrom:
+				continue
 
-    # Filter reads where both the 5'SS and the BP overlap with repetitive regions
-    fivep_tmp_bed, bp_tmp_bed = f'{temp_dir}/fivep_tmp.bed', f'{temp_dir}/bp_tmp.bed'
-    with open(fivep_tmp_bed, 'w') as fivep_out:
-        with open(bp_tmp_bed, 'w') as bp_out:
-            for rid in filtered_reads:
-                if rid not in upstream_rids:
-                    _, _, chrom, _, fivep_site, _, bp_site = filtered_reads[rid][:7]
-                    fivep_out.write('{}\t{}\t{}\t{}\n'.format(
-                        chrom, fivep_site-1, fivep_site+1, rid))
-                    bp_out.write('{}\t{}\t{}\t{}\n'.format(
-                        chrom, bp_site-1, bp_site+1, rid))
+			# Check if where the trimmed sequence mapped is upstream of the 5'ss
+			trim_genes = [g.data['gene_name']
+							for g in gene_info[chrom][strand].at(reference_start)]
+			genes_overlap = sum(
+				1 for g in trim_genes if g in gene_names) > 0
+			if not genes_overlap:
+				continue
 
-    fivep_overlap_bed, bp_overlap_bed = f'{temp_dir}/fivep_repeat_overlaps.bed', f'{temp_dir}/bp_repeat_overlaps.bed'
-    with open(fivep_overlap_bed, 'w') as out_file:
-        run(f'bedtools intersect -u -a {fivep_tmp_bed} -b {ref_repeatmasker}'.split(' '),
-            stdout=out_file)
-    with open(bp_overlap_bed, 'w') as out_file:
-        run(f'bedtools intersect -u -a {bp_tmp_bed} -b {ref_repeatmasker}'.split(' '),
-            stdout=out_file)
+			# If it is, add it to upstream_rids for removal
+			if strand == '+' and reference_start <= fivep_site:
+				upstream_rids.add(rid)
+			elif strand == '-' and reference_start >= fivep_site:
+				upstream_rids.add(rid)
 
-    fivep_repeat_rids, bp_repeat_rids = set(), set()
-    with open(fivep_overlap_bed) as in_file:
-        for line in in_file:
-            _, _, _, rid = line.strip().split()
-            fivep_repeat_rids.add(rid)
-    with open(bp_overlap_bed) as in_file:
-        for line in in_file:
-            _, _, _, rid = line.strip().split()
-            bp_repeat_rids.add(rid)
-    repeat_rids = fivep_repeat_rids.intersection(bp_repeat_rids)
-    fail_reason['in_repeat'] += len(repeat_rids)
+	# Check if both the 5'SS and the BP overlap with a repetitive region
+	# Write the 5'ss and BP coordinates to BED files
+	fivep_tmp_bed, bp_tmp_bed = f'{temp_dir}/fivep_tmp.bed', f'{temp_dir}/bp_tmp.bed'
+	with open(fivep_tmp_bed, 'w') as fivep_out, open(bp_tmp_bed, 'w') as bp_out:
+		for rid in lariat_reads:
+			_, _, chrom, _, fivep_site, _, _, _, _, bp_site = lariat_reads[rid][:10]
+			fivep_out.write('{}\t{}\t{}\t{}\n'.format(
+				chrom, fivep_site-1, fivep_site+1, rid))
+			bp_out.write('{}\t{}\t{}\t{}\n'.format(
+				chrom, bp_site-1, bp_site+1, rid))
+				
+	# Identify 5'ss's that overlap a repeat region
+	fivep_overlap_bed, bp_overlap_bed = f'{temp_dir}/fivep_repeat_overlaps.bed', f'{temp_dir}/bp_repeat_overlaps.bed'
+	with open(fivep_overlap_bed, 'w') as out_file:
+		run(f'bedtools intersect -u -a {fivep_tmp_bed} -b {ref_repeatmasker}'.split(' '),
+			stdout=out_file)
+	# Identify BPs that overlap a repeat region
+	with open(bp_overlap_bed, 'w') as out_file:
+		run(f'bedtools intersect -u -a {bp_tmp_bed} -b {ref_repeatmasker}'.split(' '),
+			stdout=out_file)
 
-    discard_rids = upstream_rids.union(repeat_rids)
+	# Add reads where both sites overlapped to repeat_rids for removal
+	fivep_repeat_rids, bp_repeat_rids = set(), set()
+	with open(fivep_overlap_bed) as in_file:
+		for line in in_file:
+			_, _, _, rid = line.strip().split()
+			fivep_repeat_rids.add(rid)
+	with open(bp_overlap_bed) as in_file:
+		for line in in_file:
+			_, _, _, rid = line.strip().split()
+			bp_repeat_rids.add(rid)
+	repeat_rids = fivep_repeat_rids.intersection(bp_repeat_rids)
 
-    # Discard filtered reads and output final set of lariat reads
-    filtered_reads = {rid:filtered_reads[rid] for rid in filtered_reads if rid not in discard_rids}
-    for rid in filtered_reads:
-        gene_data = filtered_reads[rid][0].pop()
-        gene_data = [gene_data.data['gene_name'], gene_data.data['ensembl_id'], gene_data.data['gene_type'], rid]
-        filtered_reads[rid] = gene_data + filtered_reads[rid][1:]
+	# Now loop through reads and check them against filters
+	failed_reads = []
+	filtered_lariats = []
+	for rid in lariat_reads:
+		trim_seq, read_seq, chrom, strand, fivep_site, read_is_reverse, fivep_read_start, fivep_read_end, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window = lariat_reads[rid]
 
-    fail_reason_out = ', '.join([f'{r} ({fail_reason[r]})' for r in fail_reason])
-    print(strftime('%m/%d/%y - %H:%M:%S') + f' | Pre-filter read count = {len(merged_lariats)}')
-    print(strftime('%m/%d/%y - %H:%M:%S') + f' | Post-filter read count = {len(filtered_reads)}')
-    print(strftime('%m/%d/%y - %H:%M:%S') + f' | Discarded read counts = {fail_reason_out}')
+		passed_filtering = True
+		fail_reason = None
+		gene_data = gene_info[chrom][strand].at(bp_site)
+		gene_names = [g.data['gene_name'] for g in gene_data]
+		gene_ids = [g.data['ensembl_id'] for g in gene_data]
+		gene_types = [g.data['gene_type'] for g in gene_data]
 
-    # Delete all temporary files
-    run(f'rm {seq_tmp_fa} {seq_tmp_sam} {fivep_tmp_bed} {bp_tmp_bed} {fivep_overlap_bed} {bp_overlap_bed}'.split(' '))
-    rmdir(temp_dir)
+		# If multiple introns overlap the BP site, assign it the closest 3'ss
+		overlap_introns = list(introns[chrom][strand].overlap(bp_site, bp_site+1))
+		assert overlap_introns != [], f'{lariat_reads[rid]}'
+		if strand == '+':
+			threep_site = min(overlap_introns, key=lambda s: s.end-bp_site).end
+		else:
+			threep_site = min(overlap_introns, key=lambda s: bp_site-s.begin).begin
+		dist_to_threep = bp_site-threep_site if strand == '+' else threep_site-bp_site
 
-    return filtered_reads
+		# Check if BP is within 2bp of an annotated splice site
+		if fivep_sites[chrom][strand].overlaps(bp_site) or threep_sites[chrom][strand].overlaps(bp_site):
+			passed_filtering = False
+			fail_reason = 'near_ss' if fail_reason is None else fail_reason
+
+		# Check if read mapped to a ubiquitin gene
+		if 'UBB' in gene_names or 'UBC' in gene_names:
+			passed_filtering = False
+			fail_reason = 'ubiquitin_gene' if fail_reason is None else fail_reason
+		
+		if rid in upstream_rids:
+			passed_filtering = False
+			fail_reason = 'upstream_found' if fail_reason is None else fail_reason
+
+		if rid in repeat_rids:
+			passed_filtering = False
+			fail_reason = 'in_repeat' if fail_reason is None else fail_reason
+
+		# If passed
+		if passed_filtering:
+			filtered_lariats.append([','.join(gene_names), ','.join(gene_ids), ','.join(gene_types), rid, read_seq, chrom, strand, fivep_site, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window, dist_to_threep])
+		else:
+			failed_reads.append([','.join(gene_names), ','.join(gene_ids), ','.join(gene_types), rid, read_seq, chrom, strand, fivep_site, threep_site, bp_site, read_bp_nt, genomic_bp_nt, genomic_bp_window, dist_to_threep, fail_reason])
+
+	print(strftime('%m/%d/%y - %H:%M:%S') + f' | Pre-filter read count = {len(lariat_reads)}')
+	print(strftime('%m/%d/%y - %H:%M:%S') + f' | Post-filter read count = {len(filtered_lariats)}')
+
+	# Delete all temporary files
+	# run(f'rm {seq_tmp_fa} {seq_tmp_sam} {fivep_tmp_bed} {bp_tmp_bed} {fivep_overlap_bed} {bp_overlap_bed}'.split(' '))
+	# rmdir(temp_dir)
+
+	return filtered_lariats, failed_reads
+
+
 
 
 
 # =============================================================================#
 #                                    Main                                     #
 # =============================================================================#
+
 if __name__ == '__main__':
 	output_dir, output_base_name, num_cpus, ref_b2index, ref_gtf, ref_introns, ref_repeatmasker = argv[1:]
+	keep_failed_reads = True
+
+	run_data = join(output_dir, f'{output_base_name}_run_data.tsv')
 
 	# Load intron, splice site, and gene coordinates
 	print(strftime('%m/%d/%y - %H:%M:%S | Parsing intron info...'))
@@ -309,34 +328,35 @@ if __name__ == '__main__':
 
 	print(strftime('%m/%d/%y - %H:%M:%S | Parsing lariat reads...'))
 	lariat_reads = {}
-	# for read_num in ['one', 'two']:
-	#     read_output_name = f'{output_base_name}_{RMAP[read_num]}'
-	#     final_info_table = join(output_dir, read_output_name, f'{read_output_name}_final_info_table.txt')
-	#     lariat_reads[read_output_name] = parse_lariat_table(final_info_table)
-	final_info_table = join(output_dir, f'{output_base_name}_final_info_table.txt')
-	lariat_reads = parse_lariat_table(final_info_table)
+	threep_info_table = join(output_dir, f'{output_base_name}_threep_info_table.tsv')
+	lariat_reads = parse_lariat_table(threep_info_table)
 
 	# Parse counts of linearly aligned reads 
 	print(strftime('%m/%d/%y - %H:%M:%S | Retrieving total mapped reads...'))
-	sample_read_count = get_aligned_reads(output_dir, output_base_name)
-
-	# # Merge results from read one (R1) and read two (R2) files
-	# print(strftime('%m/%d/%y - %H:%M:%S | Merging R1 and R2 lariat reads...'))
-	# print('sample', lariat_reads)
-	# merged_lariats = merge_opposite_reads(lariat_reads, output_base_name)
-	# print('merged', merged_lariats)
+	sample_read_count = get_mapped_reads(output_dir, output_base_name)
 
 	# Filter lariat reads
 	print(strftime('%m/%d/%y - %H:%M:%S | Filtering lariat reads...'))
-	# merged_filtered_lariats = filter_lariat_reads(merged_lariats, threep_sites, fivep_sites, introns, gene_info, output_dir, num_cpus, ref_b2index, ref_repeatmasker)
-	filtered_lariats = filter_lariat_reads(lariat_reads, threep_sites, fivep_sites, introns, gene_info, output_dir, num_cpus, ref_b2index, ref_repeatmasker)
+	filtered_lariats, failed_reads = filter_lariat_reads(lariat_reads, threep_sites, fivep_sites, introns, gene_info, output_dir, num_cpus, ref_b2index, ref_repeatmasker)
+	
+	with open(run_data, 'a') as a:
+		a.write(f'filtered_lariat_reads\t{len(filtered_lariats)}\n')
 
 	# Now write it all to file
 	print(strftime('%m/%d/%y - %H:%M:%S | Writing results to output file...'))
-	with open(join(output_dir, f'{output_base_name}_lariat_reads.txt'), 'w') as results_file:
+	with open(join(output_dir, f'{output_base_name}_lariat_reads.tsv'), 'w') as results_file:
 		# make and write the header row
 		header = '\t'.join(BASE_RESULTS_COLUMNS) + '\n'
 		results_file.write(header)
-		for read_info in filtered_lariats.values():
-			read_output = read_info + [sample_read_count]
-			results_file.write('\t'.join([str(e) for e in read_output]) + '\n')
+			
+		for read_info in filtered_lariats:
+			read_output = '\t'.join([str(e) for e in read_info]) + f'\t{sample_read_count}'
+			results_file.write(read_output + '\n')
+
+	with open(join(output_dir, f'{output_base_name}_failed_lariat_reads.tsv'), 'w') as failed_file:
+		header = '\t'.join(BASE_RESULTS_COLUMNS) + '\tfail_reason' + '\n'
+		failed_file.write(header)
+
+		for read_info in failed_reads:
+			read_output = '\t'.join([str(e) for e in read_info]) + f'\t{sample_read_count}'
+			failed_file.write(read_output + '\n')
