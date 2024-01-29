@@ -169,8 +169,7 @@ scripts/map_lariats.sh $read_file \
 	$ref_gtf \
     $ref_5p_fasta \
 	$ref_5p_upstream \
-    $ref_3p_b2index \
-	$ref_3p_lengths
+	$ref_introns \
 exit_code=$?
 # Check the exit code and handle errors
 if [ $exit_code -ne 0 ]; then
@@ -184,7 +183,6 @@ python -u scripts/filter_lariats.py $output_dir \
 	$num_cpus \
 	$ref_b2index \
 	$ref_gtf \
-	$ref_introns \
 	$ref_repeatmasker
 exit_code=$?
 # Check the exit code and handle errors
