@@ -24,9 +24,9 @@ FIVEP_FASTA=$8
 FIVEP_UPSTREAM=$9
 # # Bowtie2 index of 3' splice sites genome (last 250nts of all introns)
 # THREEP_BOWTIE2_INDEX="${10}"
-TRANSCRIPTOME_INDEX="${10}"
-# TSV file with 3' splice site coordinates and lengths (max 250)
-THREEP_LENGTHS="${11}"
+# # TSV file with 3' splice site coordinates and lengths (max 250)
+# THREEP_LENGTHS="${11}"
+$INTRONS_BED="${10}"
 
 #=============================================================================#
 #                                    Calls                                    #
@@ -98,10 +98,10 @@ bedtools intersect -wa -wb -bed -a $trimmed_reads_to_genome -b $transcript_bed >
 ### Filter alignments
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
-python scripts/filter_trimmed_alignments.py $trimmed_reads_to_genome $GTF_FILE $GENOME_FASTA $OUTPUT_DIR/$NAME ???
+python scripts/filter_trimmed_alignments.py $GTF_FILE $INTR $GENOME_FASTA $INTRONS_BED $OUTPUT_DIR/$NAME
 
 ### Delete all intermediate/uneeded files that were created throughout this process
 wait
-rm $output_bam
-rm $unmapped_bam
+# rm $output_bam
+# rm $unmapped_bam
 # rm $unmapped_fasta* $fivep_to_reads* $fivep_trimmed_reads $trimmed_reads_to_threep*  
