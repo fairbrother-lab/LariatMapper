@@ -2,9 +2,12 @@
 - Change 3' end mapping to mapping to transcriptome followed by filtering by alignment location
 
 ### Definitely, sometime
-- Move reference files + their args to one reference files folder and add a run-once script to prepare it
+- Move reference files + their args to one reference files folder and add a run-once script to prepare it (replacing get_splice_site_seqs.py)
 - Add unit tests
 - Make this into a software package for installing as a command line command and distributing via anaconda/pip/etc
+- Update larmap_setup.py to work with current version or remove it
+- Update larmap_merge.py to work with current version or remove it
+- Specify package versions in environment.yaml to future-proof 
 
 ### Probably, sometime
 - Add keep-intermediates optional argument to keep intermediate file
