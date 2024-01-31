@@ -1,13 +1,22 @@
 import sys
+
 from pyfaidx import Fasta
-from collections import Counter
+import pandas as pd
 
 
 
-comp_nts = {'A':'T', 'C':'G', 'T':'A', 'G':'C', 'N':'N'}
+# =============================================================================#
+#                                  Constants                                   #
+# =============================================================================#
+COMP_NTS = {'A':'T', 'C':'G', 'T':'A', 'G':'C', 'N':'N'}
+
+
+
+# =============================================================================#
+#                                  Functions                                   #
+# =============================================================================#
 def reverse_complement(seq):
-	return ''.join([comp_nts[seq[i]] for i in range(len(seq)-1,-1,-1)])
-
+	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
 
 
 def load_alignments(fivep_to_reads:str) -> dict:
@@ -34,7 +43,6 @@ def load_alignments(fivep_to_reads:str) -> dict:
 	return alignments
 
 
-
 def load_fivep_upstream(fivep_upstream:str) -> dict:
 	'''
 	Load the collection of 5bp upstream sequences
@@ -47,7 +55,6 @@ def load_fivep_upstream(fivep_upstream:str) -> dict:
 			fivep_upstream_seqs[fivep_site[:-3]] = seq.upper()
 
 	return fivep_upstream_seqs
-
 
 
 def filter_fivep_reads(unmapped_fasta:str, alignments:dict, fivep_upstream_seqs:dict):
@@ -124,7 +131,7 @@ def filter_fivep_reads(unmapped_fasta:str, alignments:dict, fivep_upstream_seqs:
 			out_reads.append((trim_seq, out_rid, read_seq, fivep_seq, fivep_sites, read_is_reverse, read_fivep_start, read_fivep_end))
 		
 	return out_reads, failed_alignments
-	
+
 
 def write_out_reads(out_reads:list, fivep_trimmed_reads_out:str, fivep_info_table_out:str) -> None:
 	'''
@@ -142,11 +149,10 @@ def write_out_reads(out_reads:list, fivep_trimmed_reads_out:str, fivep_info_tabl
 			info_out.write(row + '\n')
 	
 
-	# info_out.write(f'{out_rid}\t{read_seq}\t{fivep_seq}\t{fivep_sites}\t{read_is_reverse}\t{read_fivep_start}\t{read_fivep_end}\n')
-
-
+# =============================================================================#
+#                                    Main                                      #
+# =============================================================================#
 if __name__ == '__main__' :
-	
 	unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_trimmed_reads_out, fivep_info_table_out, output_base = sys.argv[1:]
 
 	alignments = load_alignments(fivep_to_reads)
@@ -156,14 +162,14 @@ if __name__ == '__main__' :
 
 	write_out_reads(out_reads, fivep_trimmed_reads_out, fivep_info_table_out)
 
-	with open(f'{output_base}_failed_fivep_alignments.tsv', 'w') as w:
+	with open(f'{output_base}failed_fivep_alignments.tsv', 'w') as w:
 		w.write('read_id\tread_seq\tfivep_site\tread_fivep_start\tread_fivep_end\tread_is_reverse\tfail_reason\n')
 		for info in failed_alignments:
 			row = '\t'.join([str(x) for x in info])
 			w.write(row + '\n')
 
 	out_rids = set([x[1][:-4] for x in out_reads])
-	with open(f'{output_base}_run_data.tsv', 'a') as a:
+	with open(f'{output_base}run_data.tsv', 'a') as a:
 		a.write(f'fivep_mapped_reads\t{len(alignments.keys())}\n')
 		a.write(f'fivep_filtered_reads\t{len(out_rids)}\n')
 
