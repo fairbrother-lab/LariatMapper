@@ -3,18 +3,19 @@
 
 ### Definitely, sometime
 - Move reference files + their args to one reference files folder and add a run-once script to prepare it (replacing get_splice_site_seqs.py)
-- Add unit tests (for each filter, at least 1 artificial read that reaches it and fails it)
 - Make this into a software package for installing as a command-line command and distributing via anaconda/pip/etc
 - Update larmap_setup.py to work with current version or remove it
 - Update larmap_merge.py to work with current version or remove it
-- Specify package versions in environment.yaml to future-proof 
+- Make output base name into option, default to no prefix
 
 ### Probably, sometime
-- Add keep-intermediates optional argument to keep intermediate file
-- Add individual arg-checks to larmap_rush.sh
+- Add keep-intermediates optional argument to keep intermediate files
 - Move filter_lariats.py from larmap_run.sh into map_lariats.sh
-- Make output base name into option, default to no prefix
 - Change python scripts print statements to logs and add logging calls that only print in debug mode (e.g. input arg values, DataFrame heads)
+- Add unit tests (for each filter, at least 1 artificial read that reaches it and fails it)
+- Specify package versions in environment.yaml to future-proof 
+- Add individual arg-checks to larmap_rush.sh
+- Refactor filter_fivep_alignments.py to replace dicts with pandas DataFrames
 
 ### Maybe
 - Find a way to map reads to 5'ss sequences instead of converting reads to an index and mapping 5'ss sequences to it (this is one of the most time-consuming steps in the pipeline)
