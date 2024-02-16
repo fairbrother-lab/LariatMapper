@@ -4,10 +4,11 @@ channels:
   - bioconda
 dependencies:
   - bedtools
-  - bowtie2=2.5.3
+  - bowtie2
   - intervaltree
   - numpy
   - pandas
+  - pyarrow       # pandas whines if this isn't included
   - python
   - pyfaidx
   - pysam

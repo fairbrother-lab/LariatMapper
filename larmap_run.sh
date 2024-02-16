@@ -15,9 +15,9 @@ usage() {
     echo "  -5, --ref_5p_fasta <ref_5p_fasta>         FASTA file with sequences of first 20nt from reference 5' splice sites (first 20nt of introns)"
     echo "  -u, --ref_5p_upstream <ref_5p_upstream>   Custom file of sequences in 5nt window upstream of 5' splice sites"
     echo "  -n, --ref_introns <ref_introns>           BED file of all introns in the reference genome"
+    echo "  -x, --ref_exons <ref_exons>             BED file of all exons in the reference genome"
 	echo "  -t, --ref_transcripts <ref_transcripts>   BED file of all transcripts in the reference genome, including the blockCount, blockSizes, and blockStarts columns with exon counts, exon lengths, and exon start positions, respectively"
     echo "  -m, --ref_repeatmasker <ref_repeatmasker> BED file of repetitive elements from repeatmasker"
-    # echo "  -k, --keep_intermediates <keep> 		Optional. Don't delete the intermediate files created"
     echo ""
     exit 1
 }
@@ -67,7 +67,10 @@ while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do
         n) 
             ref_introns=$OPTARG 
             echo "ref_introns: $ref_introns" ;;
-        n) 
+        x) 
+            ref_exons=$OPTARG 
+            echo "ref_exons: $ref_exons" ;;
+        t) 
             ref_transcripts=$OPTARG 
             echo "ref_transcripts: $ref_transcripts" ;;
         m) 
@@ -115,6 +118,10 @@ while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                     ref_introns=$val 
                     echo "ref_introns: $ref_introns" ;;
+                ref_exons)
+                    val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
+                    ref_exons=$val 
+                    echo "ref_exons: $ref_exons" ;;
                 ref_transcripts)
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                     ref_transcripts=$val 
@@ -140,7 +147,7 @@ done
 
 
 # Check if all required arguments are provided
-if [[ -z $read_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_introns || -z $ref_transcripts || -z $ref_repeatmasker ]]; then
+if [[ -z $read_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_introns || -z $ref_exons || -z $ref_transcripts || -z $ref_repeatmasker ]]; then
   echo "All arguments are required."
   exit_abnormal
 fi
@@ -170,6 +177,7 @@ scripts/map_lariats.sh $read_file \
 					$ref_5p_upstream \
 					$ref_transcripts \
 					$ref_introns \
+					$ref_exons \
 					$ref_repeatmasker
 exit_code=$?
 # Check the exit code and handle errors

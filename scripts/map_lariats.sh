@@ -23,8 +23,10 @@ FIVEP_UPSTREAM=$8
 TRANSCRIPTS_BED="${9}"
 # Annotated introns
 INTRONS_BED="${10}"
+# Annotated exons
+EXONS_BED="${11}"
 # Annotated repeat regions
-REPEATS_BED="${11}"
+REPEATS_BED="${12}"
 
 
 
@@ -44,6 +46,12 @@ unmapped_read_count=$(samtools view --count $unmapped_bam)
 run_data="$OUTPUT_BASE"run_data.tsv
 echo -e "ref_mapped_reads\t$mapped_read_count" > $run_data
 echo -e "ref_unmapped_reads\t$unmapped_read_count" >> $run_data
+
+### Count pre-mRNA reads
+tagged_bam="$OUTPUT_BASE"mapped_reads_tagged.bam
+bedtools tag -names -i $output_bam -files $INTRONS_BED $EXONS_BED > $tagged_bam
+premRNA_reads="$(python scripts/get_premRNA_reads.py $tagged_bam count)"
+echo -e "premRNA_reads\t$premRNA_reads" >> $run_data
 
 ### Create fasta file of unmapped reads 
 echo ""
@@ -80,7 +88,9 @@ bowtie2 --end-to-end --sensitive -k 10 --no-unal --threads $CPUS -f -x $GENOME_I
 
 ### Get all trimmed alignments that overlap a transcript
 transcript_overlaps="$OUTPUT_BASE"transcript_overlaps.bed
-bedtools intersect -wa -wb -bed -nobuf -a $trimmed_reads_to_genome -b $TRANSCRIPTS_BED > $transcript_overlaps
+bedtools intersect -wa -wb -bed -a $trimmed_reads_to_genome -b $TRANSCRIPTS_BED > $transcript_overlaps
+# bedtools tag -names -i $trimmed_reads_to_genome -files $INTRONS_BED $EXONS_BED > $trimmed_reads_to_genome.temp
+# mv $trimmed_reads_to_genome.temp > $trimmed_reads_to_genome
 
 ### Filter trimmed alignments
 echo ""
