@@ -2,8 +2,9 @@ import sys
 import os
 import gzip
 import subprocess
-import pysam
+import time
 
+import pysam
 import pandas as pd
 from intervaltree import Interval, IntervalTree
 
@@ -28,6 +29,7 @@ ALIGNMENTS_INITIAL_COLUMNS = ('read_id',
 							'mismatches',
 							'mismatch_percent',
 							'gap_lengths')
+
 FINAL_INFO_TABLE_COLS = ['read_id', 
 						'read_is_reverse', 
 						'read_seq', 
@@ -35,7 +37,7 @@ FINAL_INFO_TABLE_COLS = ['read_id',
 						'strand', 
 						'align_start',
 						'align_end', 
-						'gene_ensembl_id', 
+						'gene_id', 
 						'gene_name', 
 						'gene_type', 
 						'fivep_site', 
@@ -183,6 +185,8 @@ def load_transcript_overlaps(output_base:str, ref_transcripts:str, transcript_gt
 	transcript_overlaps = pd.read_csv(f'{output_base}transcript_overlaps.bed', sep='\t', header=None)
 	transcript_overlaps.columns = TRANSCRIPT_OVERLAPS_COLUMNS
 	
+	# transcript_overlaps.align_end = transcript_overlaps.align_end - 1			# Make both start and end 0-based inclusive 
+	# transcript_overlaps.transcript_end = transcript_overlaps.transcript_end - 1
 	transcript_overlaps['align_is_reverse'] = transcript_overlaps.align_orient.map({'+': False, '-': True})
 	transcript_overlaps = transcript_overlaps.drop(columns=['_', 'align_orient'])
 
@@ -195,13 +199,44 @@ def load_transcript_overlaps(output_base:str, ref_transcripts:str, transcript_gt
 	transcript_overlaps.exon_lengths = transcript_overlaps.apply(process_exon_lengths, axis=1)
 	transcript_overlaps.exon_starts = transcript_overlaps.apply(process_exon_starts, axis=1)
 	transcript_overlaps['exon_ends'] = transcript_overlaps.apply(add_exon_ends, axis=1)
-	transcript_overlaps['transcript_fiveps'] = transcript_overlaps.apply(add_fiveps, axis=1)
-	transcript_overlaps[['gene_ensembl_id', 'gene_name', 'gene_type']] = transcript_overlaps.apply(add_gtf_info, axis=1, gtf_info=transcript_gtf_info, result_type='expand')
+	# transcript_overlaps['transcript_fiveps'] = transcript_overlaps.apply(add_fiveps, axis=1)
+	transcript_overlaps[['gene_id', 'gene_name', 'gene_type']] = transcript_overlaps.apply(add_gtf_info, axis=1, gtf_info=transcript_gtf_info, result_type='expand')
 
 	return transcript_overlaps
 
 
-def load_fivep_info(output_base:str):
+def load_gene_ranges(gtf_file):
+	'''
+	Read through the GTF annotation file, return a dict with all annotated gene coordinates grouped by chromosome, then strand
+	Output format = { chromosome: {strand: IntervalTree(gene start position, gene end position, gene name) } }
+	'''
+	# open file
+	if gtf_file[-2:] == 'gz':
+		in_file = gzip.open(gtf_file, 'rt')
+	else:
+		in_file = open(gtf_file)
+
+	gene_ranges = {}		
+	for line in in_file:
+		if line[0] != '#':
+			chrom, _, feat, start, end, _, strand, _, attributes = line.strip().split('\t')
+			if feat == 'gene':
+				# Convert attributes string to dict of {tag name: value}
+				attributes = attributes[:-1].split('; ')
+				attributes = {a.split(' ')[0]:a.split(' ')[1].replace('\"', '') for a in attributes}
+				if chrom not in gene_ranges:
+					gene_ranges[chrom] = {s:IntervalTree() for s in ('-', '+')}
+				gene_ranges[chrom][strand].add(Interval(int(start)-1, int(end), {'gene_id':attributes['gene_id']}))
+
+	in_file.close()
+	return gene_ranges
+
+
+def add_gene_ids(row:pd.Series, gene_ranges):
+	return [g.data['gene_id'] for g in gene_ranges[row['chrom']][row['strand']].overlap(row['fivep_site'], row['fivep_site']+1)]
+
+
+def load_fivep_info(output_base:str, ref_gtf:str):
 	fivep_info = pd.read_csv(f'{output_base}fivep_info_table.tsv', sep='\t')
 
 	# Unpack fivep_sites
@@ -211,7 +246,14 @@ def load_fivep_info(output_base:str):
 	fivep_info.fivep_site = fivep_info.fivep_site.astype(int)
 	fivep_info.fivep_end = fivep_info.fivep_end.astype(int)
 
+	# Add gene ids
+	gene_ranges = load_gene_ranges(ref_gtf)
+	fivep_info['gene_id'] = fivep_info.apply(add_gene_ids, gene_ranges=gene_ranges, axis=1, result_type='reduce')
+	fivep_info = fivep_info.explode('gene_id')
+
 	return fivep_info
+
+# add gene ranges, change fivep matching
 
 
 def load_intron_info(ref_introns:str) -> tuple:
@@ -242,23 +284,16 @@ def load_intron_info(ref_introns:str) -> tuple:
 	return introns
 
 
-def lines_overlap(A_start:int|float, A_end:int|float, B_start:int|float, B_end:int|float) -> bool:
-	'''
-	This is only applicable if A_start < A_end and B_start < B_end
-	'''
-	for arg in A_start, A_end, B_start, B_end:
-		assert isinstance(arg, (int, float)), f'Argument "{arg}" is type {type(arg)}. Type must be int or float.'
-	
-	return A_start >= B_start and A_start <= B_end
-
+# test from https://stackoverflow.com/questions/3269434/whats-the-most-efficient-way-to-test-if-two-ranges-overlap
 def check_exon_overlap(row:pd.Series) -> bool:
-	for i in range(row['exon_count']):
+	for i in range(len(row['exon_starts'])):
 		exon_start = row['exon_starts'][i]
 		exon_end = row['exon_ends'][i]
-		if lines_overlap(exon_start, exon_end, row['align_start'], row['align_end']):
+		if row['align_start'] <= exon_end and row['align_end'] >= exon_start:
 			return True
 		
 	return False
+
 
 def add_read_bp_nt(row:pd.Series) -> str:
 	if row['strand']=='+' and row['align_is_reverse']:
@@ -287,21 +322,12 @@ def merge_transcript_overlaps(alignments:pd.DataFrame, transcript_overlaps:pd.Da
 	return alignments, failed_alignments
 
 
-def match_fivep_sites(alignments:pd.DataFrame, fivep_info:pd.DataFrame) -> pd.DataFrame:
-	fivep_matches = []
-	for i, row in alignments.iterrows():
-		matches = fivep_info.loc[(fivep_info.read_id==row['read_id']) & (fivep_info.chrom==row['chrom']) & (fivep_info.strand==row['strand'])]
-		matches = matches.loc[matches.fivep_site.isin(row['transcript_fiveps'])]
-		matches = matches.fivep_site.to_list()
-		fivep_matches.append(matches)
-
-	alignments['fivep_matches'] = fivep_matches
-	alignments['fivep_site'] = alignments.apply(lambda row: row['fivep_matches'][0] if len(row['fivep_matches'])==1 else [pd.NA, pd.NA], axis=1)
-
-	return alignments
+# def match_fivep_sites(row:pd.Series, fivep_info:pd.DataFrame) -> pd.DataFrame:
+# 	matches = fivep_info.loc[(fivep_info.read_id==row['read_id']) & (fivep_info.gene_id==row['gene_id'])]
+# 	return matches.fivep_site.to_list()
 
 
-def filter_alignments(row:pd.Series):
+def first_filters(row:pd.Series):
 	# Check if mapping quality is not max
 	if row['mapping_quality'] < row['max_quality']:
 		return 'map_quality'
@@ -309,9 +335,9 @@ def filter_alignments(row:pd.Series):
 	# Check if too many mismatches
 	if row['mismatches'] > MAX_MISMATCHES:
 		return 'mismatch_num'
-
 	if row['mismatch_percent'] > MAX_MISMATCH_PERCENT:
 		return 'mismatch_percent'
+	
 	# Check if more than one insertion/deletion OR one insertion/deletion that's too long
 	if len(row['gap_lengths']) > 1 or (len(row['gap_lengths']) == 1 and row['gap_lengths'][0] > MAX_GAP_LENGTH):
 		return 'indel'
@@ -324,16 +350,18 @@ def filter_alignments(row:pd.Series):
 	if row['exon_overlap'] is True:
 		return 'exon_overlap'
 	
-	# Check if not one fivep match
-	if row['fivep_matches'] == []:
-		return 'no_matches'
-	elif len(row['fivep_matches']) > 1:
-		return 'multiple_matches'
+	return pd.NA
 	
-	# Check if the 5'
-	if row['strand'] == '+' and row['fivep_site'] > row['align_end']:
+
+def second_filters(row:pd.Series):
+	# Check if not one fivep match
+	if pd.isna(row['fivep_site']):
+		return 'no_matches'
+
+	# Check if the 5'ss is at or downstream of the BP
+	if row['strand'] == '+' and row['fivep_site'] >= row['bp_site']:
 		return '5p_bp_order'
-	elif row['strand'] == '-' and row['fivep_site'] < row['align_start']:
+	elif row['strand'] == '-' and row['fivep_site'] <= row['bp_site']:
 		return '5p_bp_order'
 
 	return pd.NA
@@ -381,38 +409,57 @@ def add_bp_seq(row:pd.Series, output_base:str, genome_fasta:str):
 if __name__ == '__main__':
 	ref_gtf, ref_transcripts, ref_introns, genome_fasta, output_base = sys.argv[1:]
 	# ref_gtf = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.annotation.gtf'
-	# ref_introns = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.basic.v43.introns.bed.gz'
-	# genome_fasta	= '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.primary_assembly.fa'
-	# output_base = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/output/C22_R1_lariat_mapping/'
 	# ref_transcripts = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.transcripts.bed'
+	# ref_introns = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.introns.bed'
+	# genome_fasta	= '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.primary_assembly.fa'
+	# output_base = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/output/HEK293T_R2_lariat_mapping/'
 
 	# Load data
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' load')
 	alignments = load_alignments(output_base)
 	transcript_info = get_annotations(ref_gtf, feature='transcript')
 	transcript_info = {info['transcript_id']: info for info in transcript_info}
 	transcript_overlaps = load_transcript_overlaps(output_base, ref_transcripts, transcript_info)
-	fivep_info = load_fivep_info(output_base)
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' more load')
+	fivep_info = load_fivep_info(output_base, ref_gtf)
 	introns = load_intron_info(ref_introns)
 
 	# Record the number of reads that mapped
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' record')
 	mapped_rids = alignments.read_id.str.slice(0, -4)
 	mapped_rids = len(mapped_rids.unique())
 	with open(f'{output_base}run_data.tsv', 'a') as a:
-		a.write(f'transcriptome_mapped_reads\t{mapped_rids}\n')
+		a.write(f'trimmed_mapped_reads\t{mapped_rids}\n')
 
 	# Merge read_seq from fivep_info
-	alignments = pd.merge(alignments, fivep_info[['read_id', 'read_seq']], 'left', on='read_id')
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' merge and then merge')
+	read_seqs = fivep_info[['read_id', 'read_seq']].drop_duplicates()
+	alignments = pd.merge(alignments, read_seqs, 'left', on='read_id')
 
 	# Merge transcript overlaps from a "bedtools intersect" and move alignments that didn't overlap any transcripts to failed_alignments 
 	alignments, failed_alignments = merge_transcript_overlaps(alignments, transcript_overlaps)
 
-	# Match 5'ss's to the alignments by matching their position to the transcript_fiveps column from transcript_overlaps
-	alignments = match_fivep_sites(alignments, fivep_info)
-
-	# Run alignments through all remaining filters and move alignments that failed a filter into failed_alignments
-	alignments['filter_failed'] = alignments.apply(filter_alignments, axis=1)
+	# Run alignments through first set of filters and move alignments that failed a filter into failed_alignments
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' filter')
+	alignments['filter_failed'] = alignments.apply(first_filters, axis=1)
 	failed_alignments = pd.concat([failed_alignments, alignments[alignments.filter_failed.notna()]])
 	alignments = alignments.loc[alignments.filter_failed.isna()]
+
+	# Match 5'ss's to the alignments
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' match')
+	# fivep_info = fivep_info[fivep_info.read_id.isin(alignments.read_id)]
+	# alignments = match_fivep_sites(alignments, fivep_info)
+	# alignments['fivep_matches'] = alignments.apply(match_fivep_sites, fivep_info=fivep_info, axis=1, result_type='reduce')
+	# alignments['fivep_site'] = alignments.apply(lambda row: row['fivep_matches'][0] if len(row['fivep_matches'])==1 else pd.NA, axis=1)
+	alignments = pd.merge(alignments, fivep_info[['read_id', 'gene_id', 'fivep_site', 'read_fivep_start', 'read_fivep_end']], 'left', on=['read_id', 'gene_id'])
+
+	# Run alignments through second set of filters and move alignments that failed a filter into failed_alignments
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' remove')
+	# alignments.loc[alignments.fivep_site.isna(), 'filter_failed'] = 'no matches'
+	alignments['filter_failed'] = alignments.apply(second_filters, axis=1)
+	failed_alignments = pd.concat([failed_alignments, alignments[alignments.filter_failed.notna()]])
+	alignments = alignments.loc[alignments.filter_failed.isna()]
+	alignments.fivep_site = alignments.fivep_site.astype(int)
 
 	# Move filter_failed column to the back for ease of reading, then write failed alignments to file
 	failed_alignments = failed_alignments[[col for col in failed_alignments if col != 'filter_failed'] + ['filter_failed']]
@@ -420,6 +467,11 @@ if __name__ == '__main__':
 
 	# Assign the nearest downstream(?) 3'ss to the alignment
 	# We couldn't do this before removing alignments that overlap exons since the whole alignment could be in an exon
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' infer')
+	if len(alignments) == 0:
+		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No alignments remaining')
+		alignments.to_csv(f'{output_base}final_info_table.tsv', sep='\t', index=False)
+		exit()
 	alignments['threep_site'] = alignments.apply(add_nearest_threep, axis=1, introns=introns)
 	alignments['bp_dist_to_threep'] = alignments.apply(lambda row: abs(row['bp_site']-row['threep_site']), axis=1)
 
@@ -433,3 +485,9 @@ if __name__ == '__main__':
 
 	# Write alignments to file
 	alignments.to_csv(f'{output_base}final_info_table.tsv', sep='\t', index=False)
+
+	# Record filtered read count
+	filtered_rids = alignments.read_id.str.slice(0, -4)
+	filtered_rids = len(filtered_rids.unique())
+	with open(f'{output_base}run_data.tsv', 'a') as a:
+		a.write(f'trimmed_filtered_reads\t{filtered_rids}\n')

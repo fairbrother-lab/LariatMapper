@@ -13,7 +13,7 @@ import pandas as pd
 #                                  Constants                                   #
 # =============================================================================#
 FINAL_RESULTS_COLUMNS = ('gene_name',
-                        'gene_ensembl_id',
+                        'gene_id',
                         'gene_type',
                         'read_id',
                         'read_seq',
@@ -76,6 +76,22 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 	lariat_reads = pd.read_csv(f'{output_base}final_info_table.tsv', sep='\t')
 	lariat_reads = lariat_reads.rename(columns={'fivep_site': 'fivep_pos', 'threep_site': 'threep_pos', 'bp_site': 'bp_pos'})
 
+	if len(lariat_reads) == 0:
+		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
+		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
+			w.write('\t'.join(FINAL_RESULTS_COLUMNS))
+		with open(f'{output_base}failed_lariat_mappings.tsv', 'w') as w:
+			w.write('\t'.join(FINAL_RESULTS_COLUMNS) + '\tfilter_failed')
+		exit()
+
+	# Code adapted from https://stackoverflow.com/questions/27298178/concatenate-strings-from-several-rows-using-pandas-groupby
+	# Some reads get mapped to coordinates with multiple overlapping gene annotations
+	# We resolve this by collapsing the duplicated rows and concatenating the gene_id, gene_name, and gene_type columns
+	lariat_reads = (lariat_reads.groupby([col for col in lariat_reads.columns if col not in ('gene_id', 'gene_name', 'gene_type')])
+				 				.agg({'gene_id': ','.join, 'gene_name': ','.join, 'gene_type': ','.join})
+								.reset_index()
+					)
+
 	return lariat_reads
 
 
@@ -94,13 +110,14 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, output_base:str) -> set:
 	''' 
     Check if both the 5'SS and the BP overlap with a repetitive region
     '''
+	print(lariat_reads.info())
 	# Write the 5'ss and BP coordinates to BED files
 	fivep_tmp_bed, bp_tmp_bed = f'{output_base}fivep_tmp.bed', f'{output_base}bp_tmp.bed'
 	with open(fivep_tmp_bed, 'w') as fivep_out, open(bp_tmp_bed, 'w') as bp_out:
 		for i, row in lariat_reads.iterrows():
 			fivep_out.write(f"{row['chrom']}\t{row['fivep_pos']-1}\t{row['fivep_pos']+1}\t{row['read_id']}\n")
 			bp_out.write(f"{row['chrom']}\t{row['bp_pos']-1}\t{row['bp_pos']+1}\t{row['read_id']}\n")
-				
+
 	# Identify 5'ss's that overlap a repeat region
 	fivep_overlap_bed, bp_overlap_bed = f'{output_base}fivep_repeat_overlaps.bed', f'{output_base}bp_repeat_overlaps.bed'
 	with open(fivep_overlap_bed, 'w') as out_file:
@@ -190,11 +207,11 @@ def choose_read_mapping(lariat_reads):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	ref_gtf, ref_introns, ref_repeatmasker, output_base = sys.argv[1:]
-	# ref_gtf = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.annotation.gtf'
-	# ref_introns = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.basic.v43.introns.bed.gz'
-	# ref_repeatmasker = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.repeat_masker.bed.gz'
-	# output_base = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/output/C22_R1_lariat_mapping/'
+	# ref_gtf, ref_introns, ref_repeatmasker, output_base = sys.argv[1:]
+	ref_gtf = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.annotation.gtf'
+	ref_introns = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.introns.bed'
+	ref_repeatmasker = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.repeat_masker.bed.gz'
+	output_base = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/output/C22_R1_lariat_mapping/'
 
 	# Load splice site coordinates
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Parsing splice site info...'))
@@ -228,3 +245,6 @@ if __name__ == '__main__':
 	failed_mappings.to_csv(f'{output_base}failed_lariat_mappings.tsv', sep='\t', index=False)
 	filtered_lariats.to_csv(f'{output_base}lariat_reads.tsv', sep='\t', index=False)
 	
+	# Record final lariat read count
+	with open(f'{output_base}run_data.tsv', 'a') as a:
+		a.write(f'filtered_lariats\t{len(filtered_lariats)}\n')
