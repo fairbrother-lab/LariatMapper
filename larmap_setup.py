@@ -13,7 +13,7 @@ if __name__ == '__main__':
 				run_key, run_value = info.split('\t')
 				run_info[run_key] = run_value
 
-	with open(sample_info_file) as in_file, open('sbatch_all.sh', 'w') as sbatch_out:
+	with open(sample_info_file) as in_file:
 		next(in_file)
 		for line in in_file:
 			sinfo = line.strip().split('\t')
@@ -36,5 +36,4 @@ if __name__ == '__main__':
 				out_file.write(f'-3 {run_info["ref_3p_b2index"]} \\\n')
 				out_file.write(f'-l {run_info["ref_3p_lengths"]} \\\n')
 				out_file.write(f'-m {run_info["ref_repeatmasker"]}\n')
-			sbatch_out.write(f'sbatch {script_path}\n')
 
