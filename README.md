@@ -43,10 +43,10 @@ The pipeline requires the following standard reference files: FASTA file of the 
 
 The sample info file contains an arbitrary number of columns describing, eg., cell line, experimental treatment, replicate number, etc. followed by a final column that contains the name of the sample's read file. This read file should be present in the directory `fastq_dir` given in the run info file. The sample info file is expected to have a single line header of column names. An example is given below:
 
-      cell_line      replicate      read_file
-      HEK293T      1      HEK293T_1.fq.gz
-      HEK293T      2      HEK293T_2.fq.gz
-      HEK293T      3      HEK293T_3.fq.gz
+      cell_line    replicate      read_file
+      HEK293T      1              HEK293T_1.fq.gz
+      HEK293T      2              HEK293T_2.fq.gz
+      HEK293T      3              HEK293T_3.fq.gz
 
 `larmap_setup.py` will create on bash script for each line in the sample info file. The output for a given read file will be written to `output_dir` from the run info file under a directory named from a concatenation of all but the last column in the sample info file followed by `_lariat_mapping` (eg. `HEK293T_1_lariat_mapping`). After running `larmap_setup.py [run_info.txt] [sample_info.txt]`, you can run each generated bash script to perform the lariat mapping for that read file.
 
