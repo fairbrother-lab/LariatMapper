@@ -1,5 +1,6 @@
 
 import sys
+from os.path import join
 
 if __name__ == '__main__':
 
@@ -18,12 +19,12 @@ if __name__ == '__main__':
 		for line in in_file:
 			sinfo = line.strip().split('\t')
 			sample_output_base = '_'.join(sinfo[:-1])
-			read_file = sinfo[-1]
+			read_file = join(run_info["fastq_dir"], sinfo[-1])
 			script_path = sample_output_base + '_larmap.sh'
 			with open(script_path, 'w') as out_file:
 				out_file.write('#!/bin/bash\n\n')
 				out_file.write(f'{run_info["scripts_dir"]}/larmap_run.sh \\\n')
-				out_file.write(f'-d {read_file} \\\n')
+				out_file.write(f'-r {read_file} \\\n')
 				out_file.write(f'-o {run_info["output_dir"]} \\\n')
 				out_file.write(f'-e {sample_output_base} \\\n')
 				out_file.write(f'-c {run_info["num_cpus"]} \\\n')
