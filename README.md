@@ -86,12 +86,8 @@ A directory named `[output_base_name]_lariat_mapping` will be created in `output
 
 3. The `filter_lariats.py` script loads intron and gene information from provided annotation files and performs post-mapping filtering before outputting the final lariat mapping results. 
 
-    The candidate lariat reads are filtered based on the following criteria: - BP is within 2bp of a splice site (likely from an intron circle, not a lariat) - 5'SS and 3'SS are not in the correct order - Read maps to a Ubiquitin gene (likely false positive due to repetitive nature of gene) - There is a valid aligment for the 3' segment upstream of the 5' segment - Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive) - NEEDS TO BE IMPLEMENTED: Filter out template switching reads (eg. 5'SS 6bp sequence matches 6bp sequence downstream of BP) - NEEDS TO BE IMPLEMENTED: Correct BP position to account for RT skipping
-
-    After filtering, the final set of lariat reads are output to the `results_path` file. The initial columns of this tab-delimited file are any additional custom columns which were added to the info file. After these columns, the file contains the following data for each lariat read: - Gene name - Gene Ensembl ID - Gene type (e.g. protein-coding, lncRNA) - Read ID - Read sequence - Chromosome - Strand - 5' splice site coordinate - 3' splice site coordinate - Branchpoint coordinate - Read branchpoint nucleotide - Genomic branchpoint nucleotide - Genomic branchpoint sequence context (10bp window with the BP at position 5) - Branchpoint position relative to nearest 3' splice site - Total count of linearly-aligned reads (useful for normalization when comparing lariat levels between samples)
-
-
-C22_R1_100k.fastq.gz and C22_R2_100k.fastq.gz are the first 100,000 reads in the R1 and R2 files of C22-1 from the DBR1-rescue experiment
-
-## Output
-The genomic coordinates provided are 0-based.
+    The candidate lariat reads are filtered based on the following criteria:
+         - BP is within 2bp of a splice site (likely from an intron circle, not a lariat)
+         - 5'SS and 3'SS are not in the correct order - Read maps to a Ubiquitin gene (likely false positive due to repetitive nature of gene)
+         - There is a valid aligment for the 3' segment upstream of the 5' segment
+         - Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive)
