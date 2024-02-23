@@ -48,7 +48,7 @@ The sample info file contains an arbitrary number of columns describing, eg., ce
       HEK293T      2              HEK293T_2.fq.gz
       HEK293T      3              HEK293T_3.fq.gz
 
-`larmap_setup.py` will create on bash script for each line in the sample info file. The output for a given read file will be written to `output_dir` from the run info file under a directory named from a concatenation of all but the last column in the sample info file followed by `_lariat_mapping` (eg. `HEK293T_1_lariat_mapping`). After running `larmap_setup.py [run_info.txt] [sample_info.txt]`, you can run each generated bash script to perform the lariat mapping for that read file.
+`larmap_setup.py` will create one bash script for each line in the sample info file. The output for a given read file will be written to `output_dir` from the run info file under a directory named from a concatenation of all but the last column in the sample info file followed by `_lariat_mapping` (eg. `HEK293T_1_lariat_mapping`). After running `larmap_setup.py [run_info.txt] [sample_info.txt]`, you can run each generated bash script to perform the lariat mapping for that read file.
 
 Alternatively, to run the pipeline on a single file, use `larmap_run.sh` with the following arguments:
 
