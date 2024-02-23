@@ -11,13 +11,13 @@ if __name__ == '__main__':
 		for line in in_file:
 			info = line.strip()
 			if info:
-				run_key, run_value = info.split('\t')
+				run_key, run_value = info.split()
 				run_info[run_key] = run_value
 
 	with open(sample_info_file) as in_file:
 		next(in_file)
 		for line in in_file:
-			sinfo = line.strip().split('\t')
+			sinfo = line.strip().split()
 			sample_output_base = '_'.join(sinfo[:-1])
 			read_file = join(run_info["fastq_dir"], sinfo[-1])
 			script_path = sample_output_base + '_larmap.sh'
