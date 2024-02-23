@@ -88,6 +88,7 @@ A directory named `[output_base_name]_lariat_mapping` will be created in `output
 
     The candidate lariat reads are filtered based on the following criteria:
    - BP is within 2bp of a splice site (likely from an intron circle, not a lariat)
-   - 5'SS and 3'SS are not in the correct order - Read maps to a Ubiquitin gene (likely false positive due to repetitive nature of gene)
+   - 5'SS and 3'SS are not in the correct order
+   - Read maps to a Ubiquitin gene (likely false positive due to repetitive nature of gene)
    - There is a valid aligment for the 3' segment upstream of the 5' segment
    - Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive)
