@@ -301,8 +301,8 @@ def filter_lariat_reads(lariat_reads: dict, threep_sites: dict, fivep_sites: dic
 	print(strftime('%m/%d/%y - %H:%M:%S') + f' | Post-filter read count = {len(filtered_lariats)}')
 
 	# Delete all temporary files
-	# run(f'rm {seq_tmp_fa} {seq_tmp_sam} {fivep_tmp_bed} {bp_tmp_bed} {fivep_overlap_bed} {bp_overlap_bed}'.split(' '))
-	# rmdir(temp_dir)
+	run(f'rm {seq_tmp_fa} {seq_tmp_sam} {fivep_tmp_bed} {bp_tmp_bed} {fivep_overlap_bed} {bp_overlap_bed}'.split(' '))
+	rmdir(temp_dir)
 
 	return filtered_lariats, failed_reads
 
