@@ -44,7 +44,7 @@ Run `bash larmap_run.sh` with the following arguments:
       -n, --ref_introns         BED file of all introns in the reference genome
       -m, --ref_repeatmasker    BED file of repetitive elements from RepeatMasker
 
-A directory named `[output_base_name]_lariat_mapping` will be created in `[output_dir]`. Upon completion of the pipeline, this directory will contain a tab-separated results file with lariat read info called `[output_base_name]_lariat_reads.tst`.
+A directory named `[output_base_name]_lariat_mapping` will be created in `[output_dir]`. Upon completion of the pipeline, this directory will contain a tab-separated results file with lariat read info called `[output_base_name]_lariat_reads.tsv`.
 
 ## Pipeline Workflow
 
