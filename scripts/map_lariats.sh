@@ -87,4 +87,4 @@ python scripts/filter_threep_alignments.py $trimmed_reads_to_threep $THREEP_LENG
 wait
 rm $output_bam
 rm $unmapped_bam
-# rm $unmapped_fasta* $fivep_to_reads* $fivep_trimmed_reads $trimmed_reads_to_threep*  
+rm $unmapped_fasta* $fivep_to_reads* $fivep_trimmed_reads $trimmed_reads_to_threep*  
