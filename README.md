@@ -29,6 +29,7 @@ To produce the required custom reference files, run `python get_splice_site_seqs
 
 ## Running the Pipeline
 Run `bash larmap_run.sh` with the following arguments:
+
       -r, --read_file           FASTQ file
       -o, --output_dir          Directory for output files
       -e, --output_base_name    Prefix to add to output files
