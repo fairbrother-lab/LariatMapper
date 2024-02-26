@@ -43,10 +43,10 @@ def output_splice_site_seqs(intron_file, genome_file, out_base):
 					threep_done.add((chrom, threep_site, strand))
 
 	fivep_cmd = f'bedtools getfasta -nameOnly -s -fo {out_base}.fivep_sites.fa -fi {genome_file} -bed {out_base}.fivep_sites.bed'
-	#run(fivep_cmd.split(' '))
+	run(fivep_cmd.split(' '))
 
 	threep_cmd = f'bedtools getfasta -nameOnly -s -fo {out_base}.threep_sites.fa -fi {genome_file} -bed {out_base}.threep_sites.bed'
-	#run(threep_cmd.split(' '))
+	run(threep_cmd.split(' '))
 
 	upstream_cmd = f'bedtools getfasta -tab -nameOnly -s -fo {out_base}.fivep_upstream.txt -fi {genome_file} -bed {out_base}.fivep_upstream.bed'
 	run(upstream_cmd.split(' '))
