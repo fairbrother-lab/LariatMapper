@@ -44,7 +44,29 @@ Run `bash larmap_run.sh` with the following arguments:
       -n, --ref_introns         BED file of all introns in the reference genome
       -m, --ref_repeatmasker    BED file of repetitive elements from RepeatMasker
 
-A directory named `[output_base_name]_lariat_mapping` will be created in `[output_dir]`. Upon completion of the pipeline, this directory will contain a tab-separated results file with lariat read info called `[output_base_name]_lariat_reads.tsv`.
+A directory named `[output_base_name]_lariat_mapping` will be created in `[output_dir]`. Upon completion of the pipeline, this directory will contain a results file named `[output_base_name]_lariat_reads.tsv` .
+
+## Output
+`[output_base_name]_lariat_reads.tsv` contains a table in tab-separated values format. Each row is an RNA-seq read that has a valid lariat mapping.
+The columns are as follows:
+
+	gene_name            The name of the gene that produced the lariat
+	gene_id              The Ensembl ID of the gene that produced the lariat
+	gene_type            The type of the gene that produced the lariat 
+	read_id              The RNA-seq read's ID
+	read_seq             The RNA-seq read's DNA sequence
+	chrom                The chromosome of the gene that produced the lariat
+	strand               The strand of the gene that produced the lariat ("+" for the forward strand and "-" for the reverse strand)
+	fivep_pos            The genomic position of the lariat's 5' splice site
+	threep_pos           The genomic position of the closest 3' splice site that is downstream of the branchpoint
+	bp_pos               The genomic position of the lariat's branchpoint 
+	read_bp_nt           The nucleotide of the branchpoint according to the RNA-seq read's sequence. Reverse-complemented if strand is "-"
+	genomic_bp_nt        The nucleotide of the branchpoint according to the reference genome. Reverse-complemented if strand is "-"
+	genomic_bp_context   The genomic sequence from positions -4 to +4 of the branchpoint. Reverse-complemented if strand is "-"
+	bp_dist_to_threep    The distance between the branchpoint and the 3' splice site in nucleotides
+	total_mapped_reads   The number of input reads that mapped linearly to the reference genome. Identical across all rows
+
+
 
 ## Pipeline Workflow
 
