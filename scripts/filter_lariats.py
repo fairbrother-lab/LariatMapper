@@ -106,11 +106,10 @@ def add_mapped_reads(output_base:str) -> int:
 	return sample_read_count
 
 
-def check_repeat_overlap(lariat_reads: pd.DataFrame, output_base:str) -> set:
+def check_repeat_overlap(lariat_reads: pd.DataFrame, output_base:str, delete_temp:bool=True) -> set:
 	''' 
     Check if both the 5'SS and the BP overlap with a repetitive region
     '''
-	print(lariat_reads.info())
 	# Write the 5'ss and BP coordinates to BED files
 	fivep_tmp_bed, bp_tmp_bed = f'{output_base}fivep_tmp.bed', f'{output_base}bp_tmp.bed'
 	with open(fivep_tmp_bed, 'w') as fivep_out, open(bp_tmp_bed, 'w') as bp_out:
@@ -141,8 +140,9 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, output_base:str) -> set:
 	repeat_rids = fivep_repeat_rids.intersection(bp_repeat_rids)
 
 	# Delete the temporary files
-	for temp_file in (fivep_tmp_bed, bp_tmp_bed, fivep_overlap_bed, bp_overlap_bed):
-		os.remove(temp_file)
+	if delete_temp is True:
+		for temp_file in (fivep_tmp_bed, bp_tmp_bed, fivep_overlap_bed, bp_overlap_bed):
+			os.remove(temp_file)
 
 	return repeat_rids
 
@@ -207,11 +207,13 @@ def choose_read_mapping(lariat_reads):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	# ref_gtf, ref_introns, ref_repeatmasker, output_base = sys.argv[1:]
-	ref_gtf = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.annotation.gtf'
-	ref_introns = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.introns.bed'
-	ref_repeatmasker = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.repeat_masker.bed.gz'
-	output_base = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/output/C22_R1_lariat_mapping/'
+	ref_gtf, ref_introns, ref_repeatmasker, output_base = sys.argv[1:]
+	# ref_gtf = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.annotation.gtf'
+	# ref_introns = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.introns.bed'
+	# ref_repeatmasker = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.repeat_masker.bed.gz'
+	# output_base = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/output/C22_R1_lariat_mapping/'
+
+	print(ref_gtf, ref_introns, ref_repeatmasker, output_base)
 
 	# Load splice site coordinates
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Parsing splice site info...'))
@@ -224,7 +226,7 @@ if __name__ == '__main__':
 	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base)
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Checking for overlaps with repeat regions...'))
-	repeat_rids = check_repeat_overlap(lariat_reads, output_base)
+	repeat_rids = check_repeat_overlap(lariat_reads, output_base, delete_temp=False)
 
 	# Filter lariat reads
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Filtering lariat reads...'))
