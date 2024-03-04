@@ -13,6 +13,7 @@ dependencies:
   - pyfaidx
   - pysam
   - samtools
+  - star
 
 # M1 mac:
 # arch -arm64 brew install bowtie2
