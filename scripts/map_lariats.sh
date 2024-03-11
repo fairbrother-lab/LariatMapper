@@ -27,6 +27,8 @@ INTRONS_BED="${10}"
 EXONS_BED="${11}"
 # Annotated repeat regions
 REPEATS_BED="${12}"
+# Keep the intermediate files created during the run ("True" or "False", default "False")
+KEEP_INTERMEDIATES="${13}"
 
 
 
@@ -82,18 +84,34 @@ bowtie2 --end-to-end --very-sensitive -k 10 --no-unal --threads $CPUS -f -x $GEN
 	| samtools view --bam \
 	| bedtools tag -names -f 1 -i - -files $INTRONS_BED \
 	> $trimmed_reads_to_genome
-samtools index $trimmed_reads_to_genome
 
 ### Filter trimmed alignments
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
-python scripts/filter_trimmed_alignments.py $GTF_FILE $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE
+python -u scripts/filter_trimmed_alignments.py $GTF_FILE $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE $KEEP_INTERMEDIATES
+# scalene --html --outfile "$OUTPUT_BASE"filter_trim_profile.html scripts/filter_trimmed_alignments.py $GTF_FILE $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE $KEEP_INTERMEDIATES
 
 ### Filter lariat mappings and choose 1 for each read
-python -u scripts/filter_lariats.py $GTF_FILE $INTRONS_BED $REPEATS_BED $OUTPUT_BASE 
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Filtering putative lariat mappings...\n"
+python -u scripts/filter_lariats.py $GTF_FILE $INTRONS_BED $REPEATS_BED $OUTPUT_BASE $KEEP_INTERMEDIATES
 
-### Delete all intermediate/uneeded files 
 wait
-# rm $output_bam
-# rm $unmapped_bam
-# rm $unmapped_fasta* $fivep_to_reads* $fivep_trimmed_reads $trimmed_reads_to_threep*  
+### Delete the intermediate files 
+if [ "$KEEP_INTERMEDIATES" = "False" ]; then
+	echo "Deleting intermediate files..."
+	rm $output_bam
+	rm $unmapped_bam
+	rm $fivep_to_reads 
+	rm $fivep_trimmed_reads 
+	rm $trimmed_reads_to_genome
+	rm $unmapped_fasta 
+	rm $unmapped_fasta.fai
+	rm $unmapped_fasta.1.bt2l 
+	rm $unmapped_fasta.2.bt2l 
+	rm $unmapped_fasta.3.bt2l 
+	rm $unmapped_fasta.4.bt2l 
+	rm $unmapped_fasta.rev.1.bt2l 
+	rm $unmapped_fasta.rev.2.bt2l 
+fi 
+
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Lariat mapping complete.\n"
