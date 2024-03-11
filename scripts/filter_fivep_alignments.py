@@ -153,6 +153,7 @@ def write_out_reads(out_reads:list, fivep_trimmed_reads_out:str, fivep_info_tabl
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__' :
+	print(f'Arguments recieved: {sys.argv[1:]}')
 	unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_trimmed_reads_out, fivep_info_table_out, output_base = sys.argv[1:]
 
 	alignments = load_alignments(fivep_to_reads)

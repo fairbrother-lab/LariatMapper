@@ -106,7 +106,7 @@ def add_mapped_reads(output_base:str) -> int:
 	return sample_read_count
 
 
-def check_repeat_overlap(lariat_reads: pd.DataFrame, output_base:str, delete_temp:bool=True) -> set:
+def check_repeat_overlap(lariat_reads: pd.DataFrame, output_base:str, keep_intermediates:bool) -> set:
 	''' 
     Check if both the 5'SS and the BP overlap with a repetitive region
     '''
@@ -139,8 +139,8 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, output_base:str, delete_tem
 			bp_repeat_rids.add(rid)
 	repeat_rids = fivep_repeat_rids.intersection(bp_repeat_rids)
 
-	# Delete the temporary files
-	if delete_temp is True:
+	# Delete the intermediate files
+	if keep_intermediates == 'False':
 		for temp_file in (fivep_tmp_bed, bp_tmp_bed, fivep_overlap_bed, bp_overlap_bed):
 			os.remove(temp_file)
 
@@ -150,14 +150,10 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, output_base:str, delete_tem
 def filter_lariats(row:pd.Series, fivep_sites:dict, threep_sites:dict, repeat_rids:set):
 	'''
 	Filter the candidate lariat reads to EXCLUDE any that meet the following criteria:
-			- BP is within 2bp of a splice site (likely an intron circle, not a lariat)
 			- Read maps to UBB or UBC (likely false positive due to the repetitive nature of the genes)
 			- Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive due to sequence repetition)
+			- BP is within 2bp of a splice site (likely an intron circle, not a lariat)
 	'''
-	# Check if BP is within 2bp of an annotated splice site
-	if fivep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']) or threep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']):
-		return 'near_ss'
-
 	# Check if read mapped to a ubiquitin gene
 	if row['gene_name'] in ('UBC', 'UBB'):
 		return 'ubiquitin_gene'
@@ -165,6 +161,10 @@ def filter_lariats(row:pd.Series, fivep_sites:dict, threep_sites:dict, repeat_ri
 	# Check if read mapped to a repetitive region
 	if row['read_id'] in repeat_rids:
 		return 'in_repeat'
+	
+	# Check if BP is within 2bp of an annotated splice site
+	if fivep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']) or threep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']):
+		return 'near_ss'
 
 	return pd.NA
 
@@ -194,7 +194,7 @@ def choose_read_mapping(lariat_reads):
 			if category.empty is True:
 				continue
 			
-			chosen_index = random.sample(category.index.to_list(), 1)
+			chosen_index = random.sample(category.index.to_list(), 1)[0]
 			rejected_indices = [ind for ind in valid_lariat_mappings.index if ind!=chosen_index]
 			lariat_reads.loc[rejected_indices, 'filter_failed'] = 'not_chosen'
 			break
@@ -207,13 +207,8 @@ def choose_read_mapping(lariat_reads):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	ref_gtf, ref_introns, ref_repeatmasker, output_base = sys.argv[1:]
-	# ref_gtf = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.annotation.gtf'
-	# ref_introns = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.gencode.v44.basic.introns.bed'
-	# ref_repeatmasker = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/references/hg38.repeat_masker.bed.gz'
-	# output_base = '/Users/trumanmooney/Documents/GitHub/lariat_mapping/testing/output/C22_R1_lariat_mapping/'
-
-	print(ref_gtf, ref_introns, ref_repeatmasker, output_base)
+	print(time.strftime('%m/%d/%y - %H:%M:%S | ') + f'Arguments recieved: {sys.argv[1:]}')
+	ref_gtf, ref_introns, ref_repeatmasker, output_base, keep_intermediates = sys.argv[1:]
 
 	# Load splice site coordinates
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Parsing splice site info...'))
@@ -226,7 +221,7 @@ if __name__ == '__main__':
 	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base)
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Checking for overlaps with repeat regions...'))
-	repeat_rids = check_repeat_overlap(lariat_reads, output_base, delete_temp=False)
+	repeat_rids = check_repeat_overlap(lariat_reads, output_base, keep_intermediates)
 
 	# Filter lariat reads
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Filtering lariat reads...'))
@@ -243,7 +238,7 @@ if __name__ == '__main__':
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Post-filter read count = {len(filtered_lariats.read_id.unique())}')
 
 	# Now write it all to file
-	print(time.strftime('%m/%d/%y - %H:%M:%S | Writing results to output files...'))
+	print(time.strftime('%m/%d/%y - %H:%M:%S | Writing results to output files...\n'))
 	failed_mappings.to_csv(f'{output_base}failed_lariat_mappings.tsv', sep='\t', index=False)
 	filtered_lariats.to_csv(f'{output_base}lariat_reads.tsv', sep='\t', index=False)
 	

@@ -4,7 +4,7 @@
 #=============================================================================#
 usage() {
     echo ""
-    echo "Options:"
+    echo "Required arguments:"
     echo "  -r, --read_file <read_file>               FASTQ file"
     echo "  -o, --output_dir <output_dir>             Directory for output files"
     echo "  -e, --output_base_name <output_base_name> Prefix to add to output files"
@@ -15,9 +15,11 @@ usage() {
     echo "  -5, --ref_5p_fasta <ref_5p_fasta>         FASTA file with sequences of first 20nt from reference 5' splice sites (first 20nt of introns)"
     echo "  -u, --ref_5p_upstream <ref_5p_upstream>   Custom file of sequences in 5nt window upstream of 5' splice sites"
     echo "  -n, --ref_introns <ref_introns>           BED file of all introns in the reference genome"
-    echo "  -x, --ref_exons <ref_exons>             BED file of all exons in the reference genome"
+    echo "  -x, --ref_exons <ref_exons>               BED file of all exons in the reference genome"
 	echo "  -t, --ref_transcripts <ref_transcripts>   BED file of all transcripts in the reference genome, including the blockCount, blockSizes, and blockStarts columns with exon counts, exon lengths, and exon start positions, respectively"
     echo "  -m, --ref_repeatmasker <ref_repeatmasker> BED file of repetitive elements from repeatmasker"
+	echo "Options:"
+	echo "  -k, --keep_intermediates				  Don't delete the intermediate files created throughout the pipeline"
     echo ""
     exit 1
 }
@@ -34,6 +36,7 @@ exit_abnormal() {
 #                                  Arguments                                  #
 #=============================================================================#
 # https://stackoverflow.com/questions/402377/using-getopts-to-process-long-and-short-command-line-options
+keep_intermediates="False"
 echo ""
 while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do        
     case $opt in                    
@@ -76,6 +79,9 @@ while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do
         m) 
             ref_repeatmasker=$OPTARG 
             echo "ref_repeatmasker: $ref_repeatmasker" ;;
+		k)
+			keep_intermediates="True"
+			echo "keep_intermediates" ;;
         -) 
             case "${OPTARG}" in
                 read_file)
@@ -130,6 +136,9 @@ while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                     ref_repeatmasker=$val 
                     echo "ref_repeatmasker: $ref_repeatmasker" ;;
+				keep_intermediates)
+					keep_intermediates="True"
+					echo "keep_intermediates" ;;
                 *)
                     echo "Error: unrecognized option --${OPTARG}."
                     exit_abnormal   ;;
@@ -148,7 +157,7 @@ done
 
 # Check if all required arguments are provided
 if [[ -z $read_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_introns || -z $ref_exons || -z $ref_transcripts || -z $ref_repeatmasker ]]; then
-  echo "All arguments are required."
+  echo "Not all required arguments submitted"
   exit_abnormal
 fi
 
@@ -178,7 +187,8 @@ scripts/map_lariats.sh $read_file \
 					$ref_transcripts \
 					$ref_introns \
 					$ref_exons \
-					$ref_repeatmasker
+					$ref_repeatmasker \
+					$keep_intermediates
 exit_code=$?
 # Check the exit code and handle errors
 if [ $exit_code -ne 0 ]; then
