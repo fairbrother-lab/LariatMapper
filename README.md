@@ -63,7 +63,7 @@ The columns are as follows:
 	bp_pos               The genomic position of the lariat's branchpoint 
 	read_bp_nt           The nucleotide of the branchpoint according to the RNA-seq read's sequence. Reverse-complemented if strand is "-"
 	genomic_bp_nt        The nucleotide of the branchpoint according to the reference genome. Reverse-complemented if strand is "-"
-	genomic_bp_context   The genomic sequence from positions -4 to +4 of the branchpoint. Reverse-complemented if strand is "-"
+	genomic_bp_context   The genomic sequence from positions -4 to +5 of the branchpoint. Reverse-complemented if strand is "-"
 	bp_dist_to_threep    The distance of the branchpoint to the 3' splice site in nucleotides
 	total_mapped_reads   The number of input reads that mapped linearly to the reference genome. Identical across all rows
 
