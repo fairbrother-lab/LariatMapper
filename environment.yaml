@@ -5,6 +5,7 @@ channels:
 dependencies:
   - bedtools
   - bowtie2
+  - hisat2>=2.21
   - intervaltree
   - numpy
   - pandas
