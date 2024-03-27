@@ -2,6 +2,8 @@
 #=============================================================================#
 #                                  Functions                                  #
 #=============================================================================#
+    # echo "  -i, --input_file <input_file>           Input FASTQ file"
+    # echo "  -r, --reference_dir <reference_dir>           Directory with reference files for lariat mapping. Create by running build_references.py"
 usage() {
     echo ""
     echo "Required arguments:"
@@ -38,6 +40,12 @@ exit_abnormal() {
 # https://stackoverflow.com/questions/402377/using-getopts-to-process-long-and-short-command-line-options
 keep_intermediates="False"
 echo ""
+        # i) 
+            # input_file=$OPTARG 
+            # echo "reference_dir: $reference_dir" ;;
+        # r) 
+            # reference_dir=$OPTARG 
+            # echo "reference_dir: $reference_dir" ;;
 while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do        
     case $opt in                    
         r) 
@@ -156,6 +164,14 @@ done
 
 
 # Check if all required arguments are provided
+# if ! [ -f $input_file ]; then
+# 	echo "$input_file is does not exist or is not a file"
+# 	exit_abnormal
+# fi
+# if ! [ -d $reference_dir ]; then
+# 	echo "$reference_dir does not exist or is not a directory"
+# 	exit_abnormal
+# fi
 if [[ -z $read_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_introns || -z $ref_exons || -z $ref_transcripts || -z $ref_repeatmasker ]]; then
   echo "Not all required arguments submitted"
   exit_abnormal
@@ -176,6 +192,8 @@ output_base="$output_dir/"
 
 printf "\n$(date +'%m/%d/%y - %H:%M:%S') | Processing read file...\n"
 SECONDS=0
+# scripts/map_lariats.sh $input_file \
+					# $reference_dir \
 scripts/map_lariats.sh $read_file \
 					$output_base \
 					$num_cpus \

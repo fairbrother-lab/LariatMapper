@@ -17,35 +17,24 @@ COMP_NTS = {'A':'T', 'C':'G', 'T':'A', 'G':'C', 'N':'N'}
 MAX_MISMATCHES = 5
 MAX_MISMATCH_PERCENT = 0.1
 MAX_GAP_LENGTH = 3
-ALIGNMENTS_INITIAL_COLUMNS = ('read_id', 'read_is_reverse', 'trim_seq', 'chrom', 'align_is_reverse', 'align_start', 'align_end', 'quality', 'introns')
-FAILED_ALIGNMENTS_COLS = ('read_id',
+ALIGNMENTS_INITIAL_COLUMNS = ('align_num', 'read_id', 'read_is_reverse', 'trim_seq', 'chrom', 'align_is_reverse', 'align_start', 'align_end', 'quality', 'introns')
+FAILED_ALIGNMENTS_COLS = ['align_num', 
+						  'read_id',
 						  'read_is_reverse',
 						  'trim_seq',
 						  'chrom',
 						  'align_is_reverse',
 						  'align_start',
-						  'align_end',
-						  'quality',
-						  'introns',
-						  '_',
-						  'transcript_id', 
-						  'intron_num', 
-						  'intron_start', 
-						  'intron_end', 
-						  'strand', 
-						  'gene_id', 
-						  'gene_name', 
-						  'gene_type',
+						  'align_end', 
+						  'intron',
 						  'fivep_site',
-						  'read_seq', 
 						  'read_bp_nt',
 						  'bp_site',
 						  'threep_site',
 						  'bp_dist_to_threep',
 						  'genomic_bp_context',
 						  'genomic_bp_nt',
-						  'filter_failed'
-						  )
+						  'filter_failed']
 FINAL_INFO_TABLE_COLS = ['read_id', 
 						'read_is_reverse', 
 						'read_seq', 
@@ -134,8 +123,8 @@ def parse_fivep_info(output_base:str):
 	# Unpack fivep_sites
 	fivep_info.fivep_sites = fivep_info.fivep_sites.str.split(',')
 	fivep_info = fivep_info.explode('fivep_sites')
-	fivep_info[['chrom', 'fivep_site', '_', 'strand']] = fivep_info.fivep_sites.str.split(';', expand=True)
-	fivep_info.fivep_site = fivep_info.fivep_site.astype(int)
+	fivep_info[['chrom', 'fivep_start', 'fivep_end', 'strand']] = fivep_info.fivep_sites.str.split(';', expand=True)
+	fivep_info['fivep_site'] = fivep_info.apply(lambda row: int(row['fivep_start']) if row['strand']=='+' else int(row['fivep_end'])-1, axis=1)
 
 	# Load gene ranges and annotate the 5'ss with gene ids
 	fivep_info['gene_id'] = fivep_info.apply(add_gene_ids, gene_ranges=gene_ranges, axis=1, result_type='reduce')
@@ -144,13 +133,10 @@ def parse_fivep_info(output_base:str):
 	return fivep_info
 
 
-MAX_MISMATCHES = 5
-MAX_MISMATCH_PERCENT = 0.1
-MAX_GAP_LENGTH = 3
-ALIGNMENTS_INITIAL_COLUMNS = ('read_id', 'read_is_reverse', 'trim_seq', 'chrom', 'align_is_reverse', 'align_start', 'align_end', 'quality', 'introns')
-def parse_trimmed_alignments(bam_file:str, failed_alignments_file:str):
+# def parse_trimmed_alignments(bam_file:str, failed_alignments_file:str):
+def parse_trimmed_alignments(bam_file:str):
 	alignments = {}
-	failed_alignments = []
+	# failed_alignments = []
 	i = 0
 	for align in pysam.AlignmentFile(bam_file, 'rb'):
 		i += 1
@@ -169,7 +155,8 @@ def parse_trimmed_alignments(bam_file:str, failed_alignments_file:str):
 		else:
 			introns = []
 		
-		align_info = [align.query_name,
+		align_info = [i,
+					align.query_name,
 					read_is_reverse,
 					align.query_sequence,
 					align.reference_name, 
@@ -181,23 +168,23 @@ def parse_trimmed_alignments(bam_file:str, failed_alignments_file:str):
 		
 		# Check alignment quality and fail alignment if it doesn't meet all thresholds
 		if mismatches > MAX_MISMATCHES:
-			failed_alignments.append(align_info + [pd.NA]*17 + ['mismatch_number'])
+			# failed_alignments.append(align_info + [pd.NA]*17 + ['mismatch_number'])
 			continue
 		if mismatch_percent > MAX_MISMATCH_PERCENT:
-			failed_alignments.append(align_info + [pd.NA]*17 + ['mismatch_percent'])
+			# failed_alignments.append(align_info + [pd.NA]*17 + ['mismatch_percent'])
 			continue
 		if len(gaps) > 1 or (len(gaps) == 1 and gaps[0] > MAX_GAP_LENGTH):
-			failed_alignments.append(align_info + [pd.NA]*17 + ['indel'])
+			# failed_alignments.append(align_info + [pd.NA]*17 + ['indel'])
 			continue
 		if introns == []:
-			failed_alignments.append(align_info + [pd.NA]*17 + ['within_intron'])
+			# failed_alignments.append(align_info + [pd.NA]*17 + ['within_intron'])
 			continue
 		
 		# If the alignment passed the quality thresholds, add it to the list
 		alignments[align.query_name].append(align_info)
 	
-	# Convert the failed alignments to a DataFrame and write to the failed file
-	pd.DataFrame(failed_alignments, columns=FAILED_ALIGNMENTS_COLS).to_csv(failed_alignments_file, sep='\t', index=False)
+	# # Convert the failed alignments to a DataFrame and write to the failed file
+	# pd.DataFrame(failed_alignments, columns=FAILED_ALIGNMENTS_COLS).to_csv(failed_alignments_file, sep='\t', index=False)
 
 	# Flatten the passed alignments into a list of lists, then covert to a DataFrame and return
 	alignments = [align_info for aligns_list in alignments.values() for align_info in aligns_list]
@@ -205,55 +192,98 @@ def parse_trimmed_alignments(bam_file:str, failed_alignments_file:str):
 	return alignments
 
 
-COMP_NTS = {'A':'T', 'C':'G', 'T':'A', 'G':'C', 'N':'N'}
 def reverse_complement(seq):
 	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
 
 
 def add_read_bp_nt(row:pd.Series) -> str:
-	if row['strand']=='+' and not row['align_is_reverse']:
+	# if row['strand']=='+' and not row['align_is_reverse']:
+	# 	return row['trim_seq'][-1]
+	# elif row['strand']=='+' and row['align_is_reverse']:
+	# 	return reverse_complement(row['trim_seq'][0])
+	# elif row['strand']=='-' and not row['align_is_reverse']:
+	# 	return reverse_complement(row['trim_seq'][0])
+	# elif row['strand']=='-' and row['align_is_reverse']:
+	# 	return row['trim_seq'][-1]
+	if not row['read_is_reverse'] and not row['align_is_reverse']:
 		return row['trim_seq'][-1]
-	elif row['strand']=='+' and row['align_is_reverse']:
+	elif not row['read_is_reverse'] and row['align_is_reverse']:
 		return reverse_complement(row['trim_seq'][0])
-	elif row['strand']=='-' and not row['align_is_reverse']:
+	elif row['read_is_reverse'] and not row['align_is_reverse']:
 		return reverse_complement(row['trim_seq'][0])
-	elif row['strand']=='-' and row['align_is_reverse']:
+	elif row['read_is_reverse'] and row['align_is_reverse']:
 		return row['trim_seq'][-1]
 
 
 def add_nearest_threep(row:pd.Series, introns:dict):
-	overlap_introns = list(introns[row['chrom']][row['strand']].overlap(row['bp_site'], row['bp_site']+1))
-	if len(overlap_introns) == 0:
-		raise RuntimeError(f"No introns overlapped the following:\n{row}")
+	enveloping_introns = list(introns[row['chrom']][row['strand']].at(row['bp_site']))
+	if len(enveloping_introns) == 0:
+		raise RuntimeError(f"No introns enveloped the BP in the following:\n{row}")
 	
 	if row['strand'] == '+':
-		threep_site = min(overlap_introns, key=lambda s: s.end-row['bp_site']).end - 1
+		threep_site = min(enveloping_introns, key=lambda s: s.end-row['bp_site']).end - 1
 	else:
-		threep_site = min(overlap_introns, key=lambda s: row['bp_site']-s.begin).begin
+		threep_site = min(enveloping_introns, key=lambda s: row['bp_site']-s.begin).begin
 
 	return threep_site
 
 
-def add_bp_seq(row:pd.Series, output_base:str, genome_fasta:str, temp_bp_bed:str, temp_bp_seq:str):
-	temp_file = open(temp_bp_bed, 'w')
-	if row['strand'] == '+':
-		bp_start, bp_end = row['bp_site']-4, row['bp_site']+6
-	else:
-		bp_start, bp_end = row['bp_site']-5, row['bp_site']+5
-	temp_file.write(f"{row['chrom']}\t{bp_start}\t{bp_end}\t{row['chrom']};{row['bp_site']};{row['strand']}\t0\t{row['strand']}\n")
-	temp_file.close()
-	subprocess.run(f'bedtools getfasta -fi {genome_fasta} -bed {temp_bp_bed} -fo {temp_bp_seq} -nameOnly -s -tab'.split(' '))
+# def add_bp_seq(row:pd.Series, output_base:str, genome_fasta:str, temp_bp_bed:str, temp_bp_seq:str):
+# 	temp_file = open(temp_bp_bed, 'w')
+# 	if row['strand'] == '+':
+# 		bp_start, bp_end = row['bp_site']-4, row['bp_site']+6
+# 	else:
+# 		bp_start, bp_end = row['bp_site']-5, row['bp_site']+5
+# 	temp_file.write(f"{row['chrom']}\t{bp_start}\t{bp_end}\t{row['chrom']};{row['bp_site']};{row['strand']}\t0\t{row['strand']}\n")
+# 	temp_file.close()
+# 	subprocess.run(f'bedtools getfasta -fi {genome_fasta} -bed {temp_bp_bed} -fo {temp_bp_seq} -nameOnly -s -tab'.split(' '))
 
-	temp_file = open(temp_bp_seq)
-	name, genomic_bp_window = temp_file.readline().strip().split()
-	genomic_bp_window = genomic_bp_window.upper()
-	temp_file.close()
+# 	temp_file = open(temp_bp_seq)
+# 	name, genomic_bp_window = temp_file.readline().strip().split()
+# 	genomic_bp_window = genomic_bp_window.upper()
+# 	temp_file.close()
 
-	return genomic_bp_window
+# 	return genomic_bp_window
 
 
+def get_bp_seqs(alignments:pd.DataFrame, output_base:str, genome_fasta:str, keep_intermediates:bool):
+	temp_bp_bed = output_base + 'temp_bp_seqs.bed'
+	temp_bp_seq = output_base + 'temp_bp_seqs.tsv'
+	with open(temp_bp_bed, 'w') as w:
+		for i, row in alignments.iterrows():
+			if row['strand'] == '+':
+				window_start = row['bp_site']-4
+				window_end = row['bp_site']+6
+			else:
+				window_start = row['bp_site']-5
+				window_end = row['bp_site']+5
 
-def more_filters(row:pd.Series):
+			w.write(f"{row['chrom']}\t{window_start}\t{window_end}\t{i}\t0\t{row['strand']}\n")
+
+	command = f'bedtools getfasta -s -tab -fi {genome_fasta} -bed {temp_bp_bed} -fo {temp_bp_seq}'
+	subprocess.run(command.split(' '))
+	bp_seqs = pd.read_csv(temp_bp_seq, sep='\t', names=['_', 'genomic_bp_context'])
+
+	if keep_intermediates is False:
+		os.remove(temp_bp_bed)
+		os.remove(temp_bp_seq)
+
+	return bp_seqs['genomic_bp_context']
+
+
+def filter_alignments(row:pd.Series):
+	# Check if bad alignment orientation combination, which do NOT leave the branchpoint adjacent to the 5'ss in the read as is expected of lariats
+	if row['read_is_reverse'] is False:
+		if row['align_is_reverse'] is False and row['strand']=='-':
+			return 'wrong_orientation'
+		elif row['align_is_reverse'] is True and row['strand']=='+':
+			return 'wrong_orientation'
+	if row['read_is_reverse'] is True:
+		if row['align_is_reverse'] is False and row['strand']=='+':
+			return 'wrong_orientation'
+		elif row['align_is_reverse'] is True and row['strand']=='-':
+			return 'wrong_orientation'
+
 	# Check if no fivep match
 	if pd.isna(row['fivep_site']):
 		return 'no_fivep_matches'
@@ -272,14 +302,15 @@ def more_filters(row:pd.Series):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	print(f'Arguments recieved: {sys.argv[1:]}')
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Arguments recieved: {sys.argv[1:]}')
 	ref_gtf, ref_introns, genome_fasta, output_base, keep_intermediates = sys.argv[1:]
+	keep_intermediates = {'True':True, 'False':False}[keep_intermediates]
 
 	# 
 	with open(f'{output_base}final_info_table.tsv', 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
 	with open(f'{output_base}failed_trimmed_alignments.tsv', 'w') as w:
-		w.write('\n')
+		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
 
 	# Load auxiliary data for processing alignments 
 	introns = parse_intron_info(ref_introns)
@@ -287,13 +318,12 @@ if __name__ == '__main__':
 	fivep_info = parse_fivep_info(output_base)
 
 	# Load alignments, pre-filtering out bad-quality alignments and alignments not within an intron
-	failed_alignments_file = f'{output_base}failed_trimmed_alignments.tsv'
-	alignments = parse_trimmed_alignments(f'{output_base}trimmed_reads_to_genome.bam', failed_alignments_file)
+	# failed_alignments_file = f'{output_base}failed_trimmed_alignments.tsv'
+	# alignments = parse_trimmed_alignments(f'{output_base}trimmed_reads_to_genome.bam', failed_alignments_file)
+	alignments = parse_trimmed_alignments(f'{output_base}trimmed_reads_to_genome.bam')
 
 	# Explode introns
 	alignments = alignments.explode('introns', ignore_index=True)
-	# print(alignments.head())
-	# print(alignments.loc[alignments.introns.transform(len)<10])
 	alignments[['_', 'transcript_id', 'intron_num', 'intron_start', 'intron_end', 'strand', 'gene_id', 'gene_name', 'gene_type']] = alignments.introns.str.split(';', expand=True)
 	alignments.intron_start = alignments.intron_start.astype(int)
 	alignments.intron_end = alignments.intron_end.astype(int)
@@ -305,20 +335,30 @@ if __name__ == '__main__':
 	alignments['read_bp_nt'] = alignments.apply(add_read_bp_nt, axis=1)
 	alignments['bp_site'] = alignments.apply(lambda row: row['align_end']-1 if row['strand']=='+' else row['align_start'], axis=1)
 	alignments['threep_site'] = alignments.apply(add_nearest_threep, introns=introns, axis=1)
-	alignments['bp_dist_to_threep'] = alignments.apply(lambda row: row['bp_site']-row['threep_site'] if pd.notna(row['threep_site']) else pd.NA, axis=1)
+	alignments['bp_dist_to_threep'] = alignments.apply(lambda row: -abs(row['bp_site']-row['threep_site']) if pd.notna(row['threep_site']) else pd.NA, axis=1)
 	
 	# Add BP seqs
-	temp_bp_bed, temp_bp_seq = output_base+'_temp_bp_seqs.bed', output_base+'temp_bp_seqs.txt'
-	alignments['genomic_bp_context'] = alignments.apply(add_bp_seq, output_base=output_base, genome_fasta=genome_fasta, temp_bp_bed=temp_bp_bed, temp_bp_seq=temp_bp_seq, axis=1)
+	# alignments.to_csv(f'{output_base}alignments.tsv', sep='\t')
+	# temp_bp_bed, temp_bp_seq = output_base+'_temp_bp_seqs.bed', output_base+'temp_bp_seqs.txt'
+	# alignments['genomic_bp_context'] = alignments.apply(add_bp_seq, output_base=output_base, genome_fasta=genome_fasta, temp_bp_bed=temp_bp_bed, temp_bp_seq=temp_bp_seq, axis=1)
+	# alignments['genomic_bp_context'] = alignments.apply(lambda row: get_sequence(genome_fasta, row['chrom'], row['bp_site']-4, row['bp_site']+5, False) if row['strand']=='+' else get_sequence(genome_fasta, row['chrom'], row['bp_site']-5, row['bp_site']+4, True), axis=1)
+	alignments['genomic_bp_context'] = get_bp_seqs(alignments, output_base, genome_fasta, keep_intermediates)
 	alignments['genomic_bp_nt'] = alignments.genomic_bp_context.str.get(4)
-	if keep_intermediates == 'False':
-		os.remove(temp_bp_bed)
-		os.remove(temp_bp_seq)
+	# if keep_intermediates is False:
+	# 	os.remove(temp_bp_bed)
+	# 	os.remove(temp_bp_seq)
 	
 	# Filtering
-	alignments['filter_failed'] = alignments.apply(more_filters, axis=1)
-	alignments[alignments.filter_failed.notna()].to_csv(f'{output_base}failed_trimmed_alignments.tsv', mode='a', sep='\t', index=False, header=False)
+	alignments['filter_failed'] = alignments.apply(filter_alignments, axis=1)
+	
+	# failed_alignments = alignments.loc[alignments.filter_failed.notna(), ]
+	failed_alignments = alignments.loc[alignments.filter_failed.notna()].drop_duplicates()
+	failed_alignments['intron'] = failed_alignments.apply(lambda row: f"{row['transcript_id']};{row['intron_num']};{row['intron_start']};{row['intron_end']};{row['strand']};{row['gene_id']};{row['gene_name']};{row['gene_type']}", axis=1)
+	failed_alignments = failed_alignments.groupby([col for col in FAILED_ALIGNMENTS_COLS if col!='intron'], as_index=False).intron.agg(','.join)
+	failed_alignments[FAILED_ALIGNMENTS_COLS].to_csv(f'{output_base}failed_trimmed_alignments.tsv', mode='a', sep='\t', index=False, header=False)
+	
 	alignments = alignments.loc[alignments.filter_failed.isna(), FINAL_INFO_TABLE_COLS]
+
 	# For some reason one read that makes it this far (NGSNJ-086:229:GW200110425th:1:1101:2166:13448_for in C22-1_R1) has a float value for fivep_site instead of int
 	alignments.fivep_site = alignments.fivep_site.astype(int)	
 

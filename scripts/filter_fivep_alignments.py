@@ -2,6 +2,7 @@ import sys
 
 from pyfaidx import Fasta
 import pandas as pd
+import time
 
 
 
@@ -78,7 +79,8 @@ def filter_fivep_reads(unmapped_fasta:str, alignments:dict, fivep_upstream_seqs:
 		for site in alignments[rid]:
 			read_fivep_start, read_fivep_end, read_is_reverse = alignments[rid][site]
 			if read_is_reverse:
-				read_upstream = read_seq[read_fivep_end-1:read_fivep_end+4].upper()
+				# read_upstream = read_seq[read_fivep_end-1:read_fivep_end+4].upper()
+				read_upstream = read_seq[read_fivep_end+1:read_fivep_end+6].upper()
 				upstream_mismatch = read_upstream != reverse_complement(fivep_upstream_seqs[site])
 			else:
 				read_upstream = read_seq[read_fivep_start-5:read_fivep_start].upper()
@@ -99,7 +101,8 @@ def filter_fivep_reads(unmapped_fasta:str, alignments:dict, fivep_upstream_seqs:
 				# Get the start and end of the rightmost alignment in the read 
 				read_fivep_start, read_fivep_end, _ = max(fivep_pass[read_is_reverse], key=lambda fp:fp[1][0])[1]
 				# Trim off the rightmost alignment and everything to the left of it
-				trim_seq = read_seq[read_fivep_end-1:]
+				# trim_seq = read_seq[read_fivep_end-1:]
+				trim_seq = read_seq[read_fivep_end:]
 				# Get sequence of rightmost alignment
 				fivep_seq = reverse_complement(read_seq[read_fivep_start:read_fivep_end])
 			else:
@@ -153,7 +156,7 @@ def write_out_reads(out_reads:list, fivep_trimmed_reads_out:str, fivep_info_tabl
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__' :
-	print(f'Arguments recieved: {sys.argv[1:]}')
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Arguments recieved: {sys.argv[1:]}')
 	unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_trimmed_reads_out, fivep_info_table_out, output_base = sys.argv[1:]
 
 	alignments = load_alignments(fivep_to_reads)
