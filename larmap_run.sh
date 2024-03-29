@@ -2,8 +2,6 @@
 #=============================================================================#
 #                                  Functions                                  #
 #=============================================================================#
-    # echo "  -i, --input_file <input_file>           Input FASTQ file"
-    # echo "  -r, --reference_dir <reference_dir>           Directory with reference files for lariat mapping. Create by running build_references.py"
 usage() {
     echo ""
     echo "Required arguments:"
@@ -11,6 +9,8 @@ usage() {
     echo "  -o, --output_dir <output_dir>             Directory for output files"
     echo "  -e, --output_base_name <output_base_name> Prefix to add to output files"
     echo "  -c, --num_cpus <num_cpus>                 Number of CPUs available"
+    # echo "  -i, --input_file <input_file>             Input FASTQ file"
+    # echo "  -r, --reference_dir <reference_dir>       Directory with reference files for lariat mapping. Create by running build_references.py"
     echo "  -i, --ref_b2index <ref_b2index>           Bowtie2 index of the full reference genome"
     echo "  -f, --ref_fasta <ref_fasta>               FASTA file of the full reference genome"
     echo "  -g, --ref_gtf <ref_gtf>                   GTF file with gene annotation of the reference genome"
@@ -40,17 +40,15 @@ exit_abnormal() {
 # https://stackoverflow.com/questions/402377/using-getopts-to-process-long-and-short-command-line-options
 keep_intermediates="False"
 echo ""
-        # i) 
-            # input_file=$OPTARG 
-            # echo "reference_dir: $reference_dir" ;;
-        # r) 
-            # reference_dir=$OPTARG 
-            # echo "reference_dir: $reference_dir" ;;
-while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do        
+while getopts :r:o:e:c:i:f:g:5:u:n:t:m:k:-: opt; do        
+# while getopts :i:o:e:c:r:k:-: opt; do        
     case $opt in                    
         r) 
             read_file=$OPTARG 
             echo "read_file: $read_file" ;;
+        # i) 
+            # input_file=$OPTARG 
+            # echo "input_file: $input_file" ;;
         o) 
             output_dir=$OPTARG 
             echo "output_dir: $output_dir" ;;
@@ -60,6 +58,9 @@ while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do
         c) 
             num_cpus=$OPTARG 
             echo "num_cpus: $num_cpus" ;;
+        # r) 
+            # reference_dir=$OPTARG 
+            # echo "reference_dir: $reference_dir" ;;
         i) 
             ref_b2index=$OPTARG 
             echo "ref_b2index: $ref_b2index" ;;
@@ -96,6 +97,10 @@ while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                     read_file=$val  
                     echo "read_file: $read_file" ;;
+				# input_file) 
+                #     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
+				# 	input_file=$val 
+				# 	echo "input_file: $input_file" ;;
                 output_dir)
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                     output_dir=$val  
@@ -108,6 +113,10 @@ while getopts :r:o:e:c:i:f:g:5:u:n:t:m:-: opt; do
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                     num_cpus=$val  
                     echo "num_cpus: $num_cpus" ;;
+				# reference_dir) 
+                #     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
+				# 	reference_dir=$val 
+				# 	echo "reference_dir: $reference_dir" ;;
                 ref_b2index)
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                     ref_b2index=$val  

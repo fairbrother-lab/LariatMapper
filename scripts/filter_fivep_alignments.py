@@ -35,7 +35,7 @@ def load_alignments(fivep_to_reads:str) -> dict:
 			read_fivep_start = int(read_fivep_start)-1
 			bit_flags = bin(int(flag))
 			read_is_reverse = True if len(bit_flags)>=7 and bit_flags[-5]=='1' else False
-			fivep_site = fivep_site[:-3]
+			# fivep_site = fivep_site[:-3]
 
 			if rid not in alignments:
 				alignments[rid] = {}
@@ -44,18 +44,18 @@ def load_alignments(fivep_to_reads:str) -> dict:
 	return alignments
 
 
-def load_fivep_upstream(fivep_upstream:str) -> dict:
-	'''
-	Load the collection of 5bp upstream sequences
-	Returns { 5'ss site : 5bp upstream sequence }, e.g. { "chr1;201283904;201283924;+": "TCGAG" }
-	'''
-	fivep_upstream_seqs = {}
-	with open(fivep_upstream) as in_file:
-		for line in in_file:
-			fivep_site, seq = line.strip().split('\t')
-			fivep_upstream_seqs[fivep_site[:-3]] = seq.upper()
+# def load_fivep_upstream(fivep_upstream:str) -> dict:
+# 	'''
+# 	Load the collection of 5bp upstream sequences
+# 	Returns { 5'ss site : 5bp upstream sequence }, e.g. { "chr1;201283904;201283924;+": "TCGAG" }
+# 	'''
+# 	fivep_upstream_seqs = {}
+# 	with open(fivep_upstream) as in_file:
+# 		for line in in_file:
+# 			fivep_site, seq = line.strip().split('\t')
+# 			fivep_upstream_seqs[fivep_site[:-3]] = seq.upper()
 
-	return fivep_upstream_seqs
+# 	return fivep_upstream_seqs
 
 
 def filter_fivep_reads(unmapped_fasta:str, alignments:dict, fivep_upstream_seqs:dict):
@@ -160,7 +160,8 @@ if __name__ == '__main__' :
 	unmapped_fasta, fivep_to_reads, fivep_upstream, fivep_trimmed_reads_out, fivep_info_table_out, output_base = sys.argv[1:]
 
 	alignments = load_alignments(fivep_to_reads)
-	fivep_upstream_seqs = load_fivep_upstream(fivep_upstream)
+	# fivep_upstream_seqs = load_fivep_upstream(fivep_upstream)
+	fivep_upstream_seqs = pd.read_csv(fivep_upstream, sep='\t', index_col='fivep_site').upstream_sequence.to_dict()
 
 	out_reads, failed_alignments = filter_fivep_reads(unmapped_fasta, alignments, fivep_upstream_seqs)
 
