@@ -12,20 +12,22 @@ import pandas as pd
 # =============================================================================#
 #                                  Constants                                   #
 # =============================================================================#
-FINAL_RESULTS_COLUMNS = ('gene_name',
+FINAL_RESULTS_COLUMNS = ('read_id',
+						'gene_name',
                         'gene_id',
                         'gene_type',
-                        'read_id',
-                        'read_seq',
                         'chrom',
                         'strand',
                         'fivep_pos',
-                        'threep_pos',
+						'head_start',
+						'head_end',
                         'bp_pos',
+                        'threep_pos',
+                        'bp_dist_to_threep',
+                        'read_seq',
                         'read_bp_nt',
                         'genomic_bp_nt',
                         'genomic_bp_context',
-                        'bp_dist_to_threep',
                         'total_mapped_reads')
 
 
@@ -74,7 +76,8 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 	can then be added to the experiment-wide superset dict
 	'''
 	lariat_reads = pd.read_csv(f'{output_base}final_info_table.tsv', sep='\t')
-	lariat_reads = lariat_reads.rename(columns={'fivep_site': 'fivep_pos', 'threep_site': 'threep_pos', 'bp_site': 'bp_pos'})
+	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
+	lariat_reads = lariat_reads.rename(columns={'fivep_site': 'fivep_pos', 'bp_site': 'bp_pos', 'threep_site': 'threep_pos'})
 
 	if len(lariat_reads) == 0:
 		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
