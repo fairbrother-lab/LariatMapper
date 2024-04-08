@@ -35,27 +35,12 @@ def load_alignments(fivep_to_reads:str) -> dict:
 			read_fivep_start = int(read_fivep_start)-1
 			bit_flags = bin(int(flag))
 			read_is_reverse = True if len(bit_flags)>=7 and bit_flags[-5]=='1' else False
-			# fivep_site = fivep_site[:-3]
 
 			if rid not in alignments:
 				alignments[rid] = {}
 			alignments[rid][fivep_site] = (read_fivep_start, read_fivep_start+20, read_is_reverse)
 
 	return alignments
-
-
-# def load_fivep_upstream(fivep_upstream:str) -> dict:
-# 	'''
-# 	Load the collection of 5bp upstream sequences
-# 	Returns { 5'ss site : 5bp upstream sequence }, e.g. { "chr1;201283904;201283924;+": "TCGAG" }
-# 	'''
-# 	fivep_upstream_seqs = {}
-# 	with open(fivep_upstream) as in_file:
-# 		for line in in_file:
-# 			fivep_site, seq = line.strip().split('\t')
-# 			fivep_upstream_seqs[fivep_site[:-3]] = seq.upper()
-
-# 	return fivep_upstream_seqs
 
 
 def filter_fivep_reads(unmapped_fasta:str, alignments:dict, fivep_upstream_seqs:dict):
@@ -79,7 +64,6 @@ def filter_fivep_reads(unmapped_fasta:str, alignments:dict, fivep_upstream_seqs:
 		for site in alignments[rid]:
 			read_fivep_start, read_fivep_end, read_is_reverse = alignments[rid][site]
 			if read_is_reverse:
-				# read_upstream = read_seq[read_fivep_end-1:read_fivep_end+4].upper()
 				read_upstream = read_seq[read_fivep_end+1:read_fivep_end+6].upper()
 				upstream_mismatch = read_upstream != reverse_complement(fivep_upstream_seqs[site])
 			else:
@@ -101,7 +85,6 @@ def filter_fivep_reads(unmapped_fasta:str, alignments:dict, fivep_upstream_seqs:
 				# Get the start and end of the rightmost alignment in the read 
 				read_fivep_start, read_fivep_end, _ = max(fivep_pass[read_is_reverse], key=lambda fp:fp[1][0])[1]
 				# Trim off the rightmost alignment and everything to the left of it
-				# trim_seq = read_seq[read_fivep_end-1:]
 				trim_seq = read_seq[read_fivep_end:]
 				# Get sequence of rightmost alignment
 				fivep_seq = reverse_complement(read_seq[read_fivep_start:read_fivep_end])
@@ -162,6 +145,7 @@ if __name__ == '__main__' :
 	alignments = load_alignments(fivep_to_reads)
 	# fivep_upstream_seqs = load_fivep_upstream(fivep_upstream)
 	fivep_upstream_seqs = pd.read_csv(fivep_upstream, sep='\t', index_col='fivep_site').upstream_sequence.to_dict()
+	# fivep_upstream_seqs = pd.read_csv(fivep_info, sep='\t', index_col='name').upstream_sequence.to_dict()
 
 	out_reads, failed_alignments = filter_fivep_reads(unmapped_fasta, alignments, fivep_upstream_seqs)
 

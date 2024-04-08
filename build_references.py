@@ -39,39 +39,6 @@ def parse_attributes(attribute_string:str) -> dict:
 	return attributes
 
 
-# def build_transcript_info(ref_gtf:str, out_transcript_tsv:str):
-# 	'''
-	
-# 	'''
-# 	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Processing transcripts...')
-# 	# Count header lines in GTF
-# 	header_lines = 0
-# 	with open(ref_gtf) as r:
-# 		for line in r:
-# 			if line.startswith('##'):
-# 				header_lines += 1
-# 			else:
-# 				break
-
-# 	# Load GTF
-# 	transcripts = pd.read_csv(ref_gtf, names=['chrom', 'source', 'feature', 'start', 'end', 'score', 'strand', 'phase', 'attributes'], skiprows=header_lines, sep='\t')
-# 	transcripts = transcripts.loc[transcripts.feature=='transcript'].reset_index(drop=True)
-	
-# 	# Pull out transcript x gene info
-# 	transcripts.attributes = transcripts.attributes.transform(parse_attributes)
-# 	transcripts['gene_id'] = transcripts.attributes.transform(lambda attributes: attributes['gene_id'])
-# 	transcripts['gene_name'] = transcripts.attributes.transform(lambda attributes: attributes['gene_name'])
-# 	transcripts['gene_type'] = transcripts.attributes.transform(lambda attributes: attributes['gene_type'])
-# 	transcripts['transcript_id'] = transcripts.attributes.transform(lambda attributes: attributes['transcript_id'])
-
-# 	# Filter out unwanted transcripts
-# 	transcripts = transcripts.loc[(~transcripts.gene_type.isin(BAD_GENE_TYPES))]
-	
-# 	# Write to file
-# 	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Writing transcript information to TSV file...')
-# 	transcripts[['transcript_id', 'gene_id', 'gene_name', 'gene_type']].to_csv(out_transcript_tsv, sep='\t', header=False, index=False)
-
-# 	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Transcript file done.')
 def parse_transcript_info(ref_gtf:str):
 	'''
 	
@@ -202,18 +169,21 @@ def build_fivep(ref_gtf:str, ref_fasta:str, out_dir:str, out_fivep_fasta:str, ou
 	fiveps = pd.merge(fiveps.explode('transcript_id'), transcripts[['transcript_id', 'gene_id']], on='transcript_id')
 	fiveps = fiveps[['chrom', 'start', 'end', 'strand', 'gene_id']].drop_duplicates()
 	fiveps = fiveps.groupby(['chrom', 'start', 'end', 'strand'], as_index=False).gene_id.agg('|'.join)
+	# fiveps = fiveps.groupby(['chrom', 'start', 'end', 'strand'], as_index=False).gene_id.agg(','.join)
 
 	# Prep rest of info
 	fiveps['pos'] = fiveps.apply(lambda row: row['start'] if row['strand']=='+' else row['end']-1, axis=1) 
 	fiveps['slice_start'] = fiveps.apply(lambda row: row['pos']-5 if row['strand']=='+' else row['pos']-19, axis=1) 
 	fiveps['slice_end'] = fiveps.apply(lambda row: row['pos']+20 if row['strand']=='+' else row['pos']+6, axis=1) 
 	fiveps['fivep_site'] = fiveps.apply(lambda row: f"{row['chrom']};{row['pos']};{row['strand']};{row['gene_id']}", axis=1)
+	# fiveps['name'] = fiveps.apply(lambda row: f"{row['chrom']};{row['pos']};{row['strand']}", axis=1)
 	fiveps['zero'] = 0
 
 	# Write to temp BED file
 	temp_bed = f'{out_dir}/temp.bed'
 	temp_seqs = f'{out_dir}/temp.tsv'
 	fiveps[['chrom', 'slice_start', 'slice_end', 'fivep_site', 'zero', 'strand']].to_csv(temp_bed, sep='\t', header=False, index=False)
+	# fiveps[['chrom', 'slice_start', 'slice_end', 'name', 'zero', 'strand']].to_csv(temp_bed, sep='\t', header=False, index=False)
 
 	# Get sequence from 5nt upstream to 20nt downstream of 5'ss
 	command = f"bedtools getfasta -nameOnly -s -tab -fi {ref_fasta} -bed {temp_bed} -fo {temp_seqs}"
@@ -222,9 +192,12 @@ def build_fivep(ref_gtf:str, ref_fasta:str, out_dir:str, out_fivep_fasta:str, ou
 
 	# Load 5'ss seqs
 	fiveps_seqs = pd.read_csv(temp_seqs, sep='\t', names=['fivep_site', 'seq']).drop_duplicates()
+	# fiveps_seqs = pd.read_csv(temp_seqs, sep='\t', names=['name', 'seq']).drop_duplicates()
 	fiveps_seqs['intron_sequence'] = fiveps_seqs.seq.str.slice(5)
 	fiveps_seqs['upstream_sequence'] = fiveps_seqs.seq.str.slice(0, 5)
 	fiveps_seqs.fivep_site = fiveps_seqs.fivep_site.str.slice(0, -3)
+	# fiveps_seqs.name = fiveps_seqs.name.str.slice(0, -3)
+	# fiveps_seqs = pd.merge(fiveps_seqs, fiveps[['name', 'chrom', 'pos', 'strand', 'gene_id']], on='name', validate='one_to_one')
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + " | Writing 5'ss sequences to FASTA file...")
 	# Write 5'ss sequence to FASTA file 
@@ -235,9 +208,12 @@ def build_fivep(ref_gtf:str, ref_fasta:str, out_dir:str, out_fivep_fasta:str, ou
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + " | Writing 5nt upstream sequences to TSV file...")
 	# Write 5'ss 5nt upstream sequence to TSV file
 	fiveps_seqs[['fivep_site', 'upstream_sequence']].to_csv(out_fivep_upstream, sep='\t', index=False)
-	# with open(out_fivep_upstream, 'w') as w:
-		# for i, row in fiveps_seqs.iterrows():
-			# w.write(f"{row['fivep_site']}\t{row['upstream_sequence']}\n")
+	with open(out_fivep_upstream, 'w') as w:
+		for i, row in fiveps_seqs.iterrows():
+			w.write(f"{row['fivep_site']}\t{row['upstream_sequence']}\n")
+	# print(time.strftime('%m/%d/%y - %H:%M:%S') + " | Writing 5'ss information to TSV file...")
+	# # Write 5'ss info to TSV file
+	# fiveps_seqs[['name', 'chrom', 'pos', 'strand', 'gene_id', 'upstream_sequence']].to_csv(out_fivep_upstream, sep='\t', index=False)
 
 	# Delete temp files
 	os.remove(temp_bed)
@@ -259,16 +235,16 @@ def build_bowtie2_index(ref_fasta:str, out_bowtie2_index:str, threads) -> None:
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | bowtie2 index done.')
 
 
-def build_hisat2_index(ref_fasta:str, out_hisat2_index:str, threads) -> None:
-	'''
+# def build_hisat2_index(ref_fasta:str, out_hisat2_index:str, threads) -> None:
+# 	'''
 	
-	'''
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Building hisat2 index...')
-	command = f'hisat2-build --threads {threads} {ref_fasta} {out_hisat2_index}'.split(' ')
-	out = subprocess.run(command, capture_output=True)
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + out.stdout.decode() + out.stderr.decode())
+# 	'''
+# 	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Building hisat2 index...')
+# 	command = f'hisat2-build dwdwdwdw--threads {threads} {ref_fasta} {out_hisat2_index}'.split(' ')
+# 	out = subprocess.run(command, capture_output=True)
+# 	print(time.strftime('%m/%d/%y - %H:%M:%S') + out.stdout.decode() + out.stderr.decode())
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | hisat2 index done.')
+# 	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | hisat2 index done.')
 
 
 
@@ -303,6 +279,7 @@ def main():
 
 	# out_hisat2_index = f'{out_dir}/hisat2_index'
 	# build_hisat2_index(ref_fasta, out_hisat2_index, threads)
+
 	print('\n' + time.strftime('%m/%d/%y - %H:%M:%S') + ' | Reference-building complete')
 
 
@@ -311,37 +288,3 @@ def main():
 
 if __name__ == '__main__':
 	main()
-
-
-
-# input        
-	#     ref_fasta=$OPTARG
-	#     ref_gtf=$OPTARG 
-	#     ref_repeatmasker=$OPTARG 
-
-# output
-#    ref_b2index=$OPTARG 
-        #     ref_5p_fasta=$OPTARG 
-        #     ref_5p_upstream=$OPTARG 
-        #     ref_introns=$OPTARG
-        #     ref_exons=$OPTARG
-
-
-# t_info = functions.get_annotations(GENCODE_v44_COMP_ANNOTATIONS_FILE, feature='transcript')
-# t_info = {anno['transcript_id']: [anno['gene_id'], anno['gene_name'], anno['gene_type']] for anno in t_info}
-
-# feature_type = 'intron'
-# features = load_bed(f'/home/tmooney/Lariat_mapping/testing/references/hg38.gencode.v44.comprehensive.{feature_type}s.bed', make_end_inclusive=False)
-
-# features = features.rename(columns={'feat': 'chrom'})
-# features = features[features.chrom.isin(HUMAN_CHROMOSOMES)]
-# features['tid'] = features.name.transform(lambda name: name.split('_')[0])
-# features['num'] = features.name.transform(lambda name: name.split('_')[2])
-# features[['gene_id', 'gene_name', 'gene_type']] = features.tid.map(t_info).to_list()
-# features['mod_name'] = features.apply(lambda row: f"{feature_type};{row['tid']};{row['num']};{row['start']};{row['end']};{row['strand']};{row['gene_id']};{row['gene_name']};{row['gene_type']}", axis=1)
-
-# print(features.at[0, 'mod_name'])
-# features
-
-# features[['chrom', 'start', 'end', 'mod_name', 'score', 'strand']].to_csv(f'/home/tmooney/Lariat_mapping/testing/references/hg38.gencode.v44.comprehensive.{feature_type}s_mod.bed', sep='\t', index=False, header=False)
-# features[['chrom', 'start', 'end', 'mod_name', 'score', 'strand']]

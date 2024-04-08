@@ -172,7 +172,6 @@ while getopts :r:o:e:c:i:f:g:5:u:n:t:m:k:-: opt; do
 done
 
 
-# Check if all required arguments are provided
 # if ! [ -f $input_file ]; then
 # 	echo "$input_file is does not exist or is not a file"
 # 	exit_abnormal
@@ -181,6 +180,12 @@ done
 # 	echo "$reference_dir does not exist or is not a directory"
 # 	exit_abnormal
 # fi
+# # From https://stackoverflow.com/questions/806906/how-do-i-test-if-a-variable-is-a-number-in-bash
+# if ! [[ $num_cpus =~ '^[0-9]+$' ]]; then
+# 	echo "$num_cpus is not a positive integer"
+# 	exit_abnormal
+# fi
+# Check if all required arguments are provided
 if [[ -z $read_file || -z $output_dir || -z $output_base_name || -z $num_cpus || -z $ref_b2index || -z $ref_fasta || -z $ref_gtf || -z $ref_5p_fasta || -z $ref_5p_upstream || -z $ref_introns || -z $ref_exons || -z $ref_transcripts || -z $ref_repeatmasker ]]; then
   echo "Not all required arguments submitted"
   exit_abnormal

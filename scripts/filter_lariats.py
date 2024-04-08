@@ -29,6 +29,16 @@ FINAL_RESULTS_COLUMNS = ('read_id',
                         'genomic_bp_nt',
                         'genomic_bp_context',
                         'total_mapped_reads')
+CIRCULARIZED_INTRONS_COLUMNS = ('read_id',
+								'gene_name',
+								'gene_id',
+								'gene_type',
+								'chrom',
+								'strand',
+								'fivep_pos',
+								'threep_pos',
+								'read_seq',
+								'total_mapped_reads')
 
 
 
@@ -77,7 +87,6 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 	'''
 	lariat_reads = pd.read_csv(f'{output_base}final_info_table.tsv', sep='\t')
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
-	lariat_reads = lariat_reads.rename(columns={'fivep_site': 'fivep_pos', 'bp_site': 'bp_pos', 'threep_site': 'threep_pos'})
 
 	if len(lariat_reads) == 0:
 		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
@@ -94,7 +103,9 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 				 				.agg({'gene_id': ','.join, 'gene_name': ','.join, 'gene_type': ','.join})
 								.reset_index()
 					)
-
+	
+	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
+	lariat_reads['align_mismatch'] = lariat_reads.read_bp_nt != lariat_reads.genomic_bp_nt
 	return lariat_reads
 
 
@@ -165,9 +176,13 @@ def filter_lariats(row:pd.Series, fivep_sites:dict, threep_sites:dict, repeat_ri
 	if row['read_id'] in repeat_rids:
 		return 'in_repeat'
 	
-	# Check if BP is within 2bp of an annotated splice site
-	if fivep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']) or threep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']):
-		return 'near_ss'
+	# # Check if BP is within 2bp of an annotated splice site
+	# if fivep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']) or threep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']):
+	# 	return 'near_ss'
+	
+	if row['bp_dist_to_threep'] in (0, -1, -2):
+		return 'circularized'
+
 
 	return pd.NA
 
@@ -176,9 +191,6 @@ def choose_read_mapping(lariat_reads):
 	'''
 	For reads with multiple lariat mappings that have passed all filters, choose just one to assign to the read and fail the others
 	'''
-	lariat_reads['align_mismatch'] = lariat_reads.read_bp_nt != lariat_reads.genomic_bp_nt
-	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
-
 	for rid in lariat_reads.read_id.unique():
 		valid_lariat_mappings = lariat_reads[(lariat_reads.read_id==rid) & (lariat_reads.filter_failed.isna())]
 		# If either 1 or 0 valid lariat mappings, no need to choose
@@ -219,6 +231,7 @@ if __name__ == '__main__':
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Parsing lariat reads...'))
 	lariat_reads = load_lariat_table(output_base)
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Pre-filter read count = {len(lariat_reads.read_id.unique())}')
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Adding total mapped read count...'))
 	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base)
@@ -229,6 +242,7 @@ if __name__ == '__main__':
 	# Filter lariat reads
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Filtering lariat reads...'))
 	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, fivep_sites=fivep_sites, threep_sites=threep_sites, axis=1)
+	circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', CIRCULARIZED_INTRONS_COLUMNS]
 
 	# Choose 1 lariat mapping per read id and remove the _for/_rev suffix
 	lariat_reads = choose_read_mapping(lariat_reads)
@@ -237,13 +251,13 @@ if __name__ == '__main__':
 	failed_mappings = lariat_reads[lariat_reads.filter_failed.notna()].copy()
 	filtered_lariats = lariat_reads.loc[lariat_reads.filter_failed.isna(), FINAL_RESULTS_COLUMNS]
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Pre-filter read count = {len(lariat_reads.read_id.unique())}')
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Post-filter read count = {len(filtered_lariats.read_id.unique())}')
 
 	# Now write it all to file
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Writing results to output files...\n'))
 	failed_mappings.to_csv(f'{output_base}failed_lariat_mappings.tsv', sep='\t', index=False)
 	filtered_lariats.to_csv(f'{output_base}lariat_reads.tsv', sep='\t', index=False)
+	circularized_introns.to_csv(f'{output_base}circularized_introns.tsv', sep='\t', index=False)
 	
 	# Record final lariat read count
 	with open(f'{output_base}run_data.tsv', 'a') as a:
