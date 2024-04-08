@@ -58,6 +58,20 @@ run_data="$OUTPUT_BASE"run_data.tsv
 echo -e "ref_mapped_reads\t$mapped_read_count" > $run_data
 echo -e "ref_unmapped_reads\t$unmapped_read_count" >> $run_data
 
+# HISAT2_INDEX=/home/tmooney/Lariat_mapping/reference_data/new_references/hisat2_index
+# run_data="$OUTPUT_BASE"run_data.tsv
+# mapped_bam="$OUTPUT_BASE"mapped_reads.bam
+# unmapped_sam="$OUTPUT_BASE"unmapped_reads.sam
+# unmapped_bam="$OUTPUT_BASE"unmapped_reads.bam
+# hisat2 --pen-noncansplice 0 -k 1 --n-ceil L,0,0.05 --no-unal --threads $CPUS -x $HISAT2_INDEX -U $READ_FILE --un $unmapped_sam \
+# 	| samtools view --bam --with-header \
+# 	> $mapped_bam
+# samtools view --bam --with-header $unmapped_sam > $unmapped_bam
+# mapped_read_count=$(samtools view --count $mapped_bam)
+# unmapped_read_count=$(samtools view --count $unmapped_bam)
+# echo -e "ref_mapped_reads\t$mapped_read_count" > $run_data
+# echo -e "ref_unmapped_reads\t$unmapped_read_count" >> $run_data
+
 ### Create fasta file of unmapped reads 
 echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Creating fasta file of unmapped reads...\n"
