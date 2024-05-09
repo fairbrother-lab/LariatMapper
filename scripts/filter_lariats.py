@@ -1,18 +1,15 @@
 import sys
-import os
 import subprocess 
 import gzip
 import time
 import random
-
-from intervaltree import Interval, IntervalTree
 import pandas as pd
 
 
 # =============================================================================#
-#                                  Constants                                   #
+#                                  Globals                                     #
 # =============================================================================#
-FINAL_RESULTS_COLUMNS = ('read_id',
+FINAL_RESULTS_COLS = ('read_id',
 						'gene_name',
                         'gene_id',
                         'gene_type',
@@ -24,62 +21,34 @@ FINAL_RESULTS_COLUMNS = ('read_id',
                         'bp_pos',
                         'threep_pos',
                         'bp_dist_to_threep',
-                        'read_seq',
-                        'read_bp_nt',
-                        'genomic_bp_nt',
+						'genomic_bp_nt',
                         'genomic_bp_context',
-                        'total_mapped_reads')
-CIRCULARIZED_INTRONS_COLUMNS = ('read_id',
+                        'read_seq',
+						'read_alignment',
+						'read_bp_pos',
+                        'read_bp_nt',
+                        'total_mapped_reads',
+						)
+CIRCULARIZED_INTRONS_COLS = ('read_id',
 								'gene_name',
 								'gene_id',
 								'gene_type',
 								'chrom',
 								'strand',
 								'fivep_pos',
+								'bp_pos',
 								'threep_pos',
+                        		'bp_dist_to_threep',
+						  		'read_bp_pos',
 								'read_seq',
-								'total_mapped_reads')
+								'total_mapped_reads',
+								)
 
 
 
 # =============================================================================#
 #                                  Functions                                  #
 # =============================================================================#
-def load_splice_site_info(ref_introns) -> tuple:
-    '''
-    Returns a dict formatted as follows:
-    {Chromosome: {Strand(+ or -): Intervaltree(StartPosition(int), EndPosition(int))}}
-    for 3' splice sites (+/- 2 bases), 5' splice sites (+/- 2 bases), and the introns they come from (start to end)
-    '''
-    threep_sites, fivep_sites = {}, {}
-
-    if ref_introns[-2:] == 'gz':
-        intron_file = gzip.open(ref_introns, 'rt')
-    else:
-        intron_file = open(ref_introns)
-
-    introns_done = set()
-    for line in intron_file:
-        chrom, start, end, _, _, strand = line.strip().split()
-        if chrom not in threep_sites:
-            threep_sites[chrom] = {s: IntervalTree() for s in ['+', '-']}
-            fivep_sites[chrom] = {s: IntervalTree() for s in ['+', '-']}
-        intron_id = '{}_{}_{}_{}'.format(chrom, strand, start, end)
-        if intron_id not in introns_done:
-            start, end = int(start), int(end)
-            if strand == '+':
-                threep_sites[chrom][strand].add(Interval(end-2, end+2))
-                fivep_sites[chrom][strand].add(Interval(start-2, start+2))
-            else:
-                threep_sites[chrom][strand].add(Interval(start-2, start+2))
-                fivep_sites[chrom][strand].add(Interval(end-2, end+2))
-            introns_done.add(intron_id)
-
-    intron_file.close()
-
-    return threep_sites, fivep_sites
-
-
 def load_lariat_table(output_base: str) -> pd.DataFrame:
 	'''
 	For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_lariat_info_table.tsv and put them in a dict, which
@@ -91,21 +60,17 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 	if len(lariat_reads) == 0:
 		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
 		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
-			w.write('\t'.join(FINAL_RESULTS_COLUMNS))
+			w.write('\t'.join(FINAL_RESULTS_COLS))
 		with open(f'{output_base}failed_lariat_mappings.tsv', 'w') as w:
-			w.write('\t'.join(FINAL_RESULTS_COLUMNS) + '\tfilter_failed')
+			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
 		exit()
-
-	# Code adapted from https://stackoverflow.com/questions/27298178/concatenate-strings-from-several-rows-using-pandas-groupby
-	# Some reads get mapped to coordinates with multiple overlapping gene annotations
-	# We resolve this by collapsing the duplicated rows and concatenating the gene_id, gene_name, and gene_type columns
-	lariat_reads = (lariat_reads.groupby([col for col in lariat_reads.columns if col not in ('gene_id', 'gene_name', 'gene_type')])
-				 				.agg({'gene_id': ','.join, 'gene_name': ','.join, 'gene_type': ','.join})
-								.reset_index()
-					)
 	
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
+	lariat_reads[['read_id', 'read_num']] = lariat_reads.read_id.str.split('/', expand=True)
+	lariat_reads.read_num = lariat_reads.read_num.astype(int)
 	lariat_reads['align_mismatch'] = lariat_reads.read_bp_nt != lariat_reads.genomic_bp_nt
+	lariat_reads['read_alignment'] = lariat_reads.read_is_reverse.map({True: 'reverse', False: 'forward'})
+	
 	return lariat_reads
 
 
@@ -120,48 +85,66 @@ def add_mapped_reads(output_base:str) -> int:
 	return sample_read_count
 
 
-def check_repeat_overlap(lariat_reads: pd.DataFrame, output_base:str, keep_intermediates:bool) -> set:
+def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str) -> set:
 	''' 
     Check if both the 5'SS and the BP overlap with a repetitive region
     '''
-	# Write the 5'ss and BP coordinates to BED files
-	fivep_tmp_bed, bp_tmp_bed = f'{output_base}fivep_tmp.bed', f'{output_base}bp_tmp.bed'
-	with open(fivep_tmp_bed, 'w') as fivep_out, open(bp_tmp_bed, 'w') as bp_out:
-		for i, row in lariat_reads.iterrows():
-			fivep_out.write(f"{row['chrom']}\t{row['fivep_pos']-1}\t{row['fivep_pos']+1}\t{row['read_id']}\n")
-			bp_out.write(f"{row['chrom']}\t{row['bp_pos']-1}\t{row['bp_pos']+1}\t{row['read_id']}\n")
+	# Write the 5'ss and BP coordinates to bedtools input strings
+	bedtools_fivep_input, bedtools_bp_input = '', ''
+	for _, row in lariat_reads.iterrows():
+		bedtools_fivep_input += f"{row['chrom']}\t{row['fivep_pos']-1}\t{row['fivep_pos']+1}\t{row['read_id']}\n"
+		bedtools_bp_input += f"{row['chrom']}\t{row['bp_pos']-1}\t{row['bp_pos']+1}\t{row['read_id']}\n"
 
-	# Identify 5'ss's that overlap a repeat region
-	fivep_overlap_bed, bp_overlap_bed = f'{output_base}fivep_repeat_overlaps.bed', f'{output_base}bp_repeat_overlaps.bed'
-	with open(fivep_overlap_bed, 'w') as out_file:
-		subprocess.run(f'bedtools intersect -u -a {fivep_tmp_bed} -b {ref_repeatmasker}'.split(' '),
-			stdout=out_file)
-	# Identify BPs that overlap a repeat region
-	with open(bp_overlap_bed, 'w') as out_file:
-		subprocess.run(f'bedtools intersect -u -a {bp_tmp_bed} -b {ref_repeatmasker}'.split(' '),
-			stdout=out_file)
+	# Identify 5'ss that overlap a repeat region
+	bedtools_call = f'bedtools intersect -u -a - -b {ref_repeatmasker}'
+	bedtools_fivep_output = subprocess.run(bedtools_call.split(' '), input=bedtools_fivep_input, capture_output=True, text=True).stdout.strip().split('\n')
+	bedtools_bp_output = subprocess.run(bedtools_call.split(' '), input=bedtools_bp_input, capture_output=True, text=True).stdout.strip().split('\n')
 
 	# Add reads where both sites overlapped to repeat_rids for removal
 	fivep_repeat_rids, bp_repeat_rids = set(), set()
-	with open(fivep_overlap_bed) as in_file:
-		for line in in_file:
-			_, _, _, rid = line.strip().split()
-			fivep_repeat_rids.add(rid)
-	with open(bp_overlap_bed) as in_file:
-		for line in in_file:
-			_, _, _, rid = line.strip().split()
-			bp_repeat_rids.add(rid)
+	for fivep_line in bedtools_fivep_output:
+		fivep_repeat_rids.add(fivep_line.split('\t')[-1])
+	for bp_line in bedtools_bp_output:
+		bp_repeat_rids.add(bp_line.split('\t')[-1])
 	repeat_rids = fivep_repeat_rids.intersection(bp_repeat_rids)
-
-	# Delete the intermediate files
-	if keep_intermediates == 'False':
-		for temp_file in (fivep_tmp_bed, bp_tmp_bed, fivep_overlap_bed, bp_overlap_bed):
-			os.remove(temp_file)
 
 	return repeat_rids
 
 
-def filter_lariats(row:pd.Series, fivep_sites:dict, threep_sites:dict, repeat_rids:set):
+# def check_template_switching(lariat_reads: pd.DataFrame, ref_fasta:str) -> set:
+# 	''' 
+#     Check if the sequence downstream of the called branchpoint matches the 5'SS sequence
+#     '''
+# 	# Write the 5'ss window to bedtools input string
+# 	bedtools_input = ''
+# 	for _, row in lariat_reads.iterrows():
+# 		if row['strand'] == '+':
+# 			bedtools_input += f"{row['chrom']}\t{row['fivep_pos']}\t{row['fivep_pos']+5}\t{row['read_id']}_{row['genomic_bp_context']}\t0\t{row['strand']}\n"
+# 		else:
+# 			bedtools_input += f"{row['chrom']}\t{row['fivep_pos']-4}\t{row['fivep_pos']+1}\t{row['read_id']}_{row['genomic_bp_context']}\t0\t{row['strand']}\n"
+
+# 	# Identify 5'ss that match region downstream of called branchpoint
+# 	bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {ref_fasta} -bed -'
+# 	bedtools_output = subprocess.run(bedtools_call.split(' '), input=bedtools_input, capture_output=True, text=True).stdout.strip().split('\n')
+
+# 	template_switching_rids = set()
+# 	for fp_line in bedtools_output:
+# 		read_info, fivep_seq = fp_line.split('\t')
+# 		rid, genomic_bp_context = read_info[:-3].split('_')
+# 		if genomic_bp_context[5:] == fivep_seq.upper():
+# 			template_switching_rids.add(rid)
+
+# 	return template_switching_rids
+def check_template_switching(output_base:str) -> set:
+	'''
+	Check if the read got flagged for template-switching in another orientation or trimmed alignment
+	'''
+	temp_switch_alignments = pd.read_csv(f'{output_base}template_switching_alignments.tsv', sep='\t')
+	template_switching_rids = set(temp_switch_alignments.read_id)
+	return template_switching_rids
+
+
+def filter_lariats(row:pd.Series, repeat_rids:set, template_switching_rids:set):
 	'''
 	Filter the candidate lariat reads to EXCLUDE any that meet the following criteria:
 			- Read maps to UBB or UBC (likely false positive due to the repetitive nature of the genes)
@@ -176,13 +159,11 @@ def filter_lariats(row:pd.Series, fivep_sites:dict, threep_sites:dict, repeat_ri
 	if row['read_id'] in repeat_rids:
 		return 'in_repeat'
 	
-	# # Check if BP is within 2bp of an annotated splice site
-	# if fivep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']) or threep_sites[row['chrom']][row['strand']].overlaps(row['bp_pos']):
-	# 	return 'near_ss'
-	
 	if row['bp_dist_to_threep'] in (0, -1, -2):
 		return 'circularized'
-
+	
+	if row['read_id'] in template_switching_rids:
+		return 'template_switching'
 
 	return pd.NA
 
@@ -192,10 +173,18 @@ def choose_read_mapping(lariat_reads):
 	For reads with multiple lariat mappings that have passed all filters, choose just one to assign to the read and fail the others
 	'''
 	for rid in lariat_reads.read_id.unique():
+
 		valid_lariat_mappings = lariat_reads[(lariat_reads.read_id==rid) & (lariat_reads.filter_failed.isna())]
 		# If either 1 or 0 valid lariat mappings, no need to choose
 		if len(valid_lariat_mappings) < 2:
 			continue
+		valid_read_one_lariat_mappings = valid_lariat_mappings[valid_lariat_mappings.read_num==1]
+		valid_read_two_lariat_mappings = valid_lariat_mappings[valid_lariat_mappings.read_num==2]
+		if len(valid_read_one_lariat_mappings) > 0:
+			valid_lariat_mappings = valid_read_one_lariat_mappings
+			lariat_reads.loc[valid_read_two_lariat_mappings.index, 'filter_failed'] = 'not_chosen'
+		else:
+			valid_lariat_mappings = valid_read_two_lariat_mappings
 
 		# Prioritize a mapping based on whether or not the BP base is a mismatch and the alignment orientation
 		# If multiple valid mappings in the same category, choose one at random
@@ -222,12 +211,8 @@ def choose_read_mapping(lariat_reads):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	print(time.strftime('%m/%d/%y - %H:%M:%S | ') + f'Arguments recieved: {sys.argv[1:]}')
-	ref_gtf, ref_introns, ref_repeatmasker, output_base, keep_intermediates = sys.argv[1:]
 
-	# Load splice site coordinates
-	print(time.strftime('%m/%d/%y - %H:%M:%S | Parsing splice site info...'))
-	threep_sites, fivep_sites = load_splice_site_info(ref_introns)
+	ref_fasta, ref_repeatmasker, output_base = sys.argv[1:]
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Parsing lariat reads...'))
 	lariat_reads = load_lariat_table(output_base)
@@ -237,27 +222,31 @@ if __name__ == '__main__':
 	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base)
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Checking for overlaps with repeat regions...'))
-	repeat_rids = check_repeat_overlap(lariat_reads, output_base, keep_intermediates)
+	repeat_rids = check_repeat_overlap(lariat_reads, ref_repeatmasker)
+
+	print(time.strftime('%m/%d/%y - %H:%M:%S | Checking for template switching...'))
+	# template_switching_rids = check_template_switching(lariat_reads, ref_fasta)
+	template_switching_rids = check_template_switching(output_base)
 
 	# Filter lariat reads
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Filtering lariat reads...'))
-	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, fivep_sites=fivep_sites, threep_sites=threep_sites, axis=1)
-	circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', CIRCULARIZED_INTRONS_COLUMNS]
+	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, template_switching_rids=template_switching_rids, axis=1)
+	circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', CIRCULARIZED_INTRONS_COLS]
 
 	# Choose 1 lariat mapping per read id and remove the _for/_rev suffix
 	lariat_reads = choose_read_mapping(lariat_reads)
 	
 	# Seperate failed mappings from passed mappings
 	failed_mappings = lariat_reads[lariat_reads.filter_failed.notna()].copy()
-	filtered_lariats = lariat_reads.loc[lariat_reads.filter_failed.isna(), FINAL_RESULTS_COLUMNS]
+	filtered_lariats = lariat_reads.loc[lariat_reads.filter_failed.isna(), FINAL_RESULTS_COLS]
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Post-filter read count = {len(filtered_lariats.read_id.unique())}')
 
 	# Now write it all to file
-	print(time.strftime('%m/%d/%y - %H:%M:%S | Writing results to output files...\n'))
-	failed_mappings.to_csv(f'{output_base}failed_lariat_mappings.tsv', sep='\t', index=False)
+	print(time.strftime('%m/%d/%y - %H:%M:%S | Writing results to output files...'))
+	failed_mappings.to_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', index=False)
 	filtered_lariats.to_csv(f'{output_base}lariat_reads.tsv', sep='\t', index=False)
-	circularized_introns.to_csv(f'{output_base}circularized_introns.tsv', sep='\t', index=False)
+	circularized_introns.to_csv(f'{output_base}circularized_intron_reads.tsv', sep='\t', index=False)
 	
 	# Record final lariat read count
 	with open(f'{output_base}run_data.tsv', 'a') as a:
