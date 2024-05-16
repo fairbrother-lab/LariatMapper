@@ -3,6 +3,7 @@ import subprocess
 import gzip
 import time
 import random
+
 import pandas as pd
 
 
@@ -61,8 +62,10 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
 		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS))
-		with open(f'{output_base}failed_lariat_mappings.tsv', 'w') as w:
+		with open(f'{output_base}failed_lariat_alignments.tsv', 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
+		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
+			w.write('\t'.join(CIRCULARIZED_INTRONS_COLS))
 		exit()
 	
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
@@ -111,30 +114,6 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str) -> se
 	return repeat_rids
 
 
-# def check_template_switching(lariat_reads: pd.DataFrame, ref_fasta:str) -> set:
-# 	''' 
-#     Check if the sequence downstream of the called branchpoint matches the 5'SS sequence
-#     '''
-# 	# Write the 5'ss window to bedtools input string
-# 	bedtools_input = ''
-# 	for _, row in lariat_reads.iterrows():
-# 		if row['strand'] == '+':
-# 			bedtools_input += f"{row['chrom']}\t{row['fivep_pos']}\t{row['fivep_pos']+5}\t{row['read_id']}_{row['genomic_bp_context']}\t0\t{row['strand']}\n"
-# 		else:
-# 			bedtools_input += f"{row['chrom']}\t{row['fivep_pos']-4}\t{row['fivep_pos']+1}\t{row['read_id']}_{row['genomic_bp_context']}\t0\t{row['strand']}\n"
-
-# 	# Identify 5'ss that match region downstream of called branchpoint
-# 	bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {ref_fasta} -bed -'
-# 	bedtools_output = subprocess.run(bedtools_call.split(' '), input=bedtools_input, capture_output=True, text=True).stdout.strip().split('\n')
-
-# 	template_switching_rids = set()
-# 	for fp_line in bedtools_output:
-# 		read_info, fivep_seq = fp_line.split('\t')
-# 		rid, genomic_bp_context = read_info[:-3].split('_')
-# 		if genomic_bp_context[5:] == fivep_seq.upper():
-# 			template_switching_rids.add(rid)
-
-# 	return template_switching_rids
 def check_template_switching(output_base:str) -> set:
 	'''
 	Check if the read got flagged for template-switching in another orientation or trimmed alignment
@@ -159,11 +138,11 @@ def filter_lariats(row:pd.Series, repeat_rids:set, template_switching_rids:set):
 	if row['read_id'] in repeat_rids:
 		return 'in_repeat'
 	
-	if row['bp_dist_to_threep'] in (0, -1, -2):
-		return 'circularized'
-	
 	if row['read_id'] in template_switching_rids:
 		return 'template_switching'
+	
+	if row['bp_dist_to_threep'] in (0, -1, -2):
+		return 'circularized'
 
 	return pd.NA
 
@@ -211,25 +190,21 @@ def choose_read_mapping(lariat_reads):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-
 	ref_fasta, ref_repeatmasker, output_base = sys.argv[1:]
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Parsing lariat reads...'))
 	lariat_reads = load_lariat_table(output_base)
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Pre-filter read count = {len(lariat_reads.read_id.unique())}')
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S | Adding total mapped read count...'))
 	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base)
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S | Checking for overlaps with repeat regions...'))
+	# Check for reads aligned to annotated repetitive region 
 	repeat_rids = check_repeat_overlap(lariat_reads, ref_repeatmasker)
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S | Checking for template switching...'))
-	# template_switching_rids = check_template_switching(lariat_reads, ref_fasta)
+	# Check for reads which were probably created from the reverse-transcriptase switching RNA templates at the branchpoint
 	template_switching_rids = check_template_switching(output_base)
 
 	# Filter lariat reads
-	print(time.strftime('%m/%d/%y - %H:%M:%S | Filtering lariat reads...'))
 	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, template_switching_rids=template_switching_rids, axis=1)
 	circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', CIRCULARIZED_INTRONS_COLS]
 
@@ -239,7 +214,6 @@ if __name__ == '__main__':
 	# Seperate failed mappings from passed mappings
 	failed_mappings = lariat_reads[lariat_reads.filter_failed.notna()].copy()
 	filtered_lariats = lariat_reads.loc[lariat_reads.filter_failed.isna(), FINAL_RESULTS_COLS]
-
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Post-filter read count = {len(filtered_lariats.read_id.unique())}')
 
 	# Now write it all to file
@@ -247,7 +221,3 @@ if __name__ == '__main__':
 	failed_mappings.to_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', index=False)
 	filtered_lariats.to_csv(f'{output_base}lariat_reads.tsv', sep='\t', index=False)
 	circularized_introns.to_csv(f'{output_base}circularized_intron_reads.tsv', sep='\t', index=False)
-	
-	# Record final lariat read count
-	with open(f'{output_base}run_data.tsv', 'a') as a:
-		a.write(f'filtered_lariats\t{len(filtered_lariats)}\n')

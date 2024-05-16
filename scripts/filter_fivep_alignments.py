@@ -1,24 +1,39 @@
-
 import sys
-from pyfaidx import Fasta
 import subprocess
-import threading
+import itertools as it
+import multiprocessing
+
+from pyfaidx import Fasta
+import pandas as pd
+
+
 
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
 COMP_NTS = {'A':'T', 'C':'G', 'T':'A', 'G':'C', 'N':'N'}
+FIVEP_INFO_TABLE_COLS = ['read_id',
+						'read_seq',
+						'fivep_seq',
+						'fivep_sites',
+						'read_is_reverse',
+						'read_fivep_start',
+						'read_fivep_end',
+						'read_bp_pos',
+						]
+FAILED_ALIGNMENTS_COLS = ['read_id',
+						'read_seq',
+						'fivep_site',
+						'read_fivep_start',
+						'read_fivep_end',
+						'read_is_reverse',
+						'fail_reason',
+						]
 
+filtered_out_lock = multiprocessing.Lock()
+trim_seqs_out_lock = multiprocessing.Lock()
+failed_out_lock = multiprocessing.Lock()
 
-# =============================================================================#
-#                                   Classes                                    #
-# =============================================================================#
-class filter_thread (threading.Thread):
-	def __init__(self, unmapped_fasta, alignments, genome_fasta):
-		threading.Thread.__init__(self)
-		self.unmapped_fasta, self.alignments, self.genome_fasta = unmapped_fasta, alignments, genome_fasta
-	def run(self):
-		self.out_reads, self.failed_alignments = filter_fivep_reads(self.unmapped_fasta, self.alignments, self.genome_fasta)
 
 
 # =============================================================================#
@@ -28,7 +43,31 @@ def reverse_complement(seq):
 	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
 
 
-def load_alignments(fivep_to_reads:str) -> dict:
+def dict_chunks(dictionary:dict, n_chunks:int) -> list[dict]:	
+	'''
+	Break a dictionary into a list of n_chunks dictionaries
+	The output dictionaries will be of size len(dictionary)//n_chunks
+	If (len(dictionary) % n_chunks) > 0, then the last dictionary will have (len(dictionary) % n_chunks) extra entries
+	'''
+	dict_size = len(dictionary)
+	chunksize = dict_size // n_chunks
+
+	out = []
+	for start in range(0, dict_size, chunksize):
+		stop = start+chunksize
+		chunk = {key:val for key, val in it.islice(alignments.items(), start, stop)}
+		out.append(chunk)
+
+	# If dict_size % n_chunks > 0, there'll be one more chunk than specified 
+	# Merge it into the 2nd-to-last chunk
+	if len(out) > n_chunks:
+		out[-2].update(out[-1])
+		del out[-1]
+	
+	return out
+
+
+def parse_alignments(fivep_to_reads:str) -> dict:
 	'''
 	Load 5'ss alignments to dict
 	Returns { read id: {first 20bp of intron sequence: (alignment start position in read, alignment end position in read, is reverse-complementary)} }
@@ -50,16 +89,15 @@ def load_alignments(fivep_to_reads:str) -> dict:
 	return alignments
 
 
-def filter_fivep_reads(unmapped_fasta:str, alignments:dict, genome_fasta:str):
+def filter_fivep_reads(alignments:dict, genome_fasta:str, output_base:str) -> None:
 	'''
 	Filter and trim the reads to which 5'ss sequences were mapped
-	Write trimmed read sequences to [NAME]_fivep_mapped_reads_trimmed.fa
-	Write trimmed read information and their aligned 5' splice site(s) to [NAME]_fivep_info_table_out.txt
-	fivep info table is in TSV format, values are (read id, read sequence, 5'ss sequence, coordinates of all aligned 5'ss's that passed filtering, alignment is reverse-complementary, start of alignment in read, end of alignment in read)
+	Write trimmed read information and their aligned 5' splice site(s) to fivep_info_table_out.txt
+	Write trimmed read sequences to fivep_mapped_reads_trimmed.fa
 	'''
 	failed_alignments = []		# [ (read id, read_seq, 5'ss site, alignment start in read, alignment end in read, alignment is reverse-complementary, filter that it failed or None)...] }
 	out_reads = []
-	read_fasta = Fasta(unmapped_fasta, as_raw=True)
+	read_fasta = Fasta(f'{output_base}unmapped_reads.fa', as_raw=True)
 
 	# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 	# If it does NOT, add the read alignment to fivep_pass
@@ -134,63 +172,50 @@ def filter_fivep_reads(unmapped_fasta:str, alignments:dict, genome_fasta:str):
 			fivep_sites = sorted([fp[0] for fp in fivep_pass_sub])
 			fivep_sites = ','.join(fivep_sites)
 			out_reads.append((trim_seq, out_rid, read_seq, fivep_seq, fivep_sites, read_is_reverse, read_fivep_start, read_fivep_end, read_bp_pos))
-		
-	return out_reads, failed_alignments
 
+	# Write the filtered alignments and trimmed sequences to file
+	with filtered_out_lock, trim_seqs_out_lock:
+		with open(f'{output_base}fivep_info_table.tsv', 'a') as info_out, open(f'{output_base}fivep_mapped_reads_trimmed.fa', 'a') as trimmed_out:
+			for row in out_reads:
+				row = [str(item) for item in row]
+				info_out.write('\t'.join(row[1:]) + '\n')
 
-def write_out_reads(out_reads:list, fivep_trimmed_reads_out:str, fivep_info_table_out:str) -> None:
-	'''
-	Write 
-	'''
-	with open(fivep_trimmed_reads_out, 'w') as trimmed_out, open(fivep_info_table_out, 'w') as info_out:
-		info_out.write('read_id\tread_seq\tfivep_seq\tfivep_sites\tread_is_reverse\tread_fivep_start\tread_fivep_end\tread_bp_pos\n')
-
-		for info in out_reads:
-			trim_seq = info[0]
-			out_rid = info[1]
-			trimmed_out.write(f'>{out_rid}\n{trim_seq}\n')
-
-			row = '\t'.join([str(x) for x in info[1:]])
-			info_out.write(row + '\n')
+				trim_seq = row[0]
+				out_rid = row[1]
+				trimmed_out.write(f'>{out_rid}\n{trim_seq}\n')
 	
+	# Write the failed alignments to file
+	with failed_out_lock:
+		failed_alignments = pd.DataFrame(failed_alignments, columns=FAILED_ALIGNMENTS_COLS)
+		failed_alignments.to_csv(f'{output_base}failed_fivep_alignments.tsv', mode='a', sep='\t', index=False, header=False)
+
+
 
 # =============================================================================#
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__' :
+	threads, genome_fasta, output_base = sys.argv[1:]
+	threads = int(threads)
 
-	threads, unmapped_fasta, fivep_to_reads, genome_fasta, fivep_trimmed_reads_out, fivep_info_table_out, output_base = sys.argv[1:]
+	alignments = parse_alignments(f'{output_base}fivep_to_reads.sam')
+	
+	with open(f'{output_base}fivep_info_table.tsv', 'w') as w:
+		w.write('\t'.join(FIVEP_INFO_TABLE_COLS) + '\n')
+	with open(f'{output_base}fivep_mapped_reads_trimmed.fa', 'w') as w:
+		pass
+	with open(f'{output_base}failed_fivep_alignments.tsv', 'w') as w:
+		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
 
-	alignments = load_alignments(fivep_to_reads)
-	read_ids, threads = list(alignments.keys()), int(threads)
+	# Split the alignments dict into a list of (almost) equal-sized chunks
+	alignments = dict_chunks(alignments, threads)
 
-	thread_list = []
-	for thread_num in range(threads):
-		thread_alignments = {rid:alignments[rid] for rid in read_ids[thread_num::threads]}
-		new_thread = filter_thread(unmapped_fasta, thread_alignments, genome_fasta)
-		new_thread.start()
-		thread_list.append(new_thread)
-
-	for t in thread_list:
-		t.join()
-
-	out_reads, failed_alignments = [], []
-	for t in thread_list:
-		out_reads, failed_alignments = out_reads+t.out_reads, failed_alignments+t.failed_alignments
-
-	write_out_reads(out_reads, fivep_trimmed_reads_out, fivep_info_table_out)
-
-	with open(f'{output_base}failed_fivep_alignments.tsv', 'w') as failed_out:
-		failed_out.write('read_id\tread_seq\tfivep_site\tread_fivep_start\tread_fivep_end\tread_is_reverse\tfail_reason\n')
-		for info in failed_alignments:
-			failed_out.write('\t'.join([str(x) for x in info]) + '\n')
-
-	out_rids = set([x[1][:-4] for x in out_reads])
-	with open(f'{output_base}run_data.tsv', 'a') as stats_out:
-		stats_out.write(f'fivep_mapped_reads\t{len(alignments.keys())}\n')
-		stats_out.write(f'fivep_filtered_reads\t{len(out_rids)}\n')
-
-
-
-			
-
+	# Make a wrapper function that processes in the multiprocessing pool will use
+	# We need to do this because imap_unordered only passes 1 positional arg to the specified function
+	def filter_chunk(trim_alignments_chunk):
+		return filter_fivep_reads(trim_alignments_chunk, genome_fasta=genome_fasta, output_base=output_base)
+	
+	with multiprocessing.Pool() as pool:
+		# Iteratively call filter_fivep_reads with each chunk in alignments
+		for _ in pool.imap_unordered(filter_chunk, alignments):
+			pass
