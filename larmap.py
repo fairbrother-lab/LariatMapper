@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import argparse
 import os
 import time
@@ -30,24 +29,17 @@ def main():
 	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive element annotation from RepeatMasker')
 	# Optional arguments
 	parser.add_argument('-t', '--threads', help='Number of threads to use for parallel processing (default=1)', type=int, default=1)
-	parser.add_argument('-p', '--output_prefix', help='Prefix to add to output file names')
+	parser.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
+	parser.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
 	parser.add_argument('-k', '--keep_intermediates', action='store_true', help='Don\'t delete the intermediate files created while running the pipeline')
 
 	args = parser.parse_args()
 
 	# Print arguments recieved
 	print('\nArguments received:', flush=True)
-	# if seq_type == 'single':
-	# 	arg_names, arg_values = ['read_file'], [read_file]
-	# else:
-	# 	arg_names, arg_values = ['read_one', 'read_two'], [read_one, read_two]
-	# arg_names += ['output_dir', 'output_prefix', 'threads', 'ref_h2index', 'ref_fasta', 'ref_anno', 'ref_5p_fasta', 'ref_introns', 'ref_repeatmasker', 'keep_intermediates']
-	# arg_values += [output_dir, output_prefix, threads, ref_h2index, ref_fasta, ref_anno, ref_5p_fasta, ref_introns, ref_repeatmasker, keep_intermediates]
-	# for n, v in zip(arg_names, arg_values):
-	# 	print(f'{n}: {v}', flush=True)
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None]
 	arg_message = '\n'.join(arg_message) + '\n'
-	print(arg_message)
+	print(arg_message, flush=True)
 
 	# Determine whether input is single-end or paired-end 
 	if args.read_file is not None:
@@ -57,7 +49,7 @@ def main():
 	else:
 		parser.error('Provide either -f/--read_file (for single-end read) OR -1/--read_one and -2/--read_two (for paired-end reads)')
 	
-	output_dir, output_prefix, threads, keep_intermediates = args.output_dir, args.output_prefix, args.threads, args.keep_intermediates
+	output_dir, output_prefix, threads, keep_intermediates, ucsc_track = args.output_dir, args.output_prefix, args.threads, args.keep_intermediates, args.ucsc_track
 
 	# Get references from reference dir OR from direct input
 	if args.ref_dir is not None:
@@ -66,8 +58,6 @@ def main():
 		ref_anno = os.path.join(args.ref_dir, [f for f in os.listdir(args.ref_dir) if f.split('.')[0]=='annotation'][0])
 	else:
 		ref_h2index, ref_fasta, ref_anno, ref_5p_fasta, ref_introns, ref_repeatmasker = args.ref_h2index, args.ref_fasta, args.ref_anno, args.ref_5p_fasta, args.ref_introns, args.ref_repeatmasker
-
-	print(time.strftime('\n%m/%d/%y - %H:%M:%S | Starting lariat mapping run...'), flush=True)
 
 	# Make output dir
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Preparing directories...'), flush=True)
@@ -81,7 +71,7 @@ def main():
 	output_base = os.path.join(output_dir, output_prefix)
 	
 	# Run map_lariats.sh
-	map_lariats_args = [output_base, str(threads), ref_h2index, ref_fasta, ref_anno, ref_5p_fasta, ref_introns, ref_repeatmasker, str(keep_intermediates), pipeline_dir]
+	map_lariats_args = [output_base, str(threads), ref_h2index, ref_fasta, ref_anno, ref_5p_fasta, ref_introns, ref_repeatmasker, str(keep_intermediates).lower(), str(ucsc_track).lower(), pipeline_dir]
 	if seq_type == 'single':
 		print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
 		map_lariats_args += [read_file]
@@ -93,5 +83,4 @@ def main():
 
 
 if __name__ == '__main__':
-
 	main()

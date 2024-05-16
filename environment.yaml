@@ -5,7 +5,7 @@ channels:
 dependencies:
   - bedtools
   - bowtie2
-  - hisat2>=2.21
+  - hisat2
   - intervaltree
   - numpy
   - pandas
@@ -14,7 +14,6 @@ dependencies:
   - pyfaidx
   - pysam
   - samtools
-  - star
 
 # M1 mac:
 # arch -arm64 brew install bowtie2

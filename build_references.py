@@ -10,7 +10,6 @@ import argparse
 #                                  Functions                                  #
 #=============================================================================#
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
-	
 	if file_type == 'gtf':
 		attributes = attribute_string.rstrip('";').split('; ')
 		attributes = [attr.split(' ') for attr in attributes]
@@ -27,7 +26,6 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 	return attributes
 
 def parse_transcript_info(ref_anno:str, anno_type:str, gunzip:bool) -> dict:
-
 	if gunzip:
 		in_file = gzip.open(ref_anno, 'rt')
 	else:
@@ -46,8 +44,8 @@ def parse_transcript_info(ref_anno:str, anno_type:str, gunzip:bool) -> dict:
 
 	return transcripts
 
+
 def build_exons_introns(transcripts:dict, out_exons_bed:str, out_introns_bed:str) -> dict:
-	
 	exon_genes, intron_genes = {}, {}
 	for transcript_id in transcripts:
 		chrom, strand, _, _ = transcripts[transcript_id]['coords']
