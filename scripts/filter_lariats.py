@@ -17,33 +17,35 @@ FINAL_RESULTS_COLS = ('read_id',
                         'chrom',
                         'strand',
                         'fivep_pos',
-						'head_start',
-						'head_end',
                         'bp_pos',
                         'threep_pos',
                         'bp_dist_to_threep',
-						'genomic_bp_nt',
-                        'genomic_bp_context',
-                        'read_seq',
 						'read_alignment',
 						'read_bp_pos',
+                        'read_seq',
                         'read_bp_nt',
+						'genomic_bp_nt',
+                        'genomic_bp_context',
                         'total_mapped_reads',
 						)
-CIRCULARIZED_INTRONS_COLS = ('read_id',
-								'gene_name',
-								'gene_id',
-								'gene_type',
-								'chrom',
-								'strand',
-								'fivep_pos',
-								'bp_pos',
-								'threep_pos',
-                        		'bp_dist_to_threep',
-						  		'read_bp_pos',
-								'read_seq',
-								'total_mapped_reads',
-								)
+# CIRCULARIZED_INTRONS_COLS = ('read_id',
+# 								'gene_name',
+# 								'gene_id',
+# 								'gene_type',
+# 								'chrom',
+# 								'strand',
+# 								'fivep_pos',
+# 								'bp_pos',
+# 								'threep_pos',
+#                         		'bp_dist_to_threep',
+# 								'genomic_bp_nt',
+#                         		'genomic_bp_context',
+# 						  		'read_bp_pos',
+# 								'read_seq',
+# 								'read_alignment',
+# 								'total_mapped_reads',
+# 								)
+
 
 
 
@@ -55,7 +57,7 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 	For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_lariat_info_table.tsv and put them in a dict, which
 	can then be added to the experiment-wide superset dict
 	'''
-	lariat_reads = pd.read_csv(f'{output_base}final_info_table.tsv', sep='\t')
+	lariat_reads = pd.read_csv(f'{output_base}trimmed_info_table.tsv', sep='\t')
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
 	if len(lariat_reads) == 0:
@@ -65,7 +67,7 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 		with open(f'{output_base}failed_lariat_alignments.tsv', 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
 		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
-			w.write('\t'.join(CIRCULARIZED_INTRONS_COLS))
+			w.write('\t'.join(FINAL_RESULTS_COLS))
 		exit()
 	
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
@@ -79,9 +81,9 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 
 def add_mapped_reads(output_base:str) -> int:
 	'''
-	Get the number of reads that mapped to the reference genome from the *_run_data.tsv file 
+	Get the number of reads that mapped to the reference genome from the *read_counts.tsv file 
 	'''
-	with open(f'{output_base}run_data.tsv', 'r') as file:
+	with open(f'{output_base}read_counts.tsv', 'r') as file:
 		line = file.readline()
 		sample_read_count = int(line.split('\t')[1])
 
@@ -118,7 +120,7 @@ def check_template_switching(output_base:str) -> set:
 	'''
 	Check if the read got flagged for template-switching in another orientation or trimmed alignment
 	'''
-	temp_switch_alignments = pd.read_csv(f'{output_base}template_switching_alignments.tsv', sep='\t')
+	temp_switch_alignments = pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t')
 	template_switching_rids = set(temp_switch_alignments.read_id)
 	return template_switching_rids
 
@@ -196,6 +198,11 @@ if __name__ == '__main__':
 	lariat_reads = load_lariat_table(output_base)
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Pre-filter read count = {len(lariat_reads.read_id.unique())}')
 
+	# Record read count
+	rids = set(rid.split('/')[0] for rid in lariat_reads.read_id.values)
+	with open(f'{output_base}read_counts.tsv', 'a') as a:
+		a.write(f'trimmed_filter_passed\t{len(rids)}\n')	
+
 	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base)
 
 	# Check for reads aligned to annotated repetitive region 
@@ -206,7 +213,8 @@ if __name__ == '__main__':
 
 	# Filter lariat reads
 	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, template_switching_rids=template_switching_rids, axis=1)
-	circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', CIRCULARIZED_INTRONS_COLS]
+	# circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', CIRCULARIZED_INTRONS_COLS]
+	circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', FINAL_RESULTS_COLS]
 
 	# Choose 1 lariat mapping per read id and remove the _for/_rev suffix
 	lariat_reads = choose_read_mapping(lariat_reads)
@@ -221,3 +229,8 @@ if __name__ == '__main__':
 	failed_mappings.to_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', index=False)
 	filtered_lariats.to_csv(f'{output_base}lariat_reads.tsv', sep='\t', index=False)
 	circularized_introns.to_csv(f'{output_base}circularized_intron_reads.tsv', sep='\t', index=False)
+
+	# Record read count
+	with open(f'{output_base}read_counts.tsv', 'a') as a:
+		a.write(f'lariat\t{filtered_lariats.read_id.nunique()}\n')
+		a.write(f'circularized_intron\t{circularized_introns.read_id.nunique()}\n')

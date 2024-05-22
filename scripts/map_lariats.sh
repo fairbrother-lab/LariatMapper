@@ -47,13 +47,13 @@ printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping reads and extracting unmapped r
 output_bam="$OUTPUT_BASE"mapped_reads.bam
 unmapped_bam="$OUTPUT_BASE"unmapped_reads.bam
 if $single_end; then
-	hisat2 --no-softclip --bowtie2-dp 1 --pen-noncansplice 0 -k 1 --n-ceil L,0,0.05 --score-min L,0,-0.24 \
+	hisat2 --no-softclip --max-seeds 20 --bowtie2-dp 1 --pen-noncansplice 0 -k 1 --n-ceil L,0,0.05 --score-min L,0,-0.24 \
 	       --threads $THREADS -x $GENOME_INDEX -U $READ_FILE \
 		| samtools view --bam --with-header --add-flags PAIRED,READ1 \
 		> $output_bam \
 		|| exit 1 
 else
-	hisat2 --no-softclip --no-mixed --bowtie2-dp 1 --pen-noncansplice 0 -k 1 --n-ceil L,0,0.05 --score-min L,0,-0.24 \
+	hisat2 --no-softclip --max-seeds 20 --bowtie2-dp 1 --pen-noncansplice 0 -k 1 --n-ceil L,0,0.05 --score-min L,0,-0.24 \
 		   --threads $THREADS -x $GENOME_INDEX -1 $READ_ONE -2 $READ_TWO \
 		| samtools view --bam --with-header \
 		> $output_bam \
@@ -62,9 +62,17 @@ fi
 samtools view --bam --with-header --require-flags 4 $output_bam > $unmapped_bam
 mapped_read_count=$(samtools view --count --exclude-flags 4 $output_bam)
 unmapped_read_count=$(samtools view --count $unmapped_bam)
-run_data="$OUTPUT_BASE"run_data.tsv
-echo -e "ref_mapped_reads\t$mapped_read_count" > $run_data
-echo -e "ref_unmapped_reads\t$unmapped_read_count" >> $run_data
+if ! $single_end; then
+	mapped_read_count=$((mapped_read_count/2))
+	unmapped_read_count=$((unmapped_read_count/2))
+fi
+run_data="$OUTPUT_BASE"read_counts.tsv
+echo -e "linear_mapped\t$mapped_read_count" > $run_data
+echo -e "linear_unmapped\t$unmapped_read_count" >> $run_data
+
+# Save linear-mapped read alignments for later classification
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Writing mapped reads to BED file...\n"
+bedtools bamtobed -split -i $output_bam | gzip > "$OUTPUT_BASE"mapped_reads.bed.gz 
 
 ### Create fasta file of unmapped reads 
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Creating fasta file of unmapped reads...\n"
@@ -125,20 +133,17 @@ if ! $KEEP_INTERMEDIATES; then
 	rm $unmapped_bam
 	rm $unmapped_fasta 
 	rm $unmapped_fasta.fai
-	rm $unmapped_fasta.1.bt2
-	rm $unmapped_fasta.2.bt2
-	rm $unmapped_fasta.3.bt2
-	rm $unmapped_fasta.4.bt2
-	rm $unmapped_fasta.rev.1.bt2
-	rm $unmapped_fasta.rev.2.bt2
+	# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
+	rm $unmapped_fasta.1.bt*
+	rm $unmapped_fasta.2.bt*
+	rm $unmapped_fasta.3.bt*
+	rm $unmapped_fasta.4.bt*
+	rm $unmapped_fasta.rev.1.bt*
+	rm $unmapped_fasta.rev.2.bt*
 	rm $fivep_to_reads
 	rm $fivep_trimmed_reads
 	rm $fivep_info_table
 	rm $trimmed_reads_to_genome
-	rm "$$OUTPUT_BASE"final_info_table.tsv
-	rm "$OUTPUT_BASE"failed_fivep_alignments.tsv
-	rm "$OUTPUT_BASE"failed_trimmed_alignments.tsv
-	rm "$OUTPUT_BASE"failed_lariat_alignments.tsv
 fi 
 
 if [ "${OUTPUT_BASE: -1}" == "/" ];then
