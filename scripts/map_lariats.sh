@@ -1,90 +1,153 @@
 #!/bin/bash
 
+
+
 #=============================================================================#
 #                                  Arguments                                  #
 #=============================================================================#
-
-# RNA-seq fastq read file
-READ_FILE=$1
 # Output directory 
-OUTPUT_DIR=$2
-# Output base name 
-NAME=$3
-# Number of CPUs to use
-CPUS=$4
-# Genome Bowtie2 index base name
-GENOME_BOWTIE2_INDEX=$5
+OUTPUT_BASE=$1
+# Number of threads to use
+THREADS=$2
+# hisat2 index of reference genome
+GENOME_INDEX=$3
 # Reference genome FASTA file
-GENOME_FASTA=$6
-# GTF file containing gene annotatin for mapping genome
-GTF_FILE=$7
+GENOME_FASTA=$4
+# Gene annotation of the reference genome in GTF or GFF format
+ANNO_FILE=$5
 # FASTA file of 5' splice sites (first 20nts of all introns)
-FIVEP_FASTA=$8
-# Custom file of sequences in 5nt window upstream of 5'ss
-FIVEP_UPSTREAM=$9
-# Bowtie2 index of 3' splice sites genome (last 250nts of all introns)
-THREEP_BOWTIE2_INDEX="${10}"
-# TSV file with 3' splice site coordinates and lengths (max 250)
-THREEP_LENGTHS="${11}"
+FIVEP_FASTA=$6
+# Annotated introns
+INTRONS_BED=$7
+# Annotated repeat regions
+REPEATS_BED=$8
+# Keep the intermediate files created during the run ("True" or "False", default "False")
+KEEP_INTERMEDIATES=$9
+# Run make_lariat_track.py after filter_lariats.py
+UCSC_TRACK="${10}"
+# Directory containing lariat mapping pipeline files
+PIPELINE_DIR="${11}"
+# RNA-seq fastq read file(s)
+if [ $# == 12 ]; then
+	READ_FILE="${12}"
+	single_end=true
+else
+	READ_ONE="${12}"
+	READ_TWO="${13}"
+	single_end=false
+fi
+
+
 
 #=============================================================================#
 #                                    Calls                                    #
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
-echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping reads and extracting unmapped reads...\n"
-output_bam=$OUTPUT_DIR/$NAME"_mapped_reads.bam"
-unmapped_bam=$OUTPUT_DIR/$NAME"_unmapped_reads.bam"
-bowtie2 --end-to-end --sensitive --score-min L,0,-0.24 -k 1 --n-ceil L,0,0.05 --threads $CPUS -x $GENOME_BOWTIE2_INDEX -U $READ_FILE \
-	| samtools view --bam --with-header > $output_bam
+output_bam="$OUTPUT_BASE"mapped_reads.bam
+unmapped_bam="$OUTPUT_BASE"unmapped_reads.bam
+if $single_end; then
+	hisat2 --no-softclip --max-seeds 20 --bowtie2-dp 1 --pen-noncansplice 0 -k 1 --n-ceil L,0,0.05 --score-min L,0,-0.24 \
+	       --threads $THREADS -x $GENOME_INDEX -U $READ_FILE \
+		| samtools view --bam --with-header --add-flags PAIRED,READ1 \
+		> $output_bam \
+		|| exit 1 
+else
+	hisat2 --no-softclip --max-seeds 20 --bowtie2-dp 1 --pen-noncansplice 0 -k 1 --n-ceil L,0,0.05 --score-min L,0,-0.24 \
+		   --threads $THREADS -x $GENOME_INDEX -1 $READ_ONE -2 $READ_TWO \
+		| samtools view --bam --with-header \
+		> $output_bam \
+		|| exit 1 
+fi
 samtools view --bam --with-header --require-flags 4 $output_bam > $unmapped_bam
 mapped_read_count=$(samtools view --count --exclude-flags 4 $output_bam)
 unmapped_read_count=$(samtools view --count $unmapped_bam)
-run_data=$OUTPUT_DIR/$NAME"_run_data.tsv"
-echo -e "ref_mapped_reads\t$mapped_read_count" > $run_data
-echo -e "ref_unmapped_reads\t$unmapped_read_count" >> $run_data
+if ! $single_end; then
+	mapped_read_count=$((mapped_read_count/2))
+	unmapped_read_count=$((unmapped_read_count/2))
+fi
+run_data="$OUTPUT_BASE"read_counts.tsv
+echo -e "linear_mapped\t$mapped_read_count" > $run_data
+echo -e "linear_unmapped\t$unmapped_read_count" >> $run_data
+
+# Save linear-mapped read alignments for later classification
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Writing mapped reads to BED file...\n"
+bedtools bamtobed -split -i $output_bam | gzip > "$OUTPUT_BASE"mapped_reads.bed.gz 
 
 ### Create fasta file of unmapped reads 
-echo ""
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Creating fasta file of unmapped reads...\n"
-unmapped_fasta=$OUTPUT_DIR/$NAME"_unmapped_reads.fa"
-samtools fasta $unmapped_bam > $unmapped_fasta
+unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
+samtools fasta -N -o $unmapped_fasta $unmapped_bam >/dev/null 2>&1 
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Indexing unmapped reads fasta file...\n"
 samtools faidx $unmapped_fasta
 
-### Build a bowtie index of the unmapped reads
-echo ""
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Building bowtie index of unmapped fasta...\n"
-bowtie2-build --large-index --threads $CPUS $unmapped_fasta $unmapped_fasta > /dev/null
+### Build a bowtie2 index of the unmapped reads
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Building bowtie2 index of unmapped fasta...\n"
+bowtie2-build --threads $THREADS $unmapped_fasta $unmapped_fasta >/dev/null 2>&1 || exit 1 
 
-### Align unmapped reads to fasta file of all 5' splice sites (first 20nts of introns)
-echo ""
+## Align unmapped reads to fasta file of all 5' splice sites (first 20nts of introns)
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' splice sites to reads...\n"
-fivep_to_reads=$OUTPUT_DIR/$NAME"_fivep_to_reads.sam"
-bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $CPUS -x $unmapped_fasta -U $FIVEP_FASTA \
-	| samtools view > $fivep_to_reads
+fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
+bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
+	| samtools view \
+	> $fivep_to_reads \
+	|| exit 1 
 
-### Extract reads with a mapped 5' splice site and trim it off
-echo ""
+## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
-fivep_trimmed_reads=$OUTPUT_DIR/$NAME"_fivep_mapped_reads_trimmed.fa"
-fivep_info_table=$OUTPUT_DIR/$NAME"_fivep_info_table.tsv"
-python scripts/filter_fivep_alignments.py $unmapped_fasta $fivep_to_reads $FIVEP_UPSTREAM $fivep_trimmed_reads $fivep_info_table $OUTPUT_DIR/$NAME
+python $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $OUTPUT_BASE \
+	|| exit 1 
 
-### Map 5' trimmed reads to 3' sites (last 250nts of introns)
-echo ""
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' trimmed reads to 3' sites...\n"
-trimmed_reads_to_threep=$OUTPUT_DIR/$NAME"_fivep_reads_trimmed_mapped_to_threep.sam"
-bowtie2 --end-to-end --sensitive -k 10 --no-unal --threads $CPUS -f -x $THREEP_BOWTIE2_INDEX -U $fivep_trimmed_reads \
-	| samtools view > $trimmed_reads_to_threep
+### Map 5' trimmed reads to genome
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' trimmed reads to genome...\n"
+fivep_trimmed_reads="$OUTPUT_BASE"fivep_mapped_reads_trimmed.fa
+trimmed_reads_to_genome="$OUTPUT_BASE"trimmed_reads_to_genome.sam
+hisat2 --no-softclip --very-sensitive -k 10 --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $fivep_trimmed_reads \
+	> $trimmed_reads_to_genome \
+	|| exit 1
 
-### Filter 3' splice site alignments and output info table, including the branchpoint site
-echo ""
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Analyzing 3' alignments and outputting lariat table...\n"
-python scripts/filter_threep_alignments.py $trimmed_reads_to_threep $THREEP_LENGTHS $fivep_info_table $GTF_FILE $GENOME_FASTA $OUTPUT_DIR/$NAME $run_data
+### Filter trimmed alignments
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
+# scalene --html --outfile "$OUTPUT_BASE"filter_trim_profile.html $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $ANNO_FILE $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE \
+python -u $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $ANNO_FILE $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE \
+	|| exit 1 
+
+### Filter lariat mappings and choose 1 for each read
+printf "$(date +'%m/%d/%y - %H:%M:%S') | Filtering putative lariat alignments...\n"
+python -u $PIPELINE_DIR/scripts/filter_lariats.py $GENOME_FASTA $REPEATS_BED $OUTPUT_BASE \
+	|| exit 1 
+
+### Make a custom track BED file of identified lariats 
+if $UCSC_TRACK; then
+	printf "$(date +'%m/%d/%y - %H:%M:%S') | Making UCSC Genome Browser track...\n"
+	python -u $PIPELINE_DIR/scripts/make_lariat_track.py $OUTPUT_BASE \
+		|| exit 1
+fi
 
 
-### Delete all intermediate/uneeded files that were created throughout this process
 wait
-rm $output_bam
-rm $unmapped_bam
-rm $unmapped_fasta* $fivep_to_reads* $fivep_trimmed_reads $trimmed_reads_to_threep*  
+### Delete the intermediate files 
+if ! $KEEP_INTERMEDIATES; then
+	printf "$(date +'%m/%d/%y - %H:%M:%S') | Deleting intermediate files...\n"
+	rm $output_bam
+	rm $unmapped_bam
+	rm $unmapped_fasta 
+	rm $unmapped_fasta.fai
+	# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
+	rm $unmapped_fasta.1.bt*
+	rm $unmapped_fasta.2.bt*
+	rm $unmapped_fasta.3.bt*
+	rm $unmapped_fasta.4.bt*
+	rm $unmapped_fasta.rev.1.bt*
+	rm $unmapped_fasta.rev.2.bt*
+	rm $fivep_to_reads
+	rm $fivep_trimmed_reads
+	rm $fivep_info_table
+	rm $trimmed_reads_to_genome
+fi 
+
+if [ "${OUTPUT_BASE: -1}" == "/" ];then
+	printf "$(date +'%m/%d/%y - %H:%M:%S') | Lariat mapping complete.\n"
+else
+	printf "$(date +'%m/%d/%y - %H:%M:%S') | Lariat mapping complete for "$(echo $OUTPUT_BASE | sed "s:.*/::")".\n"
+fi
