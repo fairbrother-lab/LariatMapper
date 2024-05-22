@@ -10,7 +10,6 @@ from subprocess import run
 #                                    Main                                      #
 # =============================================================================#
 def main():
-
 	parser = argparse.ArgumentParser(prog='Lariat mapping', description='Performs annotation-based mapping of lariat-derived RNA-seq reads')
 	
 	# Required arguments
@@ -36,7 +35,7 @@ def main():
 	args = parser.parse_args()
 
 	# Print arguments recieved
-	print('\nArguments received:', flush=True)
+	print('Arguments received:', flush=True)
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None]
 	arg_message = '\n'.join(arg_message) + '\n'
 	print(arg_message, flush=True)

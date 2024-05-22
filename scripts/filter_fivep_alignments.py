@@ -55,7 +55,7 @@ def dict_chunks(dictionary:dict, n_chunks:int) -> list[dict]:
 	out = []
 	for start in range(0, dict_size, chunksize):
 		stop = start+chunksize
-		chunk = {key:val for key, val in it.islice(alignments.items(), start, stop)}
+		chunk = {key:val for key, val in it.islice(dictionary.items(), start, stop)}
 		out.append(chunk)
 
 	# If dict_size % n_chunks > 0, there'll be one more chunk than specified 
@@ -89,19 +89,18 @@ def parse_alignments(fivep_to_reads:str) -> dict:
 	return alignments
 
 
-def filter_fivep_reads(alignments:dict, genome_fasta:str, output_base:str) -> None:
-	'''
-	Filter and trim the reads to which 5'ss sequences were mapped
-	Write trimmed read information and their aligned 5' splice site(s) to fivep_info_table_out.txt
-	Write trimmed read sequences to fivep_mapped_reads_trimmed.fa
-	'''
-	failed_alignments = []		# [ (read id, read_seq, 5'ss site, alignment start in read, alignment end in read, alignment is reverse-complementary, filter that it failed or None)...] }
-	out_reads = []
-	read_fasta = Fasta(f'{output_base}unmapped_reads.fa', as_raw=True)
+def get_read_seqs(unmapped_fasta:str) -> dict:
+	read_fasta = Fasta(unmapped_fasta, as_raw=True)
+	read_seqs = {}
+	for rid in read_fasta.keys():
+		read_seqs[rid] = read_fasta[rid][:]
+	
+	return read_seqs
 
-	# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
-	# If it does NOT, add the read alignment to fivep_pass
-	# { is reverse: [(5'ss site), (alignment start position in read, alignment end position in read, is reverse-complementary)...], is not reverse: [...] }
+
+def get_fivep_upstream_seqs(alignments:dict, genome_fasta:str) -> dict:
+	# Prepare 5' sites for input into bedtools getfasta
+	# We're retrieving the 5bp upstream of the 5'ss, which is the last 5bp in the upstream exon
 	bedtools_input = ''
 	for rid in alignments:
 		for site in alignments[rid]:
@@ -109,12 +108,31 @@ def filter_fivep_reads(alignments:dict, genome_fasta:str, output_base:str) -> No
 			fivep_pos = int(fivep_pos)
 			bedtools_input += f'{chrom}\t{fivep_pos-5}\t{fivep_pos}\t{site}\t0\t{strand}\n' if strand == '+' else f'{chrom}\t{fivep_pos+1}\t{fivep_pos+6}\t{site}\t0\t{strand}\n'
 
+	# Call bedtools getfasta 
 	bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {genome_fasta} -bed -'
 	bedtools_output = subprocess.run(bedtools_call.split(' '), input=bedtools_input, check=True, capture_output=True, text=True).stdout.strip().split('\n')
+
+	# Parse output
 	fivep_upstream_seqs = dict([(l.split('\t')[0][:-3], l.split('\t')[1].upper()) for l in bedtools_output])
-	
+
+	return fivep_upstream_seqs
+
+
+def filter_fivep_reads(alignments:dict, read_seqs:dict, fivep_upstream_seqs:dict, output_base:str) -> None:
+	'''
+	Filter and trim the reads to which 5'ss sequences were mapped
+	Write trimmed read information and their aligned 5' splice site(s) to fivep_info_table_out.txt
+	Write trimmed read sequences to fivep_mapped_reads_trimmed.fa
+	'''
+	failed_alignments = []		# [ (read id, read_seq, 5'ss site, alignment start in read, alignment end in read, alignment is reverse-complementary, filter that it failed or None)...] }
+	out_reads = []
+	# read_fasta = Fasta(f'{output_base}unmapped_reads.fa', as_raw=True)
+
+	# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
+	# If it does NOT, add the read alignment to fivep_pass
+	# { is reverse: [(5'ss site), (alignment start position in read, alignment end position in read, is reverse-complementary)...], is not reverse: [...] }
 	for rid in alignments:
-		read_seq = read_fasta[rid][:]
+		read_seq = read_seqs[rid]
 		fivep_pass = {True:[], False:[]}
 		for site in alignments[rid]:
 			read_fivep_start, read_fivep_end, read_is_reverse = alignments[rid][site]
@@ -194,12 +212,24 @@ def filter_fivep_reads(alignments:dict, genome_fasta:str, output_base:str) -> No
 # =============================================================================#
 #                                    Main                                      #
 # =============================================================================#
+def main():
+	pass
+
+
 if __name__ == '__main__' :
 	threads, genome_fasta, output_base = sys.argv[1:]
 	threads = int(threads)
 
 	alignments = parse_alignments(f'{output_base}fivep_to_reads.sam')
-	
+	read_seqs = get_read_seqs(f'{output_base}unmapped_reads.fa')
+	fivep_upstream_seqs = get_fivep_upstream_seqs(alignments, genome_fasta)
+
+	# Record read count
+	rids = set(rid.split('/')[0] for rid in alignments.keys())
+	with open(f'{output_base}read_counts.tsv', 'a') as a:
+		a.write(f'fivep_mapped_reads\t{len(rids)}\n')	
+
+	# Prep out files with a header row
 	with open(f'{output_base}fivep_info_table.tsv', 'w') as w:
 		w.write('\t'.join(FIVEP_INFO_TABLE_COLS) + '\n')
 	with open(f'{output_base}fivep_mapped_reads_trimmed.fa', 'w') as w:
@@ -212,8 +242,8 @@ if __name__ == '__main__' :
 
 	# Make a wrapper function that processes in the multiprocessing pool will use
 	# We need to do this because imap_unordered only passes 1 positional arg to the specified function
-	def filter_chunk(trim_alignments_chunk):
-		return filter_fivep_reads(trim_alignments_chunk, genome_fasta=genome_fasta, output_base=output_base)
+	def filter_chunk(alignments_chunk):
+		return filter_fivep_reads(alignments_chunk, read_seqs=read_seqs, fivep_upstream_seqs=fivep_upstream_seqs, output_base=output_base)
 	
 	with multiprocessing.Pool() as pool:
 		# Iteratively call filter_fivep_reads with each chunk in alignments

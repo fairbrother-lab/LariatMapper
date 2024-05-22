@@ -100,7 +100,7 @@ def parse_intron_info(ref_introns:str) -> tuple:
 		if intron_id not in introns_done:
 			start, end = int(start), int(end)
 			if end-start > 20:
-				intron_genes = [i.split('-')[0] for i in intron_info.split(';')[-1].split('|')]
+				intron_genes = set([i.split('-')[0] for i in intron_info.split(';')[-1].split('|')])
 				introns[chrom][strand].add(Interval(start, end, {'gene_id':intron_genes}))
 				introns_done.add(intron_id)
 				fivep_pos = start if strand=='+' else end-1
@@ -256,7 +256,7 @@ def final_filters(row:pd.Series):
 	return pd.NA
 
 
-def drop_failed_alignments(trim_alignments:pd.DataFrame) -> pd.DataFrame:
+def drop_failed_alignments(trim_alignments:pd.DataFrame, output_base:str) -> pd.DataFrame:
 		trim_alignments = trim_alignments.copy()
 
 		# Get alignments that failed one of the filters
@@ -303,7 +303,7 @@ def filter_trimmed_alignments(trim_alignments:pd.DataFrame, genes:dict, introns:
 	temp_switch_alignments = temp_switch_alignments.groupby(['read_id', 'read_seq']).agg({'fivep_sites':comma_join, 'temp_switch_sites':comma_join, 'fivep_seq':comma_join, 'trim_seq':comma_join}).reset_index()
 	temp_switch_alignments = temp_switch_alignments[TEMPLATE_SWITCHING_COLS]
 	with temp_switch_lock:
-		temp_switch_alignments.to_csv(f'{output_base}template_switching_alignments.tsv', mode='a', sep='\t', header=False, index=False)
+		temp_switch_alignments.to_csv(f'{output_base}template_switching_reads.tsv', mode='a', sep='\t', header=False, index=False)
 
 	# Filter out template-switching reads
 	trim_alignments = trim_alignments.loc[~trim_alignments.template_switching].drop(columns='template_switching')
@@ -311,11 +311,11 @@ def filter_trimmed_alignments(trim_alignments:pd.DataFrame, genes:dict, introns:
 		return trim_alignments
 	
 	# Identify introns that overlap the alignment
-	trim_alignments['overlap_introns'] = trim_alignments.apply(lambda row: introns[row['chrom']][row['strand']].overlap(row['align_start'], row['align_end']) if row['chrom'] in introns else [], axis=1)
+	trim_alignments['overlap_introns'] = trim_alignments.apply(lambda row: introns[row['chrom']][row['strand']].overlap(row['align_start'], row['align_end']), axis=1)
 	
 	# Filter out alignments that don't overlap an alignment
 	trim_alignments.loc[trim_alignments.overlap_introns.transform(len)==0, 'filter_failed'] = 'overlaps_intron'
-	trim_alignments = drop_failed_alignments(trim_alignments)
+	trim_alignments = drop_failed_alignments(trim_alignments, output_base)
 	if trim_alignments.empty:
 		return trim_alignments
 	
@@ -323,13 +323,13 @@ def filter_trimmed_alignments(trim_alignments:pd.DataFrame, genes:dict, introns:
 	trim_alignments = trim_alignments.explode('gene_id')
 	trim_alignments.overlap_introns = trim_alignments.apply(lambda row: tuple(intron for intron in row['overlap_introns'] if row['gene_id'] in intron.data['gene_id']), axis=1)
 	trim_alignments.loc[trim_alignments.overlap_introns.transform(len).eq(0), 'filter_failed'] = 'fivep_intron_match'
-	trim_alignments = drop_failed_alignments(trim_alignments)
+	trim_alignments = drop_failed_alignments(trim_alignments, output_base)
 	if trim_alignments.empty:
 		return trim_alignments
 	
 	# Filter alignments based on proper read orientation and 5'ss-BP ordering
 	trim_alignments['filter_failed'] = trim_alignments.apply(final_filters, axis=1, result_type='reduce')
-	trim_alignments = drop_failed_alignments(trim_alignments)
+	trim_alignments = drop_failed_alignments(trim_alignments, output_base)
 	if trim_alignments.empty:
 		return trim_alignments
 	
@@ -349,7 +349,7 @@ def filter_trimmed_alignments(trim_alignments:pd.DataFrame, genes:dict, introns:
 					)
 
 	with filtered_out_lock:
-		trim_alignments.to_csv(f'{output_base}final_info_table.tsv', mode='a', sep='\t', index=False, header=False)
+		trim_alignments.to_csv(f'{output_base}trimmed_info_table.tsv', mode='a', sep='\t', index=False, header=False)
 
 
 
@@ -368,11 +368,21 @@ if __name__ == '__main__':
 	# Load trim_alignments, skipping bad-quality alignments
 	trim_alignments = parse_trimmed_alignments(f'{output_base}trimmed_reads_to_genome.sam')
 
+	#TODO: change parse_intron_info to have all possible chromosomes, even those with 0 annotated genes, so this fix isn't needed to prevent a key-not-found error later
+	for chrom in trim_alignments.chrom.unique():
+		if chrom not in introns.keys():
+			introns[chrom] ={s: IntervalTree() for s in ['+', '-']}
+
+	# Record read count
+	rids = set(rid.split('/')[0] for rid in fivep_alignments.read_id.values)
+	with open(f'{output_base}read_counts.tsv', 'a') as a:
+		a.write(f'fivep_filter_passed\t{len(rids)}\n')	
+
 	# Write headers for the failed_trimmed_alignments and template_switching_alignments out-files
 	# The rows will get appended in chunks during filter_thread()
-	with open(f'{output_base}final_info_table.tsv', 'w') as w:
+	with open(f'{output_base}trimmed_info_table.tsv', 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
-	with open(f'{output_base}template_switching_alignments.tsv', 'w') as w:
+	with open(f'{output_base}template_switching_reads.tsv', 'w') as w:
 		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
 	with open(f'{output_base}failed_trimmed_alignments.tsv', 'w') as w:
 		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
@@ -394,5 +404,7 @@ if __name__ == '__main__':
 
 	# Get rid of duplicated rows in template_switching_alignments
 	# They show up because alignments to the same original read can end up in different threads 
-	temp_switch_alignments = pd.read_csv(f'{output_base}template_switching_alignments.tsv', sep='\t')
-	temp_switch_alignments.drop_duplicates().to_csv(f'{output_base}template_switching_alignments.tsv', sep='\t', index=False)
+	# temp_switch_alignments = pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t')
+	# temp_switch_alignments.drop_duplicates().to_csv(f'{output_base}template_switching_reads.tsv', sep='\t', index=False)
+
+
