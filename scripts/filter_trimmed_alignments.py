@@ -2,6 +2,7 @@ import sys
 import gzip
 import subprocess
 import multiprocessing
+import time
 
 from intervaltree import Interval, IntervalTree
 import pysam
@@ -225,6 +226,12 @@ def add_read_bp_nt(row:pd.Series) -> str:
 		return row['trim_seq'][-1]
 
 
+def is_template_switch(row):
+	bp_adj_seq = row['genomic_bp_context'][5:]
+	base_matches = sum([bp_adj_seq[i]==row['fivep_seq'][i] for i in range(5)])
+	return base_matches == 5
+
+
 def add_nearest_threep(row:pd.Series):
 	if row['strand'] == '+':
 		threep_pos = min(row['overlap_introns'], key=lambda s: s.end-row['bp_pos']).end - 1
@@ -291,19 +298,18 @@ def filter_trimmed_alignments(trim_alignments:pd.DataFrame, genes:dict, introns:
 	trim_alignments['read_bp_nt'] = trim_alignments.apply(add_read_bp_nt, axis=1)
 	
 	# Identify template-switching reads
-	trim_alignments['template_switching'] = trim_alignments.apply(lambda row: row['genomic_bp_context'][5:]==row['fivep_seq'][:5].upper(), axis=1)
+	# trim_alignments['template_switching'] = trim_alignments.apply(lambda row: row['genomic_bp_context'][5:]==row['fivep_seq'][:5].upper(), axis=1)
+	trim_alignments['template_switching'] = trim_alignments.apply(is_template_switch, axis=1)
 
 	# Output template-switching reads
 	temp_switch_alignments = trim_alignments.loc[trim_alignments.template_switching].copy()
-	temp_switch_alignments = temp_switch_alignments.astype(str)
-	temp_switch_alignments['read_id'] = temp_switch_alignments.read_id.transform(lambda rid: rid.split('/')[0])
-	temp_switch_alignments['fivep_sites'] = temp_switch_alignments[['fivep_chrom', 'strand', 'fivep_pos']].agg(';'.join, axis=1)
-	temp_switch_alignments['temp_switch_sites'] = temp_switch_alignments[['chrom', 'bp_pos']].agg(';'.join, axis=1)
-	temp_switch_alignments = temp_switch_alignments[['read_id', 'read_seq', 'fivep_seq', 'trim_seq', 'fivep_sites', 'temp_switch_sites']]
-	temp_switch_alignments = temp_switch_alignments.groupby(['read_id', 'read_seq']).agg({'fivep_sites':comma_join, 'temp_switch_sites':comma_join, 'fivep_seq':comma_join, 'trim_seq':comma_join}).reset_index()
-	temp_switch_alignments = temp_switch_alignments[TEMPLATE_SWITCHING_COLS]
-	with temp_switch_lock:
-		temp_switch_alignments.to_csv(f'{output_base}template_switching_reads.tsv', mode='a', sep='\t', header=False, index=False)
+	if not temp_switch_alignments.empty:
+		temp_switch_alignments = temp_switch_alignments.astype(str)
+		temp_switch_alignments['fivep_sites'] = temp_switch_alignments[['fivep_chrom', 'strand', 'fivep_pos']].agg(';'.join, axis=1)
+		temp_switch_alignments['temp_switch_sites'] = temp_switch_alignments[['chrom', 'bp_pos']].agg(';'.join, axis=1)
+		temp_switch_alignments = temp_switch_alignments[TEMPLATE_SWITCHING_COLS]
+		with temp_switch_lock:
+			temp_switch_alignments.to_csv(f'{output_base}template_switching_reads.tsv', mode='a', sep='\t', header=False, index=False)
 
 	# Filter out template-switching reads
 	trim_alignments = trim_alignments.loc[~trim_alignments.template_switching].drop(columns='template_switching')
@@ -376,7 +382,11 @@ if __name__ == '__main__':
 	# Record read count
 	rids = set(rid.split('/')[0] for rid in fivep_alignments.read_id.values)
 	with open(f'{output_base}read_counts.tsv', 'a') as a:
-		a.write(f'fivep_filter_passed\t{len(rids)}\n')	
+		a.write(f'fivep_filter_passed\t{len(rids)}\n')
+
+	if trim_alignments.empty:
+		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
+		exit()
 
 	# Write headers for the failed_trimmed_alignments and template_switching_alignments out-files
 	# The rows will get appended in chunks during filter_thread()
@@ -387,24 +397,27 @@ if __name__ == '__main__':
 	with open(f'{output_base}failed_trimmed_alignments.tsv', 'w') as w:
 		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
 
-	# Split the alignments DataFrame into a list of (almost) equal-sized chunks
-	trim_alignments = np.array_split(trim_alignments, threads)
+	processes = []
+	for i in range(threads):
+		trim_alignments_subset = trim_alignments.iloc[i::threads]
+		if trim_alignments_subset.empty:
+			continue
+		subset_process = multiprocessing.Process(target=filter_trimmed_alignments, args=(trim_alignments_subset, genes, introns, genome_fasta, fivep_alignments, output_base,))
+		subset_process.start()
+		processes.append(subset_process)
+		
+	for p in processes:
+		p.join()
 
-	# Make a wrapper function that processes in the multiprocessing pool will use
-	# We need to do this because imap_unordered only passes 1 positional arg to the specified function
-	def filter_chunk(trim_alignments_chunk):
-		return filter_trimmed_alignments(trim_alignments_chunk, genes=genes, introns=introns, genome_fasta=genome_fasta, fivep_alignments=fivep_alignments, output_base=output_base)
-	
-	# Enter the Pool context manager 
-	with multiprocessing.Pool(processes=threads) as pool:
-		# Iteratively call filter_chunk with each chunk in trim_alignments
-		# Each iteration creates a process that filters the alignments in its chunk and appends the results to final_info_table.tsv 
-		for _ in pool.imap_unordered(filter_chunk, trim_alignments):
-			pass
-
-	# Get rid of duplicated rows in template_switching_alignments
-	# They show up because alignments to the same original read can end up in different threads 
-	# temp_switch_alignments = pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t')
-	# temp_switch_alignments.drop_duplicates().to_csv(f'{output_base}template_switching_reads.tsv', sep='\t', index=False)
+	# Collapse the template-switching reads rows so each row is one read
+	# We have to do this at the end because alignments to the same read can end up in different alignment chunks,
+	# as can alignments to different mates from the same read if paired-end sequencing data
+	temp_switch_alignments = pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t')
+	temp_switch_alignments['read_id'] = temp_switch_alignments.read_id.transform(lambda rid: rid[:-4].split('/')[0])
+	temp_switch_alignments = (temp_switch_alignments
+								.groupby(['read_id'], as_index=False)
+								.agg({'fivep_sites':comma_join, 'temp_switch_sites':comma_join, 'fivep_seq':comma_join, 'trim_seq':comma_join, 'read_seq': comma_join})
+							)
+	temp_switch_alignments.to_csv(f'{output_base}template_switching_reads.tsv', sep='\t', index=False)
 
 

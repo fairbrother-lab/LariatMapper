@@ -122,11 +122,11 @@ def main():
 	parser = argparse.ArgumentParser(prog='build_references',
 								  	description='Build custom reference files and create reference directory for lariat mapping')
 	
-	parser.add_argument('-f', '--ref_fasta', help='Path to reference genome fasta file', required=True)
-	parser.add_argument('-a', '--ref_anno', help='Path to reference gene annotation file in GTF or GFF format\n(may be gzipped with .gz extension)', required=True)
-	parser.add_argument('-r', '--ref_repeatmasker', help='Path to BED file with RepeatMasker annotation of reference genome', required=True)
-	parser.add_argument('-i', '--hisat2_index', help='Path to base name of hisat2 index of reference genome (i.e. everything before .1.ht2 extension)', required=True)
-	parser.add_argument('-o', '--out_dir', help='Path to directory where reference files will be output (will be created if it does not exist)', required=True)
+	parser.add_argument('-f', '--ref_fasta', required=True, help='Path to reference genome fasta file')
+	parser.add_argument('-a', '--ref_anno', required=True, help='Path to reference gene annotation file in GTF or GFF format\n(may be gzipped with .gz extension)')
+	parser.add_argument('-r', '--ref_repeatmasker', required=True, help='Path to BED file with RepeatMasker annotation of reference genome')
+	parser.add_argument('-i', '--hisat2_index', required=True, help='Path to base name of hisat2 index of reference genome (i.e. everything before .1.ht2 extension)')
+	parser.add_argument('-o', '--out_dir', required=True, help='Path to directory where reference files will be output (will be created if it does not exist)')
 
 	args = parser.parse_args()
 	ref_fasta, ref_anno, ref_repeatmasker, hisat2_index, out_dir = args.ref_fasta, args.ref_anno, args.ref_repeatmasker, args.hisat2_index, args.out_dir

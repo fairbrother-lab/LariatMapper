@@ -2,6 +2,7 @@ import sys
 import subprocess
 import itertools as it
 import multiprocessing
+import time
 
 from pyfaidx import Fasta
 import pandas as pd
@@ -30,8 +31,7 @@ FAILED_ALIGNMENTS_COLS = ['read_id',
 						'fail_reason',
 						]
 
-filtered_out_lock = multiprocessing.Lock()
-trim_seqs_out_lock = multiprocessing.Lock()
+out_lock = multiprocessing.Lock()
 failed_out_lock = multiprocessing.Lock()
 
 
@@ -41,30 +41,6 @@ failed_out_lock = multiprocessing.Lock()
 # =============================================================================#
 def reverse_complement(seq):
 	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
-
-
-def dict_chunks(dictionary:dict, n_chunks:int) -> list[dict]:	
-	'''
-	Break a dictionary into a list of n_chunks dictionaries
-	The output dictionaries will be of size len(dictionary)//n_chunks
-	If (len(dictionary) % n_chunks) > 0, then the last dictionary will have (len(dictionary) % n_chunks) extra entries
-	'''
-	dict_size = len(dictionary)
-	chunksize = dict_size // n_chunks
-
-	out = []
-	for start in range(0, dict_size, chunksize):
-		stop = start+chunksize
-		chunk = {key:val for key, val in it.islice(dictionary.items(), start, stop)}
-		out.append(chunk)
-
-	# If dict_size % n_chunks > 0, there'll be one more chunk than specified 
-	# Merge it into the 2nd-to-last chunk
-	if len(out) > n_chunks:
-		out[-2].update(out[-1])
-		del out[-1]
-	
-	return out
 
 
 def parse_alignments(fivep_to_reads:str) -> dict:
@@ -126,7 +102,6 @@ def filter_fivep_reads(alignments:dict, read_seqs:dict, fivep_upstream_seqs:dict
 	'''
 	failed_alignments = []		# [ (read id, read_seq, 5'ss site, alignment start in read, alignment end in read, alignment is reverse-complementary, filter that it failed or None)...] }
 	out_reads = []
-	# read_fasta = Fasta(f'{output_base}unmapped_reads.fa', as_raw=True)
 
 	# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 	# If it does NOT, add the read alignment to fivep_pass
@@ -192,7 +167,7 @@ def filter_fivep_reads(alignments:dict, read_seqs:dict, fivep_upstream_seqs:dict
 			out_reads.append((trim_seq, out_rid, read_seq, fivep_seq, fivep_sites, read_is_reverse, read_fivep_start, read_fivep_end, read_bp_pos))
 
 	# Write the filtered alignments and trimmed sequences to file
-	with filtered_out_lock, trim_seqs_out_lock:
+	with out_lock:
 		with open(f'{output_base}fivep_info_table.tsv', 'a') as info_out, open(f'{output_base}fivep_mapped_reads_trimmed.fa', 'a') as trimmed_out:
 			for row in out_reads:
 				row = [str(item) for item in row]
@@ -212,10 +187,6 @@ def filter_fivep_reads(alignments:dict, read_seqs:dict, fivep_upstream_seqs:dict
 # =============================================================================#
 #                                    Main                                      #
 # =============================================================================#
-def main():
-	pass
-
-
 if __name__ == '__main__' :
 	threads, genome_fasta, output_base = sys.argv[1:]
 	threads = int(threads)
@@ -229,6 +200,10 @@ if __name__ == '__main__' :
 	with open(f'{output_base}read_counts.tsv', 'a') as a:
 		a.write(f'fivep_mapped_reads\t{len(rids)}\n')	
 
+	if len(alignments)==0:
+		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
+		exit()
+
 	# Prep out files with a header row
 	with open(f'{output_base}fivep_info_table.tsv', 'w') as w:
 		w.write('\t'.join(FIVEP_INFO_TABLE_COLS) + '\n')
@@ -237,15 +212,16 @@ if __name__ == '__main__' :
 	with open(f'{output_base}failed_fivep_alignments.tsv', 'w') as w:
 		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
 
-	# Split the alignments dict into a list of (almost) equal-sized chunks
-	alignments = dict_chunks(alignments, threads)
-
-	# Make a wrapper function that processes in the multiprocessing pool will use
-	# We need to do this because imap_unordered only passes 1 positional arg to the specified function
-	def filter_chunk(alignments_chunk):
-		return filter_fivep_reads(alignments_chunk, read_seqs=read_seqs, fivep_upstream_seqs=fivep_upstream_seqs, output_base=output_base)
-	
-	with multiprocessing.Pool() as pool:
-		# Iteratively call filter_fivep_reads with each chunk in alignments
-		for _ in pool.imap_unordered(filter_chunk, alignments):
-			pass
+	rid_list = list(alignments.keys())
+	processes = []
+	for i in range(threads):
+		rid_subset = rid_list[i::threads]
+		alignments_subset = {rid:alignments[rid] for rid in rid_subset}
+		if len(alignments_subset)==0:
+			continue
+		subset_process = multiprocessing.Process(target=filter_fivep_reads, args=(alignments_subset, read_seqs, fivep_upstream_seqs, output_base,))
+		subset_process.start()
+		processes.append(subset_process)
+		
+	for p in processes:
+		p.join()

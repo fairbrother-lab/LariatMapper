@@ -28,24 +28,6 @@ FINAL_RESULTS_COLS = ('read_id',
                         'genomic_bp_context',
                         'total_mapped_reads',
 						)
-# CIRCULARIZED_INTRONS_COLS = ('read_id',
-# 								'gene_name',
-# 								'gene_id',
-# 								'gene_type',
-# 								'chrom',
-# 								'strand',
-# 								'fivep_pos',
-# 								'bp_pos',
-# 								'threep_pos',
-#                         		'bp_dist_to_threep',
-# 								'genomic_bp_nt',
-#                         		'genomic_bp_context',
-# 						  		'read_bp_pos',
-# 								'read_seq',
-# 								'read_alignment',
-# 								'total_mapped_reads',
-# 								)
-
 
 
 
@@ -60,14 +42,14 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 	lariat_reads = pd.read_csv(f'{output_base}trimmed_info_table.tsv', sep='\t')
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
-	if len(lariat_reads) == 0:
+	if lariat_reads.empty:
 		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
-		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
-			w.write('\t'.join(FINAL_RESULTS_COLS))
-		with open(f'{output_base}failed_lariat_alignments.tsv', 'w') as w:
-			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
-		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
-			w.write('\t'.join(FINAL_RESULTS_COLS))
+		# with open(f'{output_base}lariat_reads.tsv', 'w') as w:
+		# 	w.write('\t'.join(FINAL_RESULTS_COLS))
+		# with open(f'{output_base}failed_lariat_alignments.tsv', 'w') as w:
+		# 	w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
+		# with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
+		# 	w.write('\t'.join(FINAL_RESULTS_COLS))
 		exit()
 	
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
@@ -154,7 +136,6 @@ def choose_read_mapping(lariat_reads):
 	For reads with multiple lariat mappings that have passed all filters, choose just one to assign to the read and fail the others
 	'''
 	for rid in lariat_reads.read_id.unique():
-
 		valid_lariat_mappings = lariat_reads[(lariat_reads.read_id==rid) & (lariat_reads.filter_failed.isna())]
 		# If either 1 or 0 valid lariat mappings, no need to choose
 		if len(valid_lariat_mappings) < 2:
@@ -213,10 +194,12 @@ if __name__ == '__main__':
 
 	# Filter lariat reads
 	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, template_switching_rids=template_switching_rids, axis=1)
-	# circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', CIRCULARIZED_INTRONS_COLS]
 	circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', FINAL_RESULTS_COLS]
+	# There shall be no read that escapes failure for circularizing
+	circularized_intron_rids = set(circularized_introns.read_id)
+	lariat_reads.loc[(lariat_reads.read_id.isin(circularized_intron_rids)) & (lariat_reads.filter_failed.isna()), 'filter_failed'] = 'other_circularized'
 
-	# Choose 1 lariat mapping per read id and remove the _for/_rev suffix
+	# Choose 1 lariat mapping per read id 
 	lariat_reads = choose_read_mapping(lariat_reads)
 	
 	# Seperate failed mappings from passed mappings
@@ -233,4 +216,5 @@ if __name__ == '__main__':
 	# Record read count
 	with open(f'{output_base}read_counts.tsv', 'a') as a:
 		a.write(f'lariat\t{filtered_lariats.read_id.nunique()}\n')
+		a.write(f'template-switch\t{len(template_switching_rids)}\n')
 		a.write(f'circularized_intron\t{circularized_introns.read_id.nunique()}\n')
