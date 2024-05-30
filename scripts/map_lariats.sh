@@ -40,12 +40,23 @@ fi
 
 
 #=============================================================================#
+#                                  Variables                                  #
+#=============================================================================#
+output_bam="$OUTPUT_BASE"mapped_reads.bam
+unmapped_bam="$OUTPUT_BASE"unmapped_reads.bam
+run_data="$OUTPUT_BASE"read_counts.tsv
+unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
+fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
+fivep_trimmed_reads="$OUTPUT_BASE"fivep_mapped_reads_trimmed.fa
+trimmed_reads_to_genome="$OUTPUT_BASE"trimmed_reads_to_genome.sam
+
+
+
+#=============================================================================#
 #                                    Calls                                    #
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping reads and extracting unmapped reads...\n"
-output_bam="$OUTPUT_BASE"mapped_reads.bam
-unmapped_bam="$OUTPUT_BASE"unmapped_reads.bam
 if $single_end; then
 	hisat2 --no-softclip --max-seeds 20 --bowtie2-dp 1 --pen-noncansplice 0 -k 1 --n-ceil L,0,0.05 --score-min L,0,-0.24 \
 	       --threads $THREADS -x $GENOME_INDEX -U $READ_FILE \
@@ -76,32 +87,29 @@ bedtools bamtobed -split -i $output_bam | gzip > "$OUTPUT_BASE"mapped_reads.bed.
 
 ### Create fasta file of unmapped reads 
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Creating fasta file of unmapped reads...\n"
-unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
-samtools fasta -N -o $unmapped_fasta $unmapped_bam >/dev/null 2>&1 
+samtools fasta -N -o $unmapped_fasta $unmapped_bam >/dev/null || exit 1 
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Indexing unmapped reads fasta file...\n"
 samtools faidx $unmapped_fasta
 
 ### Build a bowtie2 index of the unmapped reads
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Building bowtie2 index of unmapped fasta...\n"
-bowtie2-build --threads $THREADS $unmapped_fasta $unmapped_fasta >/dev/null 2>&1 || exit 1 
+bowtie2-build --threads $THREADS $unmapped_fasta $unmapped_fasta >/dev/null \
+	|| exit 1 
 
 ## Align unmapped reads to fasta file of all 5' splice sites (first 20nts of introns)
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' splice sites to reads...\n"
-fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
 	| samtools view \
 	> $fivep_to_reads \
-	|| exit 1 
+	|| exit 1
 
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
 python $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $OUTPUT_BASE \
-	|| exit 1 
+	|| exit 1
 
 ### Map 5' trimmed reads to genome
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' trimmed reads to genome...\n"
-fivep_trimmed_reads="$OUTPUT_BASE"fivep_mapped_reads_trimmed.fa
-trimmed_reads_to_genome="$OUTPUT_BASE"trimmed_reads_to_genome.sam
 hisat2 --no-softclip --very-sensitive -k 10 --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $fivep_trimmed_reads \
 	> $trimmed_reads_to_genome \
 	|| exit 1
@@ -110,12 +118,12 @@ hisat2 --no-softclip --very-sensitive -k 10 --no-unal --threads $THREADS -f -x $
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
 # scalene --html --outfile "$OUTPUT_BASE"filter_trim_profile.html $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $ANNO_FILE $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE \
 python -u $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $ANNO_FILE $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE \
-	|| exit 1 
+	|| exit 1
 
 ### Filter lariat mappings and choose 1 for each read
 printf "$(date +'%m/%d/%y - %H:%M:%S') | Filtering putative lariat alignments...\n"
 python -u $PIPELINE_DIR/scripts/filter_lariats.py $GENOME_FASTA $REPEATS_BED $OUTPUT_BASE \
-	|| exit 1 
+	|| exit 1
 
 ### Make a custom track BED file of identified lariats 
 if $UCSC_TRACK; then
@@ -149,5 +157,5 @@ fi
 if [ "${OUTPUT_BASE: -1}" == "/" ];then
 	printf "$(date +'%m/%d/%y - %H:%M:%S') | Lariat mapping complete.\n"
 else
-	printf "$(date +'%m/%d/%y - %H:%M:%S') | Lariat mapping complete for "$(echo $OUTPUT_BASE | sed "s:.*/::")".\n"
+	printf "$(date +'%m/%d/%y - %H:%M:%S') | Lariat mapping complete for "$(echo ${OUTPUT_BASE:0:-1} | sed "s:.*/::")".\n"
 fi
