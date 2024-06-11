@@ -3,6 +3,7 @@ import subprocess
 import gzip
 import time
 import random
+import logging
 
 import pandas as pd
 
@@ -11,9 +12,9 @@ import pandas as pd
 #                                  Globals                                     #
 # =============================================================================#
 FINAL_RESULTS_COLS = ('read_id',
-						'gene_name',
+						# 'gene_name',
                         'gene_id',
-                        'gene_type',
+                        # 'gene_type',
                         'chrom',
                         'strand',
                         'fivep_pos',
@@ -43,13 +44,13 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
 	if lariat_reads.empty:
-		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
-		# with open(f'{output_base}lariat_reads.tsv', 'w') as w:
-		# 	w.write('\t'.join(FINAL_RESULTS_COLS))
-		# with open(f'{output_base}failed_lariat_alignments.tsv', 'w') as w:
-		# 	w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
-		# with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
-		# 	w.write('\t'.join(FINAL_RESULTS_COLS))
+		print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | No reads remaining')
+		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
+			w.write('\t'.join(FINAL_RESULTS_COLS))
+		with open(f'{output_base}failed_lariat_alignments.tsv', 'w') as w:
+			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
+		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
+			w.write('\t'.join(FINAL_RESULTS_COLS))
 		exit()
 	
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
@@ -72,6 +73,7 @@ def add_mapped_reads(output_base:str) -> int:
 	return sample_read_count
 
 
+#TODO: Implement a more elaborate check. We only need to check for UBC-type repeats as possible false-positives
 def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str) -> set:
 	''' 
     Check if both the 5'SS and the BP overlap with a repetitive region
@@ -114,9 +116,9 @@ def filter_lariats(row:pd.Series, repeat_rids:set, template_switching_rids:set):
 			- Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive due to sequence repetition)
 			- BP is within 2bp of a splice site (likely an intron circle, not a lariat)
 	'''
-	# Check if read mapped to a ubiquitin gene
-	if row['gene_name'] in ('UBC', 'UBB'):
-		return 'ubiquitin_gene'
+	# # Check if read mapped to a ubiquitin gene
+	# if row['gene_name'] in ('UBC', 'UBB'):
+	# 	return 'ubiquitin_gene'
 	
 	# Check if read mapped to a repetitive region
 	if row['read_id'] in repeat_rids:
@@ -173,7 +175,16 @@ def choose_read_mapping(lariat_reads):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
+	# Get logger
+	log = logging.getLogger()
+	log.setLevel('DEBUG')
+	handler = logging.StreamHandler(sys.stdout)
+	handler.setLevel('DEBUG')
+	log.addHandler(handler)
+
+	# Get args
 	ref_fasta, ref_repeatmasker, output_base = sys.argv[1:]
+	log.info(f'{sys.argv[1:]}')
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S | Parsing lariat reads...'))
 	lariat_reads = load_lariat_table(output_base)
@@ -218,3 +229,5 @@ if __name__ == '__main__':
 		a.write(f'lariat\t{filtered_lariats.read_id.nunique()}\n')
 		a.write(f'template-switch\t{len(template_switching_rids)}\n')
 		a.write(f'circularized_intron\t{circularized_introns.read_id.nunique()}\n')
+
+	log.debug('End of script')
