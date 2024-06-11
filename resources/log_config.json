@@ -1,0 +1,31 @@
+{
+	"version": 1,
+	"formatters": {
+	  "simple": {
+		"format": "%(levelname)s: %(message)s",
+		"datefmt": "",
+		"style": ""
+	  }
+	},
+	"handlers": {
+	  "simple": {
+		"class": "logging.StreamHandler",
+		"formatter": "simple",
+		"stream": "ext://sys.stdout"
+	  }
+	},
+	"loggers": {
+	  "default": {
+		"level": "INFO",
+		"handlers": [
+		  "stdout"
+		]
+	  },
+	  "debug": {
+		"level": "DEBUG",
+		"handlers": [
+			""
+		]
+	  }
+	}
+  }

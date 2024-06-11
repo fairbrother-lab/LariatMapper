@@ -1,6 +1,6 @@
 # WARNING: WORK IN PROGRESS, NOT CURRENTLY RELIABLE
 
-# Lariat Mapping | The Fairbrother Lab
+# LariatMapper | The Fairbrother Lab
 
 ## Overview
 
@@ -48,16 +48,22 @@ Run `build_references.py` with the following arguments:
 
 You can then use `OUT_DIR` as the reference files directory when running the pipeline (argument `-r, --ref_dir`)
 
+### Input
+LariatMapper accepts FASTQ-format read data from 2nd-generation RNA-sequencing experiments, both paired-end and single-end. It does not currently support strand-specific or 3rd-generation sequencing data. 
+
+Sequencing data should be preprocessed to remove adapter sequences and unique molecular identifiers (UMIs). De-duplication is not required but *is* recommended.
+
+
 ## Running the Pipeline
 Run `python larmap.py` with the following arguments:
 
   	-r, --ref_dir				Directory with reference files for lariat mapping. Create by running build_references.py
 	-o, --output_dir			Directory for output files (will be created if it does not exist)
 	For paired-end sequencing data
-	  -1, --read_one			Read 1 input FASTQ file when processing paired-end RNA-seq data
-	  -2, --read_two			Read 2 input FASTQ file when processing paired-end RNA-seq data
+	  -1, --read_one			Read 1 input FASTQ file when processing paired-end RNA-seq data. Can be uncompressed or gzip-compressed. 
+	  -2, --read_two			Read 2 input FASTQ file when processing paired-end RNA-seq data. Can be uncompressed or gzip-compressed. 
 	For single-end sequencing data
-	  -f, --read_file			Input FASTQ file when processing single-end RNA-seq data. 
+	  -f, --read_file			Input FASTQ file when processing single-end RNA-seq data. Can be uncompressed or gzip-compressed.
 	
 If you did not create a reference directory and instead want to input the neccesary reference files at runtime, use the following arguments instead of `-r, --ref_dir`:
 

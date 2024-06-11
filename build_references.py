@@ -2,13 +2,45 @@
 
 import os
 import subprocess
+import shutil
 import time
 import gzip
 import argparse
+import collections
+
+
+import pandas as pd
+
+
+
+# =============================================================================#
+#                                  Globals                                     #
+# =============================================================================#
+EXON_INTRON_COLUMNS = ('chrom',
+					'strand',
+					'start',
+					'end',
+					'gene_id')
+REF_GENOME_FILE = 'genome.fa'
+REF_REPEATMASKER_FILE = 'repeatmasker.bed'
+REF_HISAT2_INDEX = 'hisat2_index'
+REF_EXONS_FILE = 'exons.tsv.gz'
+REF_INTRONS_FILE = 'introns.tsv.gz'
+REF_FIVEP_FILE = 'fivep_sites.fa'
+REF_FIVEP_INDEX = 'fivep_sites'
+
+Exon = collections.namedtuple('Exon', ['chrom', 'strand', 'start', 'end', 'gene_id'])
+Intron = collections.namedtuple('Intron', ['chrom', 'strand', 'start', 'end', 'gene_id'])
+
+
 
 #=============================================================================#
 #                                  Functions                                  #
 #=============================================================================#
+def comma_join(x): 
+	return ','.join(set(x))
+
+
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
 	if file_type == 'gtf':
 		attributes = attribute_string.rstrip('";').split('; ')
@@ -25,120 +57,166 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 
 	return attributes
 
-def parse_transcript_info(ref_anno:str, anno_type:str, gunzip:bool) -> dict:
+
+def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attribute:str, gene_attribute:str):
 	if gunzip:
 		in_file = gzip.open(ref_anno, 'rt')
 	else:
 		in_file = open(ref_anno)
-	
+
 	transcripts = {}
 	for line in in_file:
-		if line[0] != '#':
-			chrom, _, feature, start, end, _, strand, _, attributes = line.strip().split('\t')
-			attributes = parse_attributes(attributes, anno_type)
-			if feature == 'transcript':
-				transcripts[attributes['transcript_id']] = {'attributes':attributes, 'coords':(chrom, strand, int(start), int(end)), 'exons':[]}
-			elif feature == 'exon':
-				transcripts[attributes['transcript_id']]['exons'].append((int(start), int(end)))
-	in_file.close()
+		if line.startswith('#'):
+			continue
+		
+		# Parse the line, making sure it's an exon feature
+		chrom, _, feature, start, end, _, strand, _, attributes = line.strip().split('\t')
+		if feature != 'exon':
+			continue
+		start = int(start) - 1
+		end = int(end)
+		attributes = parse_attributes(attributes, anno_type)
+
+		if transcript_attribute not in attributes:
+			raise ValueError(f'Attribute for transcript id "{transcript_attribute}" not found in attributes of line "{line}"')
+		if gene_attribute not in attributes:
+			raise ValueError(f'Attribute for gene id "{gene_attribute}" not found in attributes of line "{line}"')
+		
+		# Add the exon to its transcript's list
+		exon = (start, end)
+		transcript_id = attributes[transcript_attribute]
+		if transcript_id not in transcripts:
+			transcripts[transcript_id] = {'chrom': chrom, 'strand': strand, 'gene': attributes[gene_attribute], 'exons': []}
+		transcripts[transcript_id]['exons'].append(exon)
 
 	return transcripts
 
 
-def build_exons_introns(transcripts:dict, out_exons_bed:str, out_introns_bed:str) -> dict:
-	exon_genes, intron_genes = {}, {}
+def build_exons_introns(transcripts:dict, out_dir:str) -> pd.DataFrame:
+	exons = []
+	introns = []
+
+	# For each transcripts, create its exons and introns and add them to the lists
 	for transcript_id in transcripts:
-		chrom, strand, _, _ = transcripts[transcript_id]['coords']
-		reverse_orientation = strand=='-'
-		gene_orientation_exons = sorted(transcripts[transcript_id]['exons'], key=lambda e:e[0], reverse=reverse_orientation)
-		for i in range(len(gene_orientation_exons)):
-			exon_start, exon_end = gene_orientation_exons[i]
-			exon = (chrom, strand, exon_start, exon_end)
-			if exon not in exon_genes:
-				exon_genes[exon] = []
-			exon_genes[exon].append(f'{transcripts[transcript_id]["attributes"]["gene_id"]}-{i+1}')
-			if i < len(gene_orientation_exons)-1:
-				if strand == '+':
-					intron_start, intron_end = gene_orientation_exons[i][1]+1, gene_orientation_exons[i+1][0]-1
-				else:
-					intron_start, intron_end = gene_orientation_exons[i+1][1]+1, gene_orientation_exons[i][0]-1
-				intron = (chrom, strand, intron_start, intron_end)
-				if intron not in intron_genes:
-					intron_genes[intron] = []
-				intron_genes[intron].append(f'{transcripts[transcript_id]["attributes"]["gene_id"]}-{i+1}')
+		chrom = transcripts[transcript_id]['chrom']
+		strand = transcripts[transcript_id]['strand']
+		gene_id = transcripts[transcript_id]['gene']
+
+		reverse_orient = True if strand == '-' else False
+		transcript_exons = sorted(transcripts[transcript_id]['exons'], key=lambda e: e[0], reverse=reverse_orient)
+		n_exons = len(transcript_exons)
+		
+		for i in range(n_exons):
+			# Add the ith exon to list
+			exon = Exon(chrom=chrom, strand=strand, start=transcript_exons[0], end=transcript_exons[1], gene_id=gene_id)
+			exons.append(exon)
+
+			# Don't create an intron after the last exon 
+			if i == n_exons-1:
+				break
+			
+			# Add the ith intron to list
+			if strand == '+':
+				intron_start = transcript_exons[i].end
+				intron_end = transcript_exons[i+1].start - 1
+			else:
+				intron_start = transcript_exons[i+1].end
+				intron_end = transcript_exons[i].start
+			intron = (chrom, strand, intron_start, intron_end, gene_id)
+			introns.append(intron)
 	
-	for region, region_genes, out_bed in zip(('exon', 'intron'), (exon_genes, intron_genes), (out_exons_bed, out_introns_bed)):
-		with open(out_bed, 'w') as out_file:
-			for region_id in region_genes:
-				chrom, strand, start, end = region_id
-				start -= 1
-				region_gene_str = '|'.join(region_genes[region_id])
-				bed_info = f'{region};{chrom};{start};{end};{strand};{region_gene_str}'
-				out_file.write(f'{chrom}\t{start}\t{end}\t{bed_info}\t0\t{strand}\n')
-	with open(out_introns_bed, 'w') as out_file:
-		for intron in intron_genes:
-			chrom, strand, start, end = intron
-			start -= 1
-			gene_str = '|'.join(intron_genes[intron])
-			bed_info = f'{chrom};{start};{end};{strand};{gene_str}'
-			out_file.write(f'{chrom}\t{start}\t{end}\t{bed_info}\t0\t{strand}\n')
+	# Collapse gene ids
+	exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
+	exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': comma_join})
+	# Write to file
+	exons.to_csv(f'{out_dir}/exons.tsv.gz', sep='\t', index=False, compression='gzip')
 
-	return intron_genes
+	# Collapse gene ids
+	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
+	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': comma_join})
+	# Remove introns 20bp or shorter
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | {sum(introns.end-introns.start<=20):,} of {len(introns):,} introns excluded for being 20nt or shorter')
+	introns = introns.loc[introns.end-introns.start>20]
+	# Write to file
+	introns.to_csv(f'{out_dir}/introns.tsv.gz', sep='\t', index=False, compression='gzip')
+
+	return introns
 
 
-def build_fivep(intron_genes:dict, ref_fasta:str, out_fivep_fasta:str) -> None:
+def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str) -> None:
+	#TODO: Refactor this through the "bedtools_input += fivep_line" line, it's the biggest time-consumer
+	introns = [row.to_list() for i, row in introns.iterrows()]
 	fivep_sites = set()
-	for intron in intron_genes:
-		chrom, strand, intron_start, intron_end = intron
-		if intron_end-intron_start+1 > 20:
-			fivep_pos = intron_start-1 if strand=='+' else intron_end-1
-			fivep_sites.add((chrom, strand, fivep_pos))
+	for intron in introns:
+		chrom, strand, intron_start, intron_end, gene_ids = intron
+		fivep_pos = intron_start if strand=='+' else intron_end-1
+		fivep_sites.add((chrom, strand, fivep_pos))
 	
+	# Prepare fivep coordinates input that will be passed to bedtools getfasta 
 	bedtools_input = ''
 	for fivep in fivep_sites:
 		chrom, strand, fivep_pos = fivep
 		if strand == '+':
-			window_start, window_end = fivep_pos-5, fivep_pos+20
+			window_start, window_end = fivep_pos, fivep_pos+20
 		else:
-			window_start, window_end = fivep_pos-19, fivep_pos+6
+			window_start, window_end = fivep_pos-19, fivep_pos+1
 		fivep_site = f'{chrom};{fivep_pos};{strand}'
 		fivep_line = f'{chrom}\t{window_start}\t{window_end}\t{fivep_site}\t0\t{strand}\n'
 		bedtools_input += fivep_line
 	
+	# Get fivep sequences
 	bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {ref_fasta} -bed -'
-	bedtools_output = subprocess.run(bedtools_call.split(' '), input=bedtools_input, check=True, capture_output=True, text=True).stdout.strip()
-	with open(out_fivep_fasta, 'w') as fasta_out:
-		for fivep_line in bedtools_output.split('\n'):
-			fivep_site, fivep_seq = fivep_line.split('\t')
-			fivep_site, fivep_seq = fivep_site[:-3], fivep_seq.upper()
-			fasta_out.write(f'>{fivep_site}\n{fivep_seq[5:]}\n')
+	bedtools_output = subprocess.run(bedtools_call.split(' '), input=bedtools_input, check=True, capture_output=True, text=True).stdout
+
+	# Parse output
+	fivep_seqs = [line.split('\t') for line in bedtools_output.strip().split('\n')]
+	fivep_seqs = pd.DataFrame(fivep_seqs, columns=['fivep_site', 'seq'])
+	fivep_seqs.fivep_site = fivep_seqs.fivep_site.str.slice(0,-3)
+
+	# Write sequences to fasta file
+	with open(f'{out_dir}/{REF_FIVEP_FILE}', 'w') as fasta_out:
+		for i, row in fivep_seqs.iterrows():
+			fasta_out.write(f">{row['fivep_site']}\n{row['seq']}\n")
+	
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Building index of five-prime splice site sequences...')
+	build_index_call = f'bowtie2-build --quiet --threads {threads} {out_dir}/{REF_FIVEP_FILE} {out_dir}/{REF_FIVEP_INDEX}'
+	indexing = subprocess.run(build_index_call.split(' '), capture_output=True)
+	if indexing.stdout != b'':
+		print(indexing.stdout.decode())
+	if indexing.stderr != b'':
+		print(indexing.stderr.decode())
+
 
 
 #=============================================================================#
 #                                    Main                                     #
 #=============================================================================#
-def main():
+if __name__ == '__main__':
 	# Parse arguments
 	parser = argparse.ArgumentParser(prog='build_references',
 								  	description='Build custom reference files and create reference directory for lariat mapping')
 	
+	# Required arguments
 	parser.add_argument('-f', '--ref_fasta', required=True, help='Path to reference genome fasta file')
 	parser.add_argument('-a', '--ref_anno', required=True, help='Path to reference gene annotation file in GTF or GFF format\n(may be gzipped with .gz extension)')
-	parser.add_argument('-r', '--ref_repeatmasker', required=True, help='Path to BED file with RepeatMasker annotation of reference genome')
 	parser.add_argument('-i', '--hisat2_index', required=True, help='Path to base name of hisat2 index of reference genome (i.e. everything before .1.ht2 extension)')
 	parser.add_argument('-o', '--out_dir', required=True, help='Path to directory where reference files will be output (will be created if it does not exist)')
+	# Optional arguments
+	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
+	parser.add_argument('-r', '--ref_repeatmasker', help='Path to BED file with RepeatMasker annotation of reference genome')
+	parser.add_argument('-x', '--transcript_attribute', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute (default=transcript_id)',)
+	parser.add_argument('-g', '--gene_attribute', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute (default=transcript_id)',)
 
 	args = parser.parse_args()
-	ref_fasta, ref_anno, ref_repeatmasker, hisat2_index, out_dir = args.ref_fasta, args.ref_anno, args.ref_repeatmasker, args.hisat2_index, args.out_dir
+	ref_fasta, ref_anno, ref_repeatmasker, hisat2_index, out_dir, threads, transcript_attribute, gene_attribute  = args.ref_fasta, args.ref_anno, args.ref_repeatmasker, args.hisat2_index, args.out_dir, args.threads, args.transcript_attribute, args.gene_attribute
 	
+	# Check input files
 	if os.path.isfile(f'{hisat2_index}.1.ht2'):
 		hisat2_file_extensions = [f'.{i}.ht2' for i in range(1,9)]
 	elif os.path.isfile(f'{hisat2_index}.1.ht2l'):
 		hisat2_file_extensions = [f'.{i}.ht2l' for i in range(1,9)]
 	else:
 		raise FileNotFoundError(f'hisat2 index does not exist at {hisat2_index}')
-	
-	# Check input files
 	ref_names = ['Genome fasta', 'Reference annotation', 'RepeatMasker BED'] + ['hisat2 index']*8
 	ref_files = [ref_fasta, ref_anno, ref_repeatmasker] + [f'{hisat2_index}{ext}' for ext in hisat2_file_extensions]
 	for rn, rf in zip(ref_names, ref_files):
@@ -149,42 +227,31 @@ def main():
 	if not os.path.isdir(out_dir):
 		os.mkdir(out_dir)
 
-	# Make symbolic links to input reference files
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Creating symbolic links to input reference files...')
-	
+	# Copy the neccesary reference files
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Copying reference files...')
+	shutil.copyfile(ref_fasta, f'{out_dir}/{REF_GENOME_FILE}')
+	if ref_repeatmasker is not None:
+		shutil.copyfile(ref_repeatmasker, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
+	for ext in hisat2_file_extensions:
+		shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
+
 	prev_ext, last_ext = ref_anno.split('.')[-2:]
 	if last_ext == 'gz':
 		gunzip, anno_type = True, prev_ext
-		anno_file = f'annotation.{anno_type}.gz'
+		# anno_file = f'annotation.{anno_type}.gz'
 	else:
 		gunzip, anno_type = False, last_ext
-		anno_file = f'annotation.{anno_type}'
-	
-	ref_paths = [ref_fasta, ref_anno, ref_repeatmasker] + [f'{hisat2_index}{ext}' for ext in hisat2_file_extensions]
-	symlink_paths = [os.path.join(out_dir, 'genome.fa'), os.path.join(out_dir, anno_file), os.path.join(out_dir, 'repeatmasker.bed')]
-	symlink_paths += [os.path.join(out_dir, f'hisat2_index{ext}') for ext in hisat2_file_extensions]
-	for rp, sp in zip(ref_paths, symlink_paths):
-		if os.path.exists(sp):
-			os.remove(sp)
-		os.symlink(rp, sp)
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Linking done.')
+		# anno_file = f'annotation.{anno_type}'
+	if not anno_type in ('gtf', 'gff'):
+		raise ValueError(f'Annotation file must be in .gtf or .gff format, not ".{anno_type}"')
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Parsing transcripts from annotation file...')
-	transcripts = parse_transcript_info(ref_anno, anno_type, gunzip)
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Done parsing transcripts.')
+	transcripts = parse_transcripts(ref_anno, anno_type, gunzip, transcript_attribute, gene_attribute)
 	
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Processing exons and introns...')
-	out_exons_bed = os.path.join(out_dir, 'exons.bed') 
-	out_introns_bed = os.path.join(out_dir, 'introns.bed') 
-	intron_genes = build_exons_introns(transcripts, out_exons_bed, out_introns_bed)
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Done building exon and intron files.')
+	introns = build_exons_introns(transcripts, out_dir)
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + " | Processing 5' splice sites...")
-	out_fivep_fasta = os.path.join(out_dir, 'fivep_sites.fa')
-	build_fivep(intron_genes, ref_fasta, out_fivep_fasta)
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + " | Done building 5' splice site files.")
+	print(time.strftime('%m/%d/%y - %H:%M:%S') + " | Processing five-prime splice sites...")
+	build_fivep(introns, ref_fasta, threads, out_dir)
 
 	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Reference building complete.')
-
-if __name__ == '__main__':
-	main()
