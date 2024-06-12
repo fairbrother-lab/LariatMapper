@@ -1,10 +1,8 @@
-# WARNING: WORK IN PROGRESS, NOT CURRENTLY RELIABLE
-
 # LariatMapper | The Fairbrother Lab
 
 ## Overview
 
-A pipeline for mapping lariat-derived reads present in RNA-seq data through the identification of reads with gapped, inverted alignments to introns. Secondarily identifies reads derived from circularized intron RNA.
+A pipeline for mapping lariat-derived reads (AKA lariat reads) that are present in RNA-seq data through the identification of reads with gapped, inverted alignments to introns. Secondarily identifies reads derived from circularized intron RNA.
 
 ## Setup
 
@@ -39,19 +37,21 @@ Create a directory to store the neccessary reference files with `build_reference
 You will need:
 - A FASTA file of reference genome sequences
 - A GTF or GFF file of annotations for the reference genome
-- A BED file containing the RepeatMasker annotation for the mapping genome (available on the [UCSC table browser](https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker")
 - A hisat2 index of the reference genome
+
 
 Run `build_references.py` with the following arguments:
 
-	python build_references.py -f REF_FASTA -a REF_ANNO -r REF_REPEATMASKER -i HISAT2_INDEX -o OUT_DIR
+	python build_references.py -f <REF_FASTA> -a <REF_ANNO> -i <HISAT2_INDEX> -o <OUT_DIR>
+
+If you have a BED file of repetitive regions from RepeatMasker, you can include the argument `-r <REF_REPEATMASKER>` to copy it to the reference directory. You can find such a file for several reference genomes on the UCSC Genome Browser (https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker".
 
 You can then use `OUT_DIR` as the reference files directory when running the pipeline (argument `-r, --ref_dir`)
 
 ### Input
 LariatMapper accepts FASTQ-format read data from 2nd-generation RNA-sequencing experiments, both paired-end and single-end. It does not currently support strand-specific or 3rd-generation sequencing data. 
 
-Sequencing data should be preprocessed to remove adapter sequences and unique molecular identifiers (UMIs). De-duplication is not required but *is* recommended.
+Sequencing data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers (UMIs). De-duplication is not required but *is* recommended.
 
 
 ## Running the Pipeline
@@ -72,10 +72,12 @@ If you did not create a reference directory and instead want to input the necces
 	  -a, --ref_anno			Gene annotation of the reference genome in GTF or GFF format (may be gzipped with .gz extension)
 	  -5, --ref_5p_fasta		FASTA file with sequences of first 20nt of annotated introns
 	  -n, --ref_introns			BED file of all annotated introns
-	  -m, --ref_repeatmasker	BED file of repetitive element annotation from RepeatMasker
+	  -m, --ref_repeatmasker	BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Optional)
 
 Optional arguments:
 
+	  -q, --quiet				Don't print any status messages (work in progress)
+	  -d, --debug				Print extensive any status messages (work in progress)
 	  -t, --threads				Number of threads to use for parallel processing (default=1)
 	  -p, --output_prefix		Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv)
 	  -u, --ucsc_track			Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments

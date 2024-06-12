@@ -8,11 +8,6 @@ from subprocess import run
 import multiprocessing
 import logging
 
-# =============================================================================#
-#                                   Globals                                    #
-# =============================================================================#
-LOG_FORMAT = ''
-
 
 
 # =============================================================================#
@@ -63,6 +58,7 @@ def process_args(args:argparse.ArgumentParser):
 	return args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker, output_base
 		
 
+
 # =============================================================================#
 #                                    Main                                      #
 # =============================================================================#
@@ -83,9 +79,9 @@ if __name__ == '__main__':
 	parser.add_argument('-n', '--ref_introns', help='BED file of all annotated introns')
 	# Optional arguments
 	log_levels = parser.add_mutually_exclusive_group()
-	log_levels.add_argument('-q', '--quiet', action='store_true', default=False, help="Don't print any progress messages")
-	log_levels.add_argument('-d', '--debug', action='store_true', default=False, help="Print extensive progress messages")
-	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive element annotation from RepeatMasker')
+	log_levels.add_argument('-q', '--quiet', action='store_true', default=False, help="Don't print any status messages")
+	log_levels.add_argument('-d', '--debug', action='store_true', default=False, help="Print extensive status messages")
+	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Optional)')
 	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
 	parser.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	parser.add_argument('-u', '--ucsc_track', action='store_true', default=False, help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
@@ -114,17 +110,10 @@ if __name__ == '__main__':
 	handler.setFormatter(logging.Formatter(log_format, style='{', datefmt='%d/%m/%y %H:%M:%S',))
 	log.addHandler(handler)
 
-
-	# # Print arguments recieved
-	# print('Arguments received:', flush=True)
-	# arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None]
-	# arg_message = '\n'.join(arg_message) + '\n'
-	# print(arg_message, flush=True)
-
-	# Print arguments recieved
+	# Print arguments
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None]
 	arg_message = '\n'.join(arg_message) + '\n'
-	log.info(f'Arguments received: {arg_message}')
+	log.info(f'Arguments: {arg_message}')
 
 	# Validate the args and determine additional variables
 	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker, output_base = process_args(args)
