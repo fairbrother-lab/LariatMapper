@@ -5,24 +5,22 @@ import os
 import gzip
 import subprocess
 import multiprocessing
-import math
 import time
 import collections
 import logging
-import pickle
 
 from intervaltree import Interval, IntervalTree
-import pysam
 import pandas as pd
 import numpy as np
-import psutil
+# import psutil
+
+import functions
 
 
 
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
-COMP_NTS = {'A':'T', 'C':'G', 'T':'A', 'G':'C', 'N':'N'}
 CIGAR_OPERATORS = ('M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X')
 MAX_MISMATCHES = 5
 MAX_MISMATCH_PERCENT = 0.1
@@ -97,67 +95,15 @@ filtered_out_lock = multiprocessing.Lock()
 failed_out_lock = multiprocessing.Lock()
 temp_switch_lock = multiprocessing.Lock()
 
-from multiprocessing import Process
-from multiprocessing.managers import NamespaceProxy, BaseManager
-from pandas import DataFrame
-import inspect
-import os
 
-
-class MyDataFrame(DataFrame):
-    def __getstate__(self):
-        print(f'dataframe being pickled in pid {os.getpid()}')
-        return super().__getstate__()
-
-    def __setstate__(self, state):
-        print(f'dataframe being unpickled in pid {os.getpid()}')
-        print()
-        return super().__setstate__(state)
-
-
-class ObjProxy(NamespaceProxy):
-    """Returns a proxy instance for any user defined data-type. The proxy instance will have the namespace and
-    functions of the data-type (except private/protected callables/attributes). Furthermore, the proxy will be
-    pickable and can its state can be shared among different processes. """
-
-    @classmethod
-    def populate_obj_attributes(cls, real_cls):
-        DISALLOWED = set(dir(cls))
-        ALLOWED = ['__sizeof__', '__eq__', '__ne__', '__le__', '__repr__', '__dict__', '__lt__',
-                   '__gt__']
-        DISALLOWED.add('__class__')
-        new_dict = {}
-        for (attr, value) in inspect.getmembers(real_cls, callable):
-            if attr not in DISALLOWED or attr in ALLOWED:
-                new_dict[attr] = proxy_wrap(attr)
-        return new_dict
-	
-
-def proxy_wrap(attr):
-    """ This method creates function that calls the proxified object's method."""
-    def f(self, *args, **kwargs):
-
-        # _callmethod is the method that proxies provided by multiprocessing use to call methods in the proxified object
-        return self._callmethod(attr, args, kwargs)
-
-    return f
 
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
-def comma_join(x): 
-	return ','.join(set(x))
-
-
-def reverse_complement(seq):
-	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
-
-
 def parse_intron_info(ref_introns):
 	introns_df = pd.read_csv(ref_introns, sep='\t')
 	introns_df['gene_id_dict'] = introns_df.gene_id.transform(lambda gene_id: {'gene_id': gene_id})
 	
-	# introns = collections.defaultdict(lambda: {'+': IntervalTree(), '-': IntervalTree()})
 	introns = {}
 	for chrom in introns_df.chrom.unique():
 		if chrom not in introns:
@@ -187,46 +133,7 @@ def parse_fivep_info(output_base:str, fivep_genes:dict):
 	fivep_info.fivep_chrom = fivep_info.fivep_chrom.astype('category')
 	fivep_info.strand = fivep_info.strand.astype('category')
 
-
-
 	return fivep_info
-
-
-# def parse_trimmed_alignments(sam_file:str) -> pd.DataFrame:
-# 	alignments = []
-# 	for align in pysam.AlignmentFile(sam_file, 'r'):		
-# 		mismatches = align.get_tag('XM')
-# 		mismatch_percent = mismatches/align.query_length
-# 		gaps = [length for tag_num, length in align.cigartuples if tag_num in (1,2)]
-		
-# 		# Check alignment quality and fail alignment if it doesn't meet all thresholds
-# 		if mismatches > MAX_MISMATCHES:
-# 			continue
-# 		if mismatch_percent > MAX_MISMATCH_PERCENT:
-# 			continue
-# 		if len(gaps) > 1 or (len(gaps) == 1 and gaps[0] > MAX_GAP_LENGTH):
-# 			continue
-		
-# 		# If the alignment passed the quality thresholds, add it to the list
-# 		align_info = [
-# 					align.query_name,
-# 					align.query_sequence,
-# 					align.reference_name, 
-# 					align.is_reverse, 
-# 					align.reference_start, 
-# 					align.reference_end,
-# 					]
-# 		alignments.append(align_info)
-	
-# 	# Flatten the passed alignments into a list of lists, then covert to a DataFrame and return
-# 	alignments = pd.DataFrame(alignments, columns=ALIGN_INITIAL_COLS)
-# 	return alignments
-
-
-def align_is_reverse(flag:int) -> bool:
-	bit_flags = bin(int(flag))
-	is_reverse = True if len(bit_flags)>=7 and bit_flags[-5]=='1' else False
-	return is_reverse
 
 
 def cigar_str_to_tup(cigar:str) -> tuple[tuple[str, int]]:
@@ -260,9 +167,9 @@ def infer_read_bp(row:pd.Series) -> str:
 	if not row['read_is_reverse'] and not row['align_is_reverse']:
 		return row['trim_seq'][-1]
 	elif not row['read_is_reverse'] and row['align_is_reverse']:
-		return reverse_complement(row['trim_seq'][0])
+		return functions.reverse_complement(row['trim_seq'][0])
 	elif row['read_is_reverse'] and not row['align_is_reverse']:
-		return reverse_complement(row['trim_seq'][0])
+		return functions.reverse_complement(row['trim_seq'][0])
 	elif row['read_is_reverse'] and row['align_is_reverse']:
 		return row['trim_seq'][-1]
 
@@ -286,7 +193,7 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int):
 	alignments['read_is_reverse'] = alignments.read_id.transform(lambda rid: {'_rev': True, '_for': False}[rid[-4:]]).astype('bool')
 	alignments['length'] = alignments.trim_seq.str.len()
 	alignments['align_end'] = (alignments.align_start + alignments.length).astype('UInt64')
-	alignments['align_is_reverse'] = alignments.flag.transform(align_is_reverse)
+	alignments['align_is_reverse'] = alignments.flag.transform(functions.align_is_reverse)
 	alignments.cigar = alignments.cigar.transform(cigar_str_to_tup)
 	alignments['mismatches'] = alignments[['tag1', 'tag2', 'tag3']].agg(infer_mismatches, axis=1)
 	alignments['mismatches_p'] = alignments.mismatches / alignments.length
@@ -380,87 +287,14 @@ def drop_failed_alignments(alignments:pd.DataFrame, output_base:str) -> pd.DataF
 		return alignments
 
 
-# def filter_trimmed_alignments(alignments:pd.DataFrame, introns:dict, genome_fasta:str, fivep_info:pd.DataFrame, output_base:str) -> None:
-# 	# Merge
-# 	alignments = pd.merge(alignments, fivep_info, 'left', on=['read_id'])
-# 	if alignments.fivep_pos.isna().any():
-# 		raise RuntimeError(f"{alignments.fivep_pos.isna().sum()} alignments didn't match any fivep_info_table read IDs, this shouldn't be possible")
-	
-# 	# Infer info
-# 	alignments.fivep_pos = alignments.fivep_pos.astype(int)
-# 	alignments['bp_pos'] = alignments.apply(lambda row: row['align_end']-1 if row['strand']=='+' else row['align_start'], axis=1)
-# 	alignments = get_bp_seqs(alignments, genome_fasta)
-# 	alignments['genomic_bp_nt'] = alignments.genomic_bp_context.str.get(4)
-# 	alignments['read_bp_nt'] = alignments.apply(add_read_bp_nt, axis=1)
-	
-# 	# Identify template-switching reads
-# 	alignments['template_switching'] = alignments.apply(is_template_switch, axis=1)
-
-# 	# Output template-switching reads
-# 	temp_switches = alignments.loc[alignments.template_switching].copy()
-# 	if not temp_switches.empty:
-# 		temp_switches = temp_switches.astype(str)
-# 		temp_switches['fivep_sites'] = temp_switches[['fivep_chrom', 'strand', 'fivep_pos']].agg(';'.join, axis=1)
-# 		temp_switches['temp_switch_sites'] = temp_switches[['chrom', 'bp_pos']].agg(';'.join, axis=1)
-# 		temp_switches = temp_switches[TEMPLATE_SWITCHING_COLS]
-# 		with temp_switch_lock:
-# 			temp_switches.to_csv(f'{output_base}template_switching_reads.tsv', mode='a', sep='\t', header=False, index=False)
-
-# 	# Filter out template-switching reads
-# 	alignments = alignments.loc[~alignments.template_switching].drop(columns='template_switching')
-# 	if alignments.empty:
-# 		return alignments
-	
-# 	# Identify introns that overlap the alignment
-# 	alignments['overlap_introns'] = alignments.apply(lambda row: introns[row['chrom']][row['strand']].overlap(row['align_start'], row['align_end']), axis=1)
-	
-# 	# Filter out alignments that don't overlap an alignment
-# 	alignments.loc[alignments.overlap_introns.transform(len)==0, 'filter_failed'] = 'overlaps_intron'
-# 	alignments = drop_failed_alignments(alignments, output_base)
-# 	if alignments.empty:
-# 		return alignments
-	
-# 	# Filter out alignments where 5'ss and BP segments aren't in the same gene
-# 	alignments = alignments.explode('gene_id')
-# 	alignments.overlap_introns = alignments.apply(lambda row: tuple(intron for intron in row['overlap_introns'] if row['gene_id'] in intron.data['gene_id']), axis=1)
-# 	alignments.loc[alignments.overlap_introns.transform(len).eq(0), 'filter_failed'] = 'fivep_intron_match'
-# 	alignments = drop_failed_alignments(alignments, output_base)
-# 	if alignments.empty:
-# 		return alignments
-	
-# 	# Filter alignments based on proper read orientation and 5'ss-BP ordering
-# 	alignments['filter_failed'] = alignments.apply(final_filters, axis=1, result_type='reduce')
-# 	alignments = drop_failed_alignments(alignments, output_base)
-# 	if alignments.empty:
-# 		return alignments
-	
-# 	# Infer more info
-# 	alignments['threep_pos'] = alignments.apply(add_nearest_threep, axis=1)
-# 	alignments['bp_dist_to_threep'] = alignments.apply(lambda row: -abs(row['bp_pos']-row['threep_pos']) if pd.notna(row['threep_pos']) else pd.NA, axis=1)
-
-# 	# Drop all the uneeded columns
-# 	alignments = alignments[FINAL_INFO_TABLE_COLS]
-	
-# 	# Some reads get mapped to coordinates with multiple overlapping gene annotations
-# 	# We resolve this by collapsing the duplicated rows and concatenating the gene_id, gene_name, and gene_type columns
-# 	# Code adapted from https://stackoverflow.com/questions/27298178/concatenate-strings-from-several-rows-using-pandas-groupby
-# 								# .agg({'gene_id': comma_join, 'gene_name': comma_join, 'gene_type': comma_join})
-# 	alignments = (alignments.groupby([col for col in alignments.columns if col != 'gene_id'], as_index=False)
-# 									.gene_id
-# 									.agg(comma_join)
-# 					)
-
-# 	with filtered_out_lock:
-# 		alignments.to_csv(f'{output_base}trimmed_info_table.tsv', mode='a', sep='\t', index=False, header=False)
-
-
 def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base, log) -> None:
 	log.debug(f'Process {os.getpid()} created, assigned lines {chunk_start:,}-{chunk_start+ALIGN_CHUNKSIZE-1:,}')
 
 	# Load in the assigned chunk of alignments, excluding skipping low-quality alignments
 	alignments = parse_alignments_chunk(f'{output_base}trimmed_reads_to_genome.sam', chunk_start)
 	mem_mb = alignments.memory_usage(index=False, deep=True).divide(1_000_000).sum()
-	log.debug(f'Process {os.getpid()}: Alignments memory use is {mem_mb:.3} MB. Current memory use is {psutil.virtual_memory().used/1_000_000:0.3} MB ({psutil.virtual_memory().percent}%)')
+	log.debug(f'Process {os.getpid()}: Alignments memory use is {mem_mb:.3} MB')
+	# log.debug(f'Current memory use is {psutil.virtual_memory().used/1_000_000:0.3} MB ({psutil.virtual_memory().percent}%)')
 
 	# Merge alignments with fivep_info
 	# This expands each alignment row into alignment-5'ss-combination rows
@@ -525,19 +359,16 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 	# Some reads get mapped to coordinates with multiple overlapping gene annotations
 	# We resolve this by collapsing the duplicated rows and concatenating the gene_id, gene_name, and gene_type columns
 	# Code adapted from https://stackoverflow.com/questions/27298178/concatenate-strings-from-several-rows-using-pandas-groupby
-								# .agg({'gene_id': comma_join, 'gene_name': comma_join, 'gene_type': comma_join})
 	alignments = (alignments.groupby([col for col in alignments.columns if col != 'gene_id'], as_index=False, observed=True)
 									.gene_id
-									.agg(comma_join)
+									.agg(functions.comma_join)
 					)
 
 	with filtered_out_lock:
 		alignments.to_csv(f'{output_base}trimmed_info_table.tsv', mode='a', sep='\t', index=False, header=False)
 
-	log.debug(f'Process {os.getpid()}: Chunk finished. Current memory use is {psutil.virtual_memory().used/1_000_000:0.3} MB ({psutil.virtual_memory().percent:%})')
-	
-
-
+	log.debug(f'Process {os.getpid()}: Chunk finished')
+	# log.debug(f'Current memory use is {psutil.virtual_memory().used/1_000_000:0.3} MB ({psutil.virtual_memory().percent:%})')
 
 
 
@@ -545,10 +376,6 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	# global introns
-	# global fivep_info
-	# global output_base
-
 	# Get logger
 	log = logging.getLogger()
 	log.setLevel('DEBUG')
@@ -556,6 +383,7 @@ if __name__ == '__main__':
 	handler.setLevel('DEBUG')
 	log.addHandler(handler)
 
+	# Get args
 	threads, ref_introns, genome_fasta, output_base = sys.argv[1:]
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 	threads = int(threads)
@@ -563,8 +391,6 @@ if __name__ == '__main__':
 	with open(f'{output_base}trimmed_reads_to_genome.sam') as sam:
 		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} trimmed alignments')
-	# n_chunks = math.ceil(n_aligns/ALIGN_CHUNKSIZE)
-	# chunk_starts = list(c*ALIGN_CHUNKSIZE+1 for c in range(n_chunks))
 	chunk_starts = [start for start in range(1, n_aligns+1, ALIGN_CHUNKSIZE)]
 	log.debug(f'chunk starts: {chunk_starts}')
 
@@ -590,59 +416,16 @@ if __name__ == '__main__':
 	with open(f'{output_base}failed_trimmed_alignments.tsv', 'w') as w:
 		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
 
-	# # Load alignments, skipping bad-quality alignments
-	# alignments = parse_trimmed_alignments(f'{output_base}trimmed_reads_to_genome.sam')
-
-	# # Record read count
-	# rids = set(rid.split('/')[0] for rid in fivep_info.read_id.values)
-	# with open(f'{output_base}read_counts.tsv', 'a') as a:
-	# 	a.write(f'fivep_filter_passed\t{len(rids)}\n')
-
-	# if alignments.empty:
-	# 	print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
-	# 	exit()
-
-
-
-
-	# processes = []
-	# for i in range(threads):
-	# 	alignments_subset = alignments.iloc[i::threads].copy()
-	# 	if alignments_subset.empty:
-	# 		continue
-	# 	subset_process = multiprocessing.Process(target=filter_trimmed_alignments, args=(alignments_subset, introns, genome_fasta, fivep_info, output_base,))
-	# 	subset_process.start()
-	# 	processes.append(subset_process)
-		
-	# for p in processes:
-	# 	p.join()
-
-	# Create a pool of processes to run through all the alignment chunks. 
-	# Up to [threads] processes will be running in parallel
-	# The pool will close when all processes have terminated
-	# args = [()]
-	# multiprocessing.shared_memory.SharedMemory()
-	
-	# manager = multiprocessing.Manager()
-	# introns_shared = manager.dict(introns)
-
-	# def w(chunk_start):
-	# 	return filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base, log)
-
-	
-	# with multiprocessing.Pool(processes=threads) as pool:
-	# 	results = pool.imap_unordered(w, chunk_starts)
-	# 	# results = pool.starmap_async(filter_alignments_chunk, chunk_starts)
-
-	# 	# Iterate through process results. If any processes hit an error, it will get raised when the process is iterated to
-	# 	for result in results:
-	# 		pass
+	# 
 	log.debug('Processing')
+	
 	pool = multiprocessing.Pool(processes=threads)
 	for start in chunk_starts:
 		pool.apply_async(filter_alignments_chunk, args=(start, fivep_info, introns, output_base, log,))
 	
+	# Don't create any more processes
 	pool.close()
+	# Wait until all processes are finished
 	pool.join()
 
 	# Collapse the template-switching reads rows so each row is one read
@@ -653,7 +436,7 @@ if __name__ == '__main__':
 	temp_switches['read_id'] = temp_switches.read_id.transform(lambda rid: rid[:-4].split('/')[0])
 	temp_switches = (temp_switches
 								.groupby(['read_id'], as_index=False)
-								.agg({col: comma_join for col in TEMPLATE_SWITCHING_COLS if col != 'read_id'})
+								.agg({col: functions.comma_join for col in TEMPLATE_SWITCHING_COLS if col != 'read_id'})
 							)
 	temp_switches.to_csv(f'{output_base}template_switching_reads.tsv', sep='\t', index=False)
 
