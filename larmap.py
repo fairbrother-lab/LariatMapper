@@ -107,7 +107,7 @@ if __name__ == '__main__':
 	log = logging.getLogger()
 	log.setLevel(levelname)
 	handler = logging.StreamHandler(sys.stdout)
-	handler.setFormatter(logging.Formatter(log_format, style='{', datefmt='%d/%m/%y %H:%M:%S',))
+	handler.setFormatter(logging.Formatter(log_format, style='{', datefmt='%d/%b/%y %H:%M:%S',))
 	log.addHandler(handler)
 
 	# Print arguments

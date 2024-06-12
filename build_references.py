@@ -29,9 +29,6 @@ REF_INTRONS_FILE = 'introns.tsv.gz'
 REF_FIVEP_FILE = 'fivep_sites.fa'
 REF_FIVEP_INDEX = 'fivep_sites'
 
-Exon = collections.namedtuple('Exon', ['chrom', 'strand', 'start', 'end', 'gene_id'])
-Intron = collections.namedtuple('Intron', ['chrom', 'strand', 'start', 'end', 'gene_id'])
-
 
 
 #=============================================================================#
@@ -108,7 +105,7 @@ def build_exons_introns(transcripts:dict, out_dir:str) -> pd.DataFrame:
 		
 		for i in range(n_exons):
 			# Add the ith exon to list
-			exon = Exon(chrom=chrom, strand=strand, start=transcript_exons[0], end=transcript_exons[1], gene_id=gene_id)
+			exon = (chrom, strand, transcript_exons[i][0], transcript_exons[i][1], gene_id)
 			exons.append(exon)
 
 			# Don't create an intron after the last exon 
@@ -117,11 +114,11 @@ def build_exons_introns(transcripts:dict, out_dir:str) -> pd.DataFrame:
 			
 			# Add the ith intron to list
 			if strand == '+':
-				intron_start = transcript_exons[i].end
-				intron_end = transcript_exons[i+1].start - 1
+				intron_start = transcript_exons[i][1]
+				intron_end = transcript_exons[i+1][0] - 1
 			else:
-				intron_start = transcript_exons[i+1].end
-				intron_end = transcript_exons[i].start
+				intron_start = transcript_exons[i+1][1]
+				intron_end = transcript_exons[i][0]
 			intron = (chrom, strand, intron_start, intron_end, gene_id)
 			introns.append(intron)
 	
