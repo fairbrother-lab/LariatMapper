@@ -244,7 +244,7 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 if __name__ == '__main__' :
 	# Get logger
 	log = logging.getLogger() 
-	log.setLevel('DEBUG')
+	# log.setLevel('DEBUG')
 	handler = logging.StreamHandler(sys.stdout)
 	handler.setLevel('DEBUG')
 	log.addHandler(handler)

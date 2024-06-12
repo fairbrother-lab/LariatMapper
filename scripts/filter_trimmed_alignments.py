@@ -378,7 +378,7 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 if __name__ == '__main__':
 	# Get logger
 	log = logging.getLogger()
-	log.setLevel('DEBUG')
+	# log.setLevel('DEBUG')
 	handler = logging.StreamHandler(sys.stdout)
 	handler.setLevel('DEBUG')
 	log.addHandler(handler)
@@ -418,15 +418,17 @@ if __name__ == '__main__':
 
 	# 
 	log.debug('Processing')
-	
-	pool = multiprocessing.Pool(processes=threads)
-	for start in chunk_starts:
-		pool.apply_async(filter_alignments_chunk, args=(start, fivep_info, introns, output_base, log,))
-	
-	# Don't create any more processes
-	pool.close()
-	# Wait until all processes are finished
-	pool.join()
+	if len(chunk_starts) ==1:
+		filter_alignments_chunk(chunk_starts[0], fivep_info, introns, output_base, log)
+	else:
+		pool = multiprocessing.Pool(processes=threads)
+		for start in chunk_starts:
+			pool.apply_async(filter_alignments_chunk, args=(start, fivep_info, introns, output_base, log,))
+		
+		# Don't create any more processes
+		pool.close()
+		# Wait until all processes are finished
+		pool.join()
 
 	# Collapse the template-switching reads rows so each row is one read
 	# We have to do this at the end because alignments to the same read can end up in different alignment chunks,

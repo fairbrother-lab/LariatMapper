@@ -34,7 +34,7 @@ if __name__ == '__main__':
 			pass
 		exit()
 
-	lariat_reads['head_len'] = lariat_reads.apply(lambda row: row['read_bp_pos'] if row['read_alignment']=='forward' else len(row['read_seq']) - row['read_bp_pos'], axis=1)
+	lariat_reads['head_len'] = lariat_reads.apply(lambda row: row['read_bp_pos']+1 if row['read_alignment']=='forward' else len(row['read_seq']) - (row['read_bp_pos']+1), axis=1)
 	lariat_reads['head_start'] = lariat_reads.apply(lambda row: row['bp_pos']-row['head_len'] if row['strand']=='+' else row['bp_pos'], axis=1)
 	lariat_reads['head_end'] = lariat_reads.apply(lambda row: row['bp_pos']+1 if row['strand']=='+' else row['bp_pos']+row['head_len']+1, axis=1)
 

@@ -50,13 +50,21 @@ trimmed_reads_to_genome="$OUTPUT_BASE"trimmed_reads_to_genome.sam
 reads_to_fivep="$OUTPUT_BASE"reads_to_fivep.sam
 FIVEP_INDEX=/datasets2/lariat_mapping/testing/output/test_ref/fivep_sites
 
+fivep_info_table="$OUTPUT_BASE"fivep_info_table.tsv
+trimmed_info_table="$OUTPUT_BASE"trimmed_info_table.tsv
+failed_fivep="$OUTPUT_BASE"failed_fivep_alignments.tsv
+failed_trimmed="$OUTPUT_BASE"failed_trimmed_alignments.tsv
+failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
+
+
+
 
 
 #=============================================================================#
 #                                    Calls                                    #
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping reads and extracting unmapped reads...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping reads and extracting unmapped reads...\n"
 if $single_end; then
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 	       --threads $THREADS -x $GENOME_INDEX -U $READ_FILE \
@@ -81,25 +89,25 @@ echo -e "linear_mapped\t$mapped_read_count" > $run_data
 echo -e "linear_unmapped\t$unmapped_read_count" >> $run_data
 
 # Save linear-mapped read alignments for later classification
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Writing mapped reads to BED file...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Writing mapped reads to BED file...\n"
 bedtools bamtobed -split -i $output_bam | gzip > "$OUTPUT_BASE"mapped_reads.bed.gz 
 
 ### Create fasta file of unmapped reads 
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Creating fasta file of unmapped reads...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Creating fasta file of unmapped reads...\n"
 samtools fasta -N -o $unmapped_fasta $unmapped_bam >/dev/null 2>&1 || exit 1
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Indexing unmapped reads fasta file...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Indexing unmapped reads fasta file...\n"
 samtools faidx $unmapped_fasta || exit 1
 
 
 
 
 ### Build a bowtie2 index of the unmapped reads
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Building bowtie2 index of unmapped fasta...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Building bowtie2 index of unmapped fasta...\n"
 bowtie2-build --quiet --threads $THREADS $unmapped_fasta $unmapped_fasta || exit 1 
 
 ## Align fasta file of all 5' splice sites (first 20nts of introns) to unmapped reads index
 # We need to order the output SAM by reference (the read id, in this case) for the following filtering process
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' splice sites to reads...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
 	| samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -M \
 	| samtools view \
@@ -107,13 +115,13 @@ bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threa
 	|| exit 1 
 
 # # ## Align unmapped reads to index of all 5' splice sites (first 20nts of introns)
-# printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' splice sites to reads...\n"
+# printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 # bowtie2 --local -k 1000 -L 20 -i C,1,0 --ma 1 --mp 1,1 --np 1 --rdg 1,1 --rfg 1,1 --score-min C,20,0 \
 # 		--no-unal --no-head --threads $THREADS -x $FIVEP_INDEX -f -U $unmapped_fasta \
 # 	> $reads_to_fivep 
 
 ## Extract reads with a mapped 5' splice site and trim it off
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
 # scalene --html --outfile "$OUTPUT_BASE"filter_fivep_profile.html $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE \
 python -u $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE \
 	|| exit 1 
@@ -121,26 +129,26 @@ python -u $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FAST
 
 
 ### Map 5' trimmed reads to genome
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Mapping 5' trimmed reads to genome...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' trimmed reads to genome...\n"
 hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 	   --no-unal --no-head --threads $THREADS -f -x $GENOME_INDEX -U $fivep_trimmed_reads \
 	> $trimmed_reads_to_genome \
 	|| exit 1
 
 ### Filter trimmed alignments
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
 # scalene --html --outfile "$OUTPUT_BASE"filter_trim_profile.html $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE \
 python -u $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE \
 	|| exit 1 
 
 ### Filter lariat mappings and choose 1 for each read
-printf "$(date +'%m/%d/%y - %H:%M:%S') | Filtering putative lariat alignments...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Filtering putative lariat alignments...\n"
 python -u $PIPELINE_DIR/scripts/filter_lariats.py $GENOME_FASTA $REPEATS_BED $OUTPUT_BASE \
 	|| exit 1 
 
 ### Make a custom track BED file of identified lariats 
 if $UCSC_TRACK; then
-	printf "$(date +'%m/%d/%y - %H:%M:%S') | Making UCSC Genome Browser track...\n"
+	printf "$(date +'%d/%b/%y %H:%M:%S') | Making UCSC Genome Browser track...\n"
 	python -u $PIPELINE_DIR/scripts/make_lariat_track.py $OUTPUT_BASE \
 		|| exit 1
 fi
@@ -149,7 +157,7 @@ fi
 wait
 ### Delete the intermediate files 
 if ! $KEEP_INTERMEDIATES; then
-	printf "$(date +'%m/%d/%y - %H:%M:%S') | Deleting intermediate files...\n"
+	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting intermediate files...\n"
 	rm $output_bam
 	rm $unmapped_bam
 	rm $unmapped_fasta 
@@ -163,12 +171,16 @@ if ! $KEEP_INTERMEDIATES; then
 	rm $unmapped_fasta.rev.2.bt*
 	rm $fivep_to_reads
 	rm $fivep_trimmed_reads
-	rm $fivep_info_table
 	rm $trimmed_reads_to_genome
+	rm $fivep_info_table
+	rm $trimmed_info_table
+	rm $failed_fivep
+	rm $failed_trimmed
+	rm $failed_lariat
 fi 
 
 if [ "${OUTPUT_BASE: -1}" == "/" ];then
-	printf "$(date +'%m/%d/%y - %H:%M:%S') | Lariat mapping complete.\n"
+	printf "$(date +'%d/%b/%y %H:%M:%S') | Lariat mapping complete.\n"
 else
-	printf "$(date +'%m/%d/%y - %H:%M:%S') | Lariat mapping complete for "$(echo ${OUTPUT_BASE:0:-1} | sed "s:.*/::")".\n"
+	printf "$(date +'%d/%b/%y %H:%M:%S') | Lariat mapping complete for "$(echo ${OUTPUT_BASE:0:-1} | sed "s:.*/::")".\n"
 fi
