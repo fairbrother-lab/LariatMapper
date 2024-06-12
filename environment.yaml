@@ -9,7 +9,7 @@ dependencies:
   - intervaltree
   - numpy
   - pandas
-  - pyarrow       # pandas whines if this isn't included
+  - pyarrow         # pandas whines if this isn't included
   - python
   - pyfaidx
   - pysam

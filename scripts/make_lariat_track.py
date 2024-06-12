@@ -24,7 +24,7 @@ def reverse_complement(seq):
 #=============================================================================#
 #                                    Main                                     #
 #=============================================================================#
-def main():
+if __name__ == '__main__':
 	output_base = sys.argv[1]
 
 	# Load lariat reads table
@@ -62,7 +62,3 @@ def main():
 		w.write(f'track name=Lariats itemRgb=On visibility="squish"\n')
 	lariat_reads.to_csv(f'{output_base}lariat_reads.bed', mode='a', sep='\t', index=False, header=False)
 
-
-
-if __name__ == '__main__':
-	main()

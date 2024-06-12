@@ -1,19 +1,21 @@
 import sys
 import subprocess 
 import gzip
-import time
 import random
+import logging
 
 import pandas as pd
+import numpy as np
+
+import functions
+
 
 
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
-FINAL_RESULTS_COLS = ('read_id',
-						'gene_name',
+FINAL_RESULTS_COLS = ['read_id',
                         'gene_id',
-                        'gene_type',
                         'chrom',
                         'strand',
                         'fivep_pos',
@@ -27,14 +29,14 @@ FINAL_RESULTS_COLS = ('read_id',
 						'genomic_bp_nt',
                         'genomic_bp_context',
                         'total_mapped_reads',
-						)
+						]
 
 
 
 # =============================================================================#
 #                                  Functions                                  #
 # =============================================================================#
-def load_lariat_table(output_base: str) -> pd.DataFrame:
+def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	'''
 	For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_lariat_info_table.tsv and put them in a dict, which
 	can then be added to the experiment-wide superset dict
@@ -43,13 +45,13 @@ def load_lariat_table(output_base: str) -> pd.DataFrame:
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
 	if lariat_reads.empty:
-		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
-		# with open(f'{output_base}lariat_reads.tsv', 'w') as w:
-		# 	w.write('\t'.join(FINAL_RESULTS_COLS))
-		# with open(f'{output_base}failed_lariat_alignments.tsv', 'w') as w:
-		# 	w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
-		# with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
-		# 	w.write('\t'.join(FINAL_RESULTS_COLS))
+		log.info('No reads remaining')
+		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
+			w.write('\t'.join(FINAL_RESULTS_COLS))
+		with open(f'{output_base}failed_lariat_alignments.tsv', 'w') as w:
+			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
+		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
+			w.write('\t'.join(FINAL_RESULTS_COLS))
 		exit()
 	
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
@@ -72,6 +74,7 @@ def add_mapped_reads(output_base:str) -> int:
 	return sample_read_count
 
 
+#TODO: Implement a more elaborate check. We only need to check for UBC-type repeats as possible false-positives
 def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str) -> set:
 	''' 
     Check if both the 5'SS and the BP overlap with a repetitive region
@@ -114,11 +117,6 @@ def filter_lariats(row:pd.Series, repeat_rids:set, template_switching_rids:set):
 			- Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive due to sequence repetition)
 			- BP is within 2bp of a splice site (likely an intron circle, not a lariat)
 	'''
-	# Check if read mapped to a ubiquitin gene
-	if row['gene_name'] in ('UBC', 'UBB'):
-		return 'ubiquitin_gene'
-	
-	# Check if read mapped to a repetitive region
 	if row['read_id'] in repeat_rids:
 		return 'in_repeat'
 	
@@ -128,7 +126,7 @@ def filter_lariats(row:pd.Series, repeat_rids:set, template_switching_rids:set):
 	if row['bp_dist_to_threep'] in (0, -1, -2):
 		return 'circularized'
 
-	return pd.NA
+	return np.nan
 
 
 def choose_read_mapping(lariat_reads):
@@ -173,11 +171,20 @@ def choose_read_mapping(lariat_reads):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	ref_fasta, ref_repeatmasker, output_base = sys.argv[1:]
+	# Get logger
+	log = logging.getLogger()
+	log.setLevel('DEBUG')
+	handler = logging.StreamHandler(sys.stdout)
+	handler.setLevel('DEBUG')
+	log.addHandler(handler)
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S | Parsing lariat reads...'))
-	lariat_reads = load_lariat_table(output_base)
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Pre-filter read count = {len(lariat_reads.read_id.unique())}')
+	# Get args
+	ref_fasta, ref_repeatmasker, output_base = sys.argv[1:]
+	log.info(f'Args recieved: {sys.argv[1:]}')
+
+	log.debug('Parsing lariat reads...')
+	lariat_reads = load_lariat_table(output_base, log)
+	log.debug(f'Pre-filter read count = {len(lariat_reads.read_id.unique())}')
 
 	# Record read count
 	rids = set(rid.split('/')[0] for rid in lariat_reads.read_id.values)
@@ -205,10 +212,10 @@ if __name__ == '__main__':
 	# Seperate failed mappings from passed mappings
 	failed_mappings = lariat_reads[lariat_reads.filter_failed.notna()].copy()
 	filtered_lariats = lariat_reads.loc[lariat_reads.filter_failed.isna(), FINAL_RESULTS_COLS]
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | Post-filter read count = {len(filtered_lariats.read_id.unique())}')
+	log.debug(f'Post-filter read count = {filtered_lariats.read_id.nunique()}')
 
 	# Now write it all to file
-	print(time.strftime('%m/%d/%y - %H:%M:%S | Writing results to output files...'))
+	log.debug('Writing results to output files...')
 	failed_mappings.to_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', index=False)
 	filtered_lariats.to_csv(f'{output_base}lariat_reads.tsv', sep='\t', index=False)
 	circularized_introns.to_csv(f'{output_base}circularized_intron_reads.tsv', sep='\t', index=False)
@@ -218,3 +225,5 @@ if __name__ == '__main__':
 		a.write(f'lariat\t{filtered_lariats.read_id.nunique()}\n')
 		a.write(f'template-switch\t{len(template_switching_rids)}\n')
 		a.write(f'circularized_intron\t{circularized_introns.read_id.nunique()}\n')
+
+	log.debug('End of script')
