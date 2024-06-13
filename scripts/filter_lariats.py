@@ -34,7 +34,7 @@ FINAL_RESULTS_COLS = ['read_id',
 
 
 # =============================================================================#
-#                                  Functions                                  #
+#                                  Functions                                   #
 # =============================================================================#
 def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	'''
@@ -171,16 +171,12 @@ def choose_read_mapping(lariat_reads):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	# Get logger
-	log = logging.getLogger()
-	# log.setLevel('DEBUG')
-	handler = logging.StreamHandler(sys.stdout)
-	handler.setLevel('DEBUG')
-	log.addHandler(handler)
-
 	# Get args
-	ref_fasta, ref_repeatmasker, output_base = sys.argv[1:]
-	log.info(f'Args recieved: {sys.argv[1:]}')
+	ref_fasta, ref_repeatmasker, output_base, log_level = sys.argv[1:]
+
+	# Get logger
+	log = functions.get_logger(log_level)
+	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	log.debug('Parsing lariat reads...')
 	lariat_reads = load_lariat_table(output_base, log)
@@ -200,7 +196,7 @@ if __name__ == '__main__':
 	template_switching_rids = check_template_switching(output_base)
 
 	# Filter lariat reads
-	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, template_switching_rids=template_switching_rids, axis=1)
+	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, template_switching_rids=template_switching_rids, axis=1).astype('object')
 	circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', FINAL_RESULTS_COLS]
 	# There shall be no read that escapes failure for circularizing
 	circularized_intron_rids = set(circularized_introns.read_id)

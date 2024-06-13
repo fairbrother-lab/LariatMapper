@@ -2,9 +2,14 @@
 	"version": 1,
 	"formatters": {
 	  "simple": {
-		"format": "%(levelname)s: %(message)s",
-		"datefmt": "",
-		"style": ""
+		"format": "{asctime} | {message}",
+		"datefmt": "%d/%b/%y %H:%M:%S",
+		"style": "{"
+	  },
+	  "extensive":{
+		"format": "{asctime} | {filename} | line {lineno:<3} | {message}",
+		"datefmt": "%d/%b/%y %H:%M:%S",
+		"style": "{"
 	  }
 	},
 	"handlers": {
@@ -12,20 +17,25 @@
 		"class": "logging.StreamHandler",
 		"formatter": "simple",
 		"stream": "ext://sys.stdout"
+	  },
+	  "extensive": {
+		"class": "logging.StreamHandler",
+		"formatter": "extensive",
+		"stream": "ext://sys.stdout"
 	  }
 	},
 	"loggers": {
-	  "default": {
-		"level": "INFO",
-		"handlers": [
-		  "stdout"
-		]
-	  },
-	  "debug": {
-		"level": "DEBUG",
-		"handlers": [
-			""
-		]
-	  }
+		"debug": {
+			"level": "DEBUG",
+			"handlers": [ "extensive" ]
+		},
+		"info": {
+			"level": "INFO",
+			"handlers": [ "simple" ]
+			},
+		"error": {
+			"level": "ERROR",
+			"handlers": [ "extensive" ]
+		}
 	}
   }
