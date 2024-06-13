@@ -106,8 +106,8 @@ if __name__ == '__main__':
 	log = functions.get_logger(log_level)
 
 	# Print arguments
-	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None]
-	arg_message = '\n'.join(arg_message) + '\n'
+	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
+	arg_message = '\n\t\t\t\t'.join(arg_message)
 	log.info(f'Arguments: {arg_message}')
 
 	# Validate the args and determine additional variables

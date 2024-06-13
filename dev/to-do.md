@@ -5,11 +5,11 @@
 - Find a way to map reads to 5'ss sequences instead of converting reads to an index and mapping 5'ss sequences to it (this is one of the most time-consuming steps in the pipeline)
 
 ### In the future
-- Start using Releases for updates
 - Change build_references.py so the copied reference files (fasta and repeatmasker) are always gzipped 
 - Add support for stranded RNA-seq
 - Add support for long-read sequencing (Nanopore/Pacbio)
 - Add version specifications to the dependencies in environment.yaml
+- Convert map_lariats.sh into a python script for consistency and greater flexibility 
 - Option to input previously-created BAM as mapped_reads.bam, skipping the initial mapping step. Maybe make this the default?
 
 ### Maybe
