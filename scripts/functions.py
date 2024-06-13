@@ -42,8 +42,8 @@ def get_logger(level:str) -> logging.Logger:
 	'''
 	assert level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
 	config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../resources/log_config.json')
-	with open(config_file) as x:
-		config = json.load(x)
+	with open(config_file) as file_in:
+		config = json.load(file_in)
 	logging.config.dictConfig(config)
 
 	log = logging.getLogger(level.lower())
