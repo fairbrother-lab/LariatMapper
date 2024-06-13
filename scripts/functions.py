@@ -2,6 +2,7 @@ import os
 import logging
 import logging.config
 import json
+import subprocess
 
 
 
@@ -48,4 +49,15 @@ def get_logger(level:str) -> logging.Logger:
 
 	log = logging.getLogger(level.lower())
 	return log
+
+
+def run_command(call:str, input:str=None) -> str:
+	'''
+	Wrapper for subprocess.run(call.split(' '), input=input, capture_output=True, text=True) for handling errors and extracting stdout, when appropriate
+	'''
+	response = subprocess.run(call.split(' '), input=input, capture_output=True, text=True)
+	if response.returncode != 0:
+		error_msg = response.stderr + f'Call: {call}'
+		raise RuntimeError(error_msg)
 	
+	return response.stdout.strip()
