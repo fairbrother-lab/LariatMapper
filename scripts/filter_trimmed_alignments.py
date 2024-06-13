@@ -33,6 +33,7 @@ ALIGN_INITIAL_COLS = ['read_id',
 					  'align_start', 
 					  'align_end', 
 					  'align_is_reverse', 
+					  'quality',
 					  'read_bp_nt']
 
 FIVEP_INFO_COLS = ['read_id',
@@ -46,23 +47,6 @@ FIVEP_INFO_COLS = ['read_id',
 				'fivep_chrom',
 				'fivep_pos',
 				'strand']
-
-FAILED_ALIGNMENTS_COLS = ['read_id',
-						  'read_is_reverse',
-						  'trim_seq',
-						  'chrom',
-						  'align_is_reverse',
-						  'align_start',
-						  'align_end', 
-						  'fivep_pos',
-						  'read_bp_pos',
-						  'read_bp_nt',
-						  'bp_pos',
-						  'threep_pos',
-						  'bp_dist_to_threep',
-						  'genomic_bp_context',
-						  'genomic_bp_nt',
-						  'filter_failed']
 
 TEMPLATE_SWITCHING_COLS = ['read_id',
 						'fivep_sites',
@@ -80,6 +64,7 @@ FINAL_INFO_TABLE_COLS = ['read_id',
 						'align_start',
 						'align_end', 
 						'align_is_reverse',
+					  	'quality',
 						'fivep_pos', 
 						'bp_pos', 
 						'read_bp_pos',
@@ -94,6 +79,7 @@ FINAL_INFO_TABLE_COLS = ['read_id',
 filtered_out_lock = multiprocessing.Lock()
 failed_out_lock = multiprocessing.Lock()
 temp_switch_lock = multiprocessing.Lock()
+circulars_lock = multiprocessing.Lock()
 
 
 
@@ -181,9 +167,9 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int):
 								sep='\t',
 								comment='@',
 								header=None,
-								usecols=[0, 1, 2, 3, 5, 9, 13, 14, 15],
-								names=['read_id', 'flag', 'chrom', 'align_start', 'cigar', 'trim_seq', 'tag1', 'tag2', 'tag3'],
-								dtype={'read_id': 'string', 'chrom': 'category', 'align_start': 'UInt64'},
+								usecols=[0, 1, 2, 3, 4, 5, 9, 13, 14, 15],
+								names=['read_id', 'flag', 'chrom', 'align_start', 'quality', 'cigar', 'trim_seq', 'tag1', 'tag2', 'tag3'],
+								dtype={'read_id': 'string', 'chrom': 'category', 'align_start': 'UInt64', 'quality': 'UInt16'},
 								skiprows=chunk_start-1,
 								nrows=ALIGN_CHUNKSIZE,)
 
@@ -219,9 +205,9 @@ def get_bp_seqs(alignments:pd.DataFrame, genome_fasta:str):
 	
 	bedtools_input = '\n'.join(alignments.bedtools_line) + '\n'
 	bedtools_call = f'bedtools getfasta -nameOnly -s -tab -fi {genome_fasta} -bed -'
-	bedtools_lines = subprocess.run(bedtools_call.split(' '), input=bedtools_input, check=True, capture_output=True, text=True).stdout.strip().split('\n')
-	
-	bp_seqs = pd.DataFrame([l.split('\t') for l in bedtools_lines], columns=['align_num', 'genomic_bp_context'])
+	response = functions.run_command(bedtools_call, bedtools_input)
+
+	bp_seqs = pd.DataFrame([l.split('\t') for l in response.split('\n')], columns=['align_num', 'genomic_bp_context'])
 	bp_seqs.align_num = bp_seqs.align_num.str.slice(0,-3)
 	bp_seqs.genomic_bp_context = bp_seqs.genomic_bp_context.transform(lambda genomic_bp_context: genomic_bp_context.upper())
 	
@@ -244,7 +230,7 @@ def add_nearest_threep(row:pd.Series):
 	return threep_pos
 
 
-def final_filters(row:pd.Series):
+def more_filters(row:pd.Series):
 	# Check if bad alignment orientation combination, which do NOT leave the branchpoint adjacent to the 5'ss in the read as is expected of lariats
 	if row['read_is_reverse'] is False:
 		if row['align_is_reverse'] is False and row['strand']=='-':
@@ -257,30 +243,28 @@ def final_filters(row:pd.Series):
 		elif row['align_is_reverse'] is True and row['strand']=='-':
 			return 'wrong_orientation'
 
-	# Check if the 5'ss is at or downstream of the BP
-	if row['strand'] == '+' and row['fivep_pos'] >= row['bp_pos']:
+	# Check if the 5'ss is at or downstream of the tail's start
+	if row['strand'] == '+' and row['fivep_pos'] >= row['align_start']:
 		return '5p_bp_order'
-	if row['strand'] == '-' and row['fivep_pos'] <= row['bp_pos']:
+	if row['strand'] == '-' and row['fivep_pos'] <= row['align_end']:
 		return '5p_bp_order'
 
 	return pd.NA
 
 
 def drop_failed_alignments(alignments:pd.DataFrame, output_base:str) -> pd.DataFrame:
-		alignments = alignments.copy()
-
 		# Get alignments that failed one of the filters
-		failed_alignments = alignments.loc[alignments.filter_failed.notna()].copy()
+		failed_aligns = alignments.loc[alignments.filter_failed.notna()].copy()
 
 		# Add in any missing cols as needed
-		for col in FAILED_ALIGNMENTS_COLS:
-			if col not in failed_alignments.columns:
-				failed_alignments[col] = ''
+		for col in FINAL_INFO_TABLE_COLS:
+			if col not in failed_aligns.columns:
+				failed_aligns[col] = ''
 		
 		# Arrange cols and a write to file
-		failed_alignments = failed_alignments[FAILED_ALIGNMENTS_COLS].drop_duplicates()
+		failed_aligns = failed_aligns[[*FINAL_INFO_TABLE_COLS, 'filter_failed']].drop_duplicates()
 		with failed_out_lock:
-			failed_alignments.to_csv(f'{output_base}failed_trimmed_alignments.tsv', mode='a', sep='\t', header=False, index=False)
+			failed_aligns.to_csv(f'{output_base}failed_trimmed_alignments.tsv', mode='a', sep='\t', header=False, index=False)
 
 		# Remove failed alignments from DataFrame
 		alignments = alignments.loc[alignments.filter_failed.isna()]
@@ -343,23 +327,40 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after fivep_intron_match filter')
 		return 
 	
+	# Infer more info
+	alignments['threep_pos'] = alignments.apply(add_nearest_threep, axis=1)
+	alignments['bp_dist_to_threep'] = alignments.apply(lambda row: -abs(row['bp_pos']-row['threep_pos']) if pd.notna(row['threep_pos']) else pd.NA, axis=1)
+	
 	# Filter alignments based on proper read orientation and 5'ss-BP ordering
-	alignments['filter_failed'] = alignments.apply(final_filters, axis=1, result_type='reduce')
+	alignments['filter_failed'] = alignments.apply(more_filters, axis=1, result_type='reduce')
 	alignments = drop_failed_alignments(alignments, output_base)
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after final filters')
 		return 
 	
-	# Infer more info
-	alignments['threep_pos'] = alignments.apply(add_nearest_threep, axis=1)
-	alignments['bp_dist_to_threep'] = alignments.apply(lambda row: -abs(row['bp_pos']-row['threep_pos']) if pd.notna(row['threep_pos']) else pd.NA, axis=1)
+	# Identify circularized intron reads
+	alignments['circular'] = alignments.bp_dist_to_threep.isin((0, -1, -2))
+
+	# Output circularized intron reads
+	circulars = alignments.loc[alignments.circular].copy()
+	if not circulars.empty:
+		circulars = circulars.astype(str)
+		circulars['fivep_sites'] = circulars[['fivep_chrom', 'strand', 'fivep_pos']].agg(functions.comma_join, axis=1)
+		circulars = circulars[FINAL_INFO_TABLE_COLS]
+		with circulars_lock:
+			circulars.to_csv(f'{output_base}circularized_intron_reads.tsv', mode='a', sep='\t', header=False, index=False)
+
+	# Filter out circularized intron reads
+	alignments = alignments.loc[~alignments.circular]
+	if alignments.empty:
+		log.debug(f'Process {os.getpid()}: Chunk exhausted after circularized intron filter')
+		return 
 
 	# Drop all the uneeded columns
 	alignments = alignments[FINAL_INFO_TABLE_COLS]
 	
 	# Some reads get mapped to coordinates with multiple overlapping gene annotations
-	# We resolve this by collapsing the duplicated rows and concatenating the gene_id, gene_name, and gene_type columns
-	# Code adapted from https://stackoverflow.com/questions/27298178/concatenate-strings-from-several-rows-using-pandas-groupby
+	# We resolve this by collapsing the duplicated rows and concatenating the gene_id column
 	alignments = (alignments.groupby([col for col in alignments.columns if col != 'gene_id'], as_index=False, observed=True)
 									.gene_id
 									.agg(functions.comma_join)
@@ -369,6 +370,16 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 		alignments.to_csv(f'{output_base}trimmed_info_table.tsv', mode='a', sep='\t', index=False, header=False)
 
 	log.debug(f'Process {os.getpid()}: Chunk finished')
+
+
+def collapse_to_rid(file:str) -> None:
+	df = pd.read_csv(file, sep='\t', dtype='string')
+	df['read_id'] = df.read_id.transform(lambda rid: rid[:-4].split('/')[0])
+	df = (df
+			.groupby(['read_id'], as_index=False)
+			.agg({col: functions.comma_join for col in df.columns if col != 'read_id'})
+			)
+	df.to_csv(file, sep='\t', index=False)
 
 
 
@@ -408,10 +419,12 @@ if __name__ == '__main__':
 	# The rows will get appended in chunks during filter_alignments_chunk()
 	with open(f'{output_base}trimmed_info_table.tsv', 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
+	with open(f'{output_base}failed_trimmed_alignments.tsv', 'w') as w:
+		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\tfilter_failed' + '\n')
 	with open(f'{output_base}template_switching_reads.tsv', 'w') as w:
 		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
-	with open(f'{output_base}failed_trimmed_alignments.tsv', 'w') as w:
-		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
+	with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
+		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
 
 	# 
 	log.debug('Processing')
@@ -427,17 +440,12 @@ if __name__ == '__main__':
 		# Wait until all processes are finished
 		pool.join()
 
-	# Collapse the template-switching reads rows so each row is one read
-	# We have to do this at the end because alignments to the same read can end up in different alignment chunks,
-	# as can alignments to different mates from the same read if paired-end sequencing data
+	# Collapse the template-switching and circularized intron files so each row is one read
+	# We have to do this at the end because alignments to the same read can end up in different alignment chunk
 	log.debug('Collapsing temp switch')
-	temp_switches = pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t', dtype='string')
-	temp_switches['read_id'] = temp_switches.read_id.transform(lambda rid: rid[:-4].split('/')[0])
-	temp_switches = (temp_switches
-								.groupby(['read_id'], as_index=False)
-								.agg({col: functions.comma_join for col in TEMPLATE_SWITCHING_COLS if col != 'read_id'})
-							)
-	temp_switches.to_csv(f'{output_base}template_switching_reads.tsv', sep='\t', index=False)
+	collapse_to_rid(f'{output_base}template_switching_reads.tsv')
+	log.debug('Collapsing circulars')
+	collapse_to_rid(f'{output_base}circularized_intron_reads.tsv')
 
 	log.debug('End of script')
 
