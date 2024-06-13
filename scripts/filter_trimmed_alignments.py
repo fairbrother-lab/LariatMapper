@@ -288,13 +288,10 @@ def drop_failed_alignments(alignments:pd.DataFrame, output_base:str) -> pd.DataF
 
 
 def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base, log) -> None:
-	log.debug(f'Process {os.getpid()} created, assigned lines {chunk_start:,}-{chunk_start+ALIGN_CHUNKSIZE-1:,}')
+	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_start+ALIGN_CHUNKSIZE-1:,}')
 
 	# Load in the assigned chunk of alignments, excluding skipping low-quality alignments
 	alignments = parse_alignments_chunk(f'{output_base}trimmed_reads_to_genome.sam', chunk_start)
-	mem_mb = alignments.memory_usage(index=False, deep=True).divide(1_000_000).sum()
-	log.debug(f'Process {os.getpid()}: Alignments memory use is {mem_mb:.3} MB')
-	# log.debug(f'Current memory use is {psutil.virtual_memory().used/1_000_000:0.3} MB ({psutil.virtual_memory().percent}%)')
 
 	# Merge alignments with fivep_info
 	# This expands each alignment row into alignment-5'ss-combination rows
@@ -324,6 +321,7 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 	# Filter out template-switching reads
 	alignments = alignments.loc[~alignments.template_switching].drop(columns='template_switching')
 	if alignments.empty:
+		log.debug(f'Process {os.getpid()}: Chunk exhausted after template-switching filter')
 		return 
 	
 	# Identify introns that overlap the alignment
@@ -333,6 +331,7 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 	alignments.loc[alignments.overlap_introns.transform(len)==0, 'filter_failed'] = 'overlap_introns'
 	alignments = drop_failed_alignments(alignments, output_base)
 	if alignments.empty:
+		log.debug(f'Process {os.getpid()}: Chunk exhausted after overlap_introns filter')
 		return 
 	
 	# Filter out alignments where 5'ss and BP segments aren't in the same gene
@@ -341,12 +340,14 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 	alignments.loc[alignments.overlap_introns.transform(len).eq(0), 'filter_failed'] = 'fivep_intron_match'
 	alignments = drop_failed_alignments(alignments, output_base)
 	if alignments.empty:
+		log.debug(f'Process {os.getpid()}: Chunk exhausted after fivep_intron_match filter')
 		return 
 	
 	# Filter alignments based on proper read orientation and 5'ss-BP ordering
 	alignments['filter_failed'] = alignments.apply(final_filters, axis=1, result_type='reduce')
 	alignments = drop_failed_alignments(alignments, output_base)
 	if alignments.empty:
+		log.debug(f'Process {os.getpid()}: Chunk exhausted after final filters')
 		return 
 	
 	# Infer more info
@@ -368,7 +369,6 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 		alignments.to_csv(f'{output_base}trimmed_info_table.tsv', mode='a', sep='\t', index=False, header=False)
 
 	log.debug(f'Process {os.getpid()}: Chunk finished')
-	# log.debug(f'Current memory use is {psutil.virtual_memory().used/1_000_000:0.3} MB ({psutil.virtual_memory().percent:%})')
 
 
 
@@ -376,16 +376,13 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	# Get logger
-	log = logging.getLogger()
-	# log.setLevel('DEBUG')
-	handler = logging.StreamHandler(sys.stdout)
-	handler.setLevel('DEBUG')
-	log.addHandler(handler)
-
 	# Get args
-	threads, ref_introns, genome_fasta, output_base = sys.argv[1:]
+	threads, ref_introns, genome_fasta, output_base, log_level = sys.argv[1:]
+
+	# Get logger
+	log = functions.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
+
 	threads = int(threads)
 	
 	with open(f'{output_base}trimmed_reads_to_genome.sam') as sam:
@@ -418,7 +415,7 @@ if __name__ == '__main__':
 
 	# 
 	log.debug('Processing')
-	if len(chunk_starts) ==1:
+	if len(chunk_starts) == 1:
 		filter_alignments_chunk(chunk_starts[0], fivep_info, introns, output_base, log)
 	else:
 		pool = multiprocessing.Pool(processes=threads)
@@ -442,5 +439,5 @@ if __name__ == '__main__':
 							)
 	temp_switches.to_csv(f'{output_base}template_switching_reads.tsv', sep='\t', index=False)
 
-	log.info('End of script')
+	log.debug('End of script')
 

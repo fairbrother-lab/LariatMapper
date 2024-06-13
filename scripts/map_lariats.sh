@@ -27,13 +27,15 @@ KEEP_INTERMEDIATES=$8
 UCSC_TRACK="${9}"
 # Directory containing lariat mapping pipeline files
 PIPELINE_DIR="${10}"
+# Directory containing lariat mapping pipeline files
+LOG_LEVEL="${11}"
 # RNA-seq fastq read file(s)
-if [ $# == 11 ]; then
-	READ_FILE="${11}"
+if [ $# == 12 ]; then
+	READ_FILE="${12}"
 	single_end=true
 else
-	READ_ONE="${11}"
-	READ_TWO="${12}"
+	READ_ONE="${12}"
+	READ_TWO="${13}"
 	single_end=false
 fi
 
@@ -123,7 +125,7 @@ bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threa
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%d/%b/%y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
 # scalene --html --outfile "$OUTPUT_BASE"filter_fivep_profile.html $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE \
-python -u $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE \
+python -u $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
 
@@ -138,18 +140,18 @@ hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 ### Filter trimmed alignments
 printf "$(date +'%d/%b/%y %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
 # scalene --html --outfile "$OUTPUT_BASE"filter_trim_profile.html $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE \
-python -u $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE \
+python -u $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
 ### Filter lariat mappings and choose 1 for each read
 printf "$(date +'%d/%b/%y %H:%M:%S') | Filtering putative lariat alignments...\n"
-python -u $PIPELINE_DIR/scripts/filter_lariats.py $GENOME_FASTA $REPEATS_BED $OUTPUT_BASE \
+python -u $PIPELINE_DIR/scripts/filter_lariats.py $GENOME_FASTA $REPEATS_BED $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
 ### Make a custom track BED file of identified lariats 
 if $UCSC_TRACK; then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | Making UCSC Genome Browser track...\n"
-	python -u $PIPELINE_DIR/scripts/make_lariat_track.py $OUTPUT_BASE \
+	python -u $PIPELINE_DIR/scripts/make_lariat_track.py $OUTPUT_BASE $LOG_LEVEL \
 		|| exit 1
 fi
 

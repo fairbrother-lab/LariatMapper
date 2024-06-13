@@ -10,6 +10,9 @@ import logging
 
 
 
+from scripts import functions
+
+
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
@@ -79,36 +82,28 @@ if __name__ == '__main__':
 	parser.add_argument('-n', '--ref_introns', help='BED file of all annotated introns')
 	# Optional arguments
 	log_levels = parser.add_mutually_exclusive_group()
-	log_levels.add_argument('-q', '--quiet', action='store_true', default=False, help="Don't print any status messages")
-	log_levels.add_argument('-d', '--debug', action='store_true', default=False, help="Print extensive status messages")
+	log_levels.add_argument('-q', '--quiet', action='store_true', help="Don't print any status messages")
+	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages")
 	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Optional)')
 	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
 	parser.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
-	parser.add_argument('-u', '--ucsc_track', action='store_true', default=False, help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
+	parser.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
 	parser.add_argument('-k', '--keep_intermediates', action='store_true', help='Don\'t delete the intermediate files created while running the pipeline (default=delete)')
 
 	# Parse
 	args = parser.parse_args()
 
+	# Get path to the pipeline's directory so we can call scripts in the "scripts" folder
+	pipeline_dir = os.path.dirname(os.path.realpath(__file__))
+
 	# Setup logging
-	log_format = '{asctime} | {message}'
 	if args.quiet is True:
-		levelname = 'ERROR'
+		log_level = 'ERROR'
 	elif args.debug is True:
-		levelname = 'DEBUG'
-		log_format = '{asctime} | {filename:^10} | line {lineno:<3} | {message}'
+		log_level = 'DEBUG'
 	else:
-		levelname = 'INFO'
-	# logging.basicConfig(level=levelname, 
-	# 				format=log_format,
-	# 				style='{',
-	# 				datefmt='%d/%m/%y %H:%M:%S',
-	# 				force=True)
-	log = logging.getLogger()
-	log.setLevel(levelname)
-	handler = logging.StreamHandler(sys.stdout)
-	handler.setFormatter(logging.Formatter(log_format, style='{', datefmt='%d/%b/%y %H:%M:%S',))
-	log.addHandler(handler)
+		log_level = 'INFO'
+	log = functions.get_logger(log_level)
 
 	# Print arguments
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None]
@@ -117,9 +112,6 @@ if __name__ == '__main__':
 
 	# Validate the args and determine additional variables
 	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker, output_base = process_args(args)
-	
-	# Get path to the pipeline's directory so we can call scripts in the "scripts" folder
-	pipeline_dir = os.path.dirname(os.path.realpath(__file__))
 
 	# Set start method for multiprocessing in filter_fivep_alignments.py and filter_trimmed_alignments.py
 	# Using the default "fork" method causes memory errors when processing bigger RNA-seq inputs
@@ -133,7 +125,7 @@ if __name__ == '__main__':
 		os.mkdir(args.output_dir)
 
 	# Prepare call to map_lariats.sh
-	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker, str(args.keep_intermediates).lower(), str(args.ucsc_track).lower(), pipeline_dir]
+	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker, str(args.keep_intermediates).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level]
 	if seq_type == 'single':
 		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
 		log.debug('Processing single-end read file...')

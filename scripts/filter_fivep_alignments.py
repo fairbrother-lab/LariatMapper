@@ -242,16 +242,13 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__' :
-	# Get logger
-	log = logging.getLogger() 
-	# log.setLevel('DEBUG')
-	handler = logging.StreamHandler(sys.stdout)
-	handler.setLevel('DEBUG')
-	log.addHandler(handler)
-
 	# Get args
-	threads, genome_fasta, fivep_fasta, output_base = sys.argv[1:]
+	threads, genome_fasta, fivep_fasta, output_base, log_level = sys.argv[1:]
+
+	# Get logger
+	log = functions.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
+	
 	threads = int(threads)
 	fivep_to_reads = f'{output_base}fivep_to_reads.sam'
 

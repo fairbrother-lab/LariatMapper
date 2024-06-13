@@ -1,7 +1,8 @@
 import sys
-import time
 
 import pandas as pd
+
+import functions
 
 
 
@@ -25,7 +26,12 @@ def reverse_complement(seq):
 #                                    Main                                     #
 #=============================================================================#
 if __name__ == '__main__':
-	output_base = sys.argv[1]
+	# Get args
+	output_base, log_level = sys.argv[1:]
+
+	# Get logger
+	log = functions.get_logger(log_level)
+	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Load lariat reads table
 	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t')
