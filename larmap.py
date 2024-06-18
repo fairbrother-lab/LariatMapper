@@ -19,7 +19,7 @@ from scripts import functions
 def process_args(args:argparse.ArgumentParser):
 	# Determine whether input is single-end or paired-end and confirm that the read file(s) exit
 	if args.read_file is not None:
-		seq_type = args.read_file, 'single'
+		seq_type = 'single'
 		if not os.path.isfile(args.read_file):
 			raise ValueError(f'"{args.read_file}" is not an existing file')
 	elif args.read_one is not None and args.read_two is not None:
