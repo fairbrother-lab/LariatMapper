@@ -176,21 +176,26 @@ if __name__ == '__main__':
 	# Load putatitve lariat alignments
 	log.debug('Parsing lariat reads...')
 	lariat_reads = load_lariat_table(output_base, log)
+	if len(lariat_reads)==0:
+		log.info('No reads remaining')
+		exit()
 	log.info(f'Pre-filter read count = {len(lariat_reads.read_id.unique())}')
 
 	# Get linear mapped reads count 
 	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base)
 
 	# Check for reads aligned to annotated repetitive region 
+	log.debug('Checking repeat regions')
 	repeat_rids = check_repeat_overlap(lariat_reads, ref_repeatmasker)
 
 	# Check for reads which were probably created from the reverse-transcriptase switching RNA templates at the branchpoint
-	temp_switch_rids = set(pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t', usecols=['read_id']).read_id)
-
 	# Check for circularized intron reads
+	log.debug('Getting template-switching and circularized intron reads')
+	temp_switch_rids = set(pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t', usecols=['read_id']).read_id)
 	circular_rids = set(pd.read_csv(f'{output_base}circularized_intron_reads.tsv', sep='\t', usecols=['read_id']).read_id)
 
 	# Filter lariat reads
+	log.debug('Filtering lariat reads')
 	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, temp_switch_rids=temp_switch_rids, circular_rids=circular_rids, axis=1)
 
 	# Choose 1 lariat mapping per read id 
