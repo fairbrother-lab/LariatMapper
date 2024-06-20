@@ -11,6 +11,8 @@ import collections
 
 import pandas as pd
 
+from scripts import functions
+
 
 
 # =============================================================================#
@@ -55,7 +57,7 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 	return attributes
 
 
-def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attribute:str, gene_attribute:str):
+def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attribute:str, gene_attribute:str, log):
 	if gunzip:
 		in_file = gzip.open(ref_anno, 'rt')
 	else:
@@ -89,7 +91,7 @@ def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attri
 	return transcripts
 
 
-def build_exons_introns(transcripts:dict, out_dir:str) -> pd.DataFrame:
+def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 	exons = []
 	introns = []
 
@@ -132,7 +134,7 @@ def build_exons_introns(transcripts:dict, out_dir:str) -> pd.DataFrame:
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
 	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': comma_join})
 	# Remove introns 20bp or shorter
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | {sum(introns.end-introns.start<=20):,} of {len(introns):,} introns excluded for being 20nt or shorter')
+	log.info(f'{sum(introns.end-introns.start<=20):,} of {len(introns):,} introns excluded for being 20nt or shorter')
 	introns = introns.loc[introns.end-introns.start>20]
 	# Write to file
 	introns.to_csv(f'{out_dir}/introns.tsv.gz', sep='\t', index=False, compression='gzip')
@@ -140,7 +142,7 @@ def build_exons_introns(transcripts:dict, out_dir:str) -> pd.DataFrame:
 	return introns
 
 
-def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str) -> None:
+def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str, log) -> None:
 	#TODO: Refactor this through the "bedtools_input += fivep_line" line, it's the biggest time-consumer
 	introns = [row.to_list() for i, row in introns.iterrows()]
 	fivep_sites = set()
@@ -175,7 +177,7 @@ def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str) -
 		for i, row in fivep_seqs.iterrows():
 			fasta_out.write(f">{row['fivep_site']}\n{row['seq']}\n")
 	
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Building index of five-prime splice site sequences...')
+	log.debug('Building fivep index')
 	build_index_call = f'bowtie2-build --quiet --threads {threads} {out_dir}/{REF_FIVEP_FILE} {out_dir}/{REF_FIVEP_INDEX}'
 	indexing = subprocess.run(build_index_call.split(' '), capture_output=True)
 	if indexing.stdout != b'':
@@ -189,7 +191,6 @@ def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str) -
 #                                    Main                                     #
 #=============================================================================#
 if __name__ == '__main__':
-	# Parse arguments
 	parser = argparse.ArgumentParser(prog='build_references',
 								  	description='Build custom reference files and create reference directory for lariat mapping')
 	
@@ -203,8 +204,23 @@ if __name__ == '__main__':
 	parser.add_argument('-r', '--ref_repeatmasker', help='Path to BED file with RepeatMasker annotation of reference genome')
 	parser.add_argument('-x', '--transcript_attribute', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute (default=transcript_id)',)
 	parser.add_argument('-g', '--gene_attribute', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute (default=transcript_id)',)
+	log_levels = parser.add_mutually_exclusive_group()
+	log_levels.add_argument('-q', '--quiet', action='store_true', help="Don't print any status messages")
+	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages")
 
+	# Parse args
 	args = parser.parse_args()
+
+	# Setup logging
+	if args.quiet is True:
+		log_level = 'ERROR'
+	elif args.debug is True:
+		log_level = 'DEBUG'
+	else:
+		log_level = 'INFO'
+	log = functions.get_logger(log_level)
+
+
 	ref_fasta, ref_anno, ref_repeatmasker, hisat2_index, out_dir, threads, transcript_attribute, gene_attribute  = args.ref_fasta, args.ref_anno, args.ref_repeatmasker, args.hisat2_index, args.out_dir, args.threads, args.transcript_attribute, args.gene_attribute
 	
 	# Check input files
@@ -225,7 +241,7 @@ if __name__ == '__main__':
 		os.mkdir(out_dir)
 
 	# Copy the neccesary reference files
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Copying reference files...')
+	log.info('Copying reference files...')
 	shutil.copyfile(ref_fasta, f'{out_dir}/{REF_GENOME_FILE}')
 	if ref_repeatmasker is not None:
 		shutil.copyfile(ref_repeatmasker, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
@@ -242,13 +258,13 @@ if __name__ == '__main__':
 	if not anno_type in ('gtf', 'gff'):
 		raise ValueError(f'Annotation file must be in .gtf or .gff format, not ".{anno_type}"')
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Parsing transcripts from annotation file...')
-	transcripts = parse_transcripts(ref_anno, anno_type, gunzip, transcript_attribute, gene_attribute)
+	log.info('Parsing transcripts from annotation file...')
+	transcripts = parse_transcripts(ref_anno, anno_type, gunzip, transcript_attribute, gene_attribute, log)
 	
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Processing exons and introns...')
-	introns = build_exons_introns(transcripts, out_dir)
+	log.info('Processing exons and introns...')
+	introns = build_exons_introns(transcripts, out_dir, log)
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + " | Processing five-prime splice sites...")
-	build_fivep(introns, ref_fasta, threads, out_dir)
+	log.info("Processing five-prime splice sites...")
+	build_fivep(introns, ref_fasta, threads, out_dir, log)
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Reference building complete.')
+	log.info('Reference building complete.')
