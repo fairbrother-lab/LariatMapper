@@ -42,7 +42,8 @@ fi
 #=============================================================================#
 #                                  Variables                                  #
 #=============================================================================#
-output_bam="$OUTPUT_BASE"mapped_reads.bam
+output_bam="$OUTPUT_BASE"output.bam
+mapped_bam="$OUTPUT_BASE"mapped_reads.bam
 unmapped_bam="$OUTPUT_BASE"unmapped_reads.bam
 run_data="$OUTPUT_BASE"read_counts.tsv
 unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
@@ -66,7 +67,7 @@ failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
 #                                    Calls                                    #
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
-printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping reads and extracting unmapped reads...\n"
+printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping reads to genome...\n"
 if $single_end; then
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 	       --threads $THREADS -x $GENOME_INDEX -U $READ_FILE \
@@ -80,8 +81,10 @@ else
 		> $output_bam \
 		|| exit 1
 fi
+printf "$(date +'%d/%b/%y %H:%M:%S') | Extracting unmapped reads...\n"
+samtools view --bam --with-header --exclude-flags 4 $output_bam > $mapped_bam
 samtools view --bam --with-header --require-flags 4 $output_bam > $unmapped_bam
-mapped_read_count=$(samtools view --count --exclude-flags 4 $output_bam)
+mapped_read_count=$(samtools view --count $mapped_bam)
 unmapped_read_count=$(samtools view --count $unmapped_bam)
 if ! $single_end; then
 	mapped_read_count=$((mapped_read_count/2))
@@ -92,7 +95,12 @@ echo -e "linear_unmapped\t$unmapped_read_count" >> $run_data
 
 # Save linear-mapped read alignments for later classification
 printf "$(date +'%d/%b/%y %H:%M:%S') | Writing mapped reads to BED file...\n"
-bedtools bamtobed -split -i $output_bam | gzip > "$OUTPUT_BASE"mapped_reads.bed.gz 
+bedtools bamtobed -split -i $mapped_bam | gzip > "$OUTPUT_BASE"mapped_reads.bed.gz 
+
+if [ $unmapped_read_count == 0 ];then
+	printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining"
+	exit
+fi
 
 ### Create fasta file of unmapped reads 
 printf "$(date +'%d/%b/%y %H:%M:%S') | Creating fasta file of unmapped reads...\n"
@@ -130,6 +138,8 @@ python -u $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FAST
 
 
 
+
+
 ### Map 5' trimmed reads to genome
 printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' trimmed reads to genome...\n"
 hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
@@ -161,6 +171,7 @@ wait
 if ! $KEEP_INTERMEDIATES; then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting intermediate files...\n"
 	rm $output_bam
+	rm $mapped_bam
 	rm $unmapped_bam
 	rm $unmapped_fasta 
 	rm $unmapped_fasta.fai
