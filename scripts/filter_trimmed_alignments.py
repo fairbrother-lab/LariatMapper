@@ -244,9 +244,9 @@ def more_filters(row:pd.Series):
 			return 'wrong_orientation'
 
 	# Check if the 5'ss is at or downstream of the tail's start
-	if row['strand'] == '+' and row['fivep_pos'] >= row['align_start']:
+	if row['strand'] == '+' and row['fivep_pos'] > row['align_start']:
 		return '5p_bp_order'
-	if row['strand'] == '-' and row['fivep_pos'] <= row['align_end']:
+	if row['strand'] == '-' and row['fivep_pos'] < row['align_end']-1:
 		return '5p_bp_order'
 
 	return pd.NA
@@ -403,7 +403,7 @@ if __name__ == '__main__':
 	log.debug(f'chunk starts: {chunk_starts}')
 
 	if n_aligns == 0:
-		print(time.strftime('%m/%d/%y - %H:%M:%S') + '| No reads remaining')
+		log.info('No reads remaining')
 		exit()
 
 	# Load reference data for processing alignments
