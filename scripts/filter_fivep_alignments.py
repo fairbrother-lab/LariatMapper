@@ -101,11 +101,14 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 		
 		# Check the line before the starting line to see if the chunk starts in the middle of a read's collection of alignments  
 		# If it is, move the starting line up until it reaches the next read's alignments
-		previous_line_rid = align_file.readline().split('\t')[2]
-		start_line = align_file.readline()
-		while start_line.split('\t')[2] == previous_line_rid:
+		if chunk_start == 1:
 			start_line = align_file.readline()
-			chunk_start += 1
+		else:
+			previous_line_rid = align_file.readline().split('\t')[2]
+			start_line = align_file.readline()
+			while start_line.split('\t')[2] == previous_line_rid:
+				start_line = align_file.readline()
+				chunk_start += 1
 
 		# Add the relevant fivep site info to fivep_sites
 		read_id, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(start_line)
@@ -260,6 +263,10 @@ if __name__ == '__main__' :
 	with open(fivep_to_reads) as sam:
 		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} read-fivep alignments')
+
+	if n_aligns == 0:
+		log.info('No reads remaining')
+		exit()
 
 	chunk_ranges = decide_chunk_ranges(n_aligns, threads)
 	log.debug(f'chunk ranges: {chunk_ranges}')
