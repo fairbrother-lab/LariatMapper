@@ -93,10 +93,7 @@ fi
 echo -e "linear_mapped\t$mapped_read_count" > $run_data
 echo -e "linear_unmapped\t$unmapped_read_count" >> $run_data
 
-# Save linear-mapped read alignments for later classification
-printf "$(date +'%d/%b/%y %H:%M:%S') | Writing mapped reads to BED file...\n"
-bedtools bamtobed -split -i $mapped_bam | gzip > "$OUTPUT_BASE"mapped_reads.bed.gz 
-
+### Check if 0 reads were left unmapped
 if [ $unmapped_read_count == 0 ];then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining"
 	exit
