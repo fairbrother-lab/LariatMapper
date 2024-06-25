@@ -134,8 +134,8 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
 	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': comma_join})
 	# Remove introns 20bp or shorter
-	log.info(f'{sum(introns.end-introns.start<=20):,} of {len(introns):,} introns excluded for being 20nt or shorter')
-	introns = introns.loc[introns.end-introns.start>20]
+	log.info(f'{sum(introns.end-introns.start<20):,} of {len(introns):,} introns excluded for being shorter than 20nt')
+	introns = introns.loc[introns.end-introns.start>=20]
 	# Write to file
 	introns.to_csv(f'{out_dir}/introns.tsv.gz', sep='\t', index=False, compression='gzip')
 
