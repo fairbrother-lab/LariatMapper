@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 import sys
 import subprocess
 import multiprocessing
-import logging
+import os
 
 from pyfaidx import Fasta
 import pandas as pd
@@ -71,13 +71,17 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str) -> dict:
 
 
 def decide_chunk_ranges(n_aligns:int, threads:int):
+	'''
+	Returns [[chunk_1_start, chunk_1_end],... [chunk_t_start, n_aligns]] where t = threads
+	Start and end positions are 1-based inclusive
+	'''
 	# If there are only a handful of alignments just go through them all in one thread
 	if n_aligns < 2*threads:
-		return [[0, n_aligns]]
+		return [[1, n_aligns]]
 	
 	# Determine the range of lines to assign to each thread
 	chunk_size = int(n_aligns / threads)
-	chunk_ranges = [[t*chunk_size, (t+1)*chunk_size - 1]  for t in range(threads)]
+	chunk_ranges = [[t*chunk_size+1, (t+1)*chunk_size]  for t in range(threads)]
 	chunk_ranges[-1][-1] = n_aligns
 
 	return chunk_ranges
@@ -95,14 +99,14 @@ def parse_line(sam_line:str):
 
 def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_aligns:int):
 	with open(fivep_to_reads) as align_file:
-		# Run to the starting line
+		# Run to the line directly before the starting line
 		for _ in range(chunk_start-2):
 			next(align_file)
 		
-		# Check the line before the starting line to see if the chunk starts in the middle of a read's collection of alignments  
-		# If it is, move the starting line up until it reaches the next read's alignments
 		if chunk_start == 1:
 			start_line = align_file.readline()
+		# Check the line before the starting line to see if the chunk starts in the middle of a read's collection of alignments  
+		# If it is, move the starting line up until it reaches the next read's alignments
 		else:
 			previous_line_rid = align_file.readline().split('\t')[2]
 			start_line = align_file.readline()
@@ -111,7 +115,7 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 				chunk_start += 1
 
 		# Add the relevant fivep site info to fivep_sites
-		read_id, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(start_line)
+		current_read_id, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(start_line)
 		# This dict will hold all of the read's 5'ss alignments, seperated into reverse(True) and forward(False) alignments
 		fivep_sites = {True: [], False: []}
 		fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
@@ -120,46 +124,51 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 		while line_num < n_aligns:
 			line_num += 1
 			# Get the next line's alignment info
-			next_line_rid, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(align_file.readline())
+			line_rid, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(align_file.readline())
 
 			# If we're still in the same read's collection of alignments, add the info to fivep_sites
-			if next_line_rid == read_id:
+			if line_rid == current_read_id:
 				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
 
 			# If we've reached the first alignment for a new read...
 			else:
 				# Yield the reverse-aligning 5'ss for filtering
-				yield read_id, True, fivep_sites[True]
+				yield current_read_id, True, fivep_sites[True]
 				# Then yield the forward-aligning 5'ss for filtering
-				yield read_id, False, fivep_sites[False]
+				yield current_read_id, False, fivep_sites[False]
 
 				# If we're at or have passed the end of the assigned chunk, we're done
-				# We don't do this check until we know we got all of the last read's alignments
+				# We don't do this check until we know we got all of the last read's alignments, 
+				# so we might process a few lines after the assigned chunk_end 
 				if line_num >= chunk_end:
 					break
 
 				# Set to processing next read's alignments
-				read_id = next_line_rid
+				current_read_id = line_rid
 				fivep_sites = {True:[], False:[]}
 				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
 
 		# If this is the last chunk and it reached the end of the file, make sure to yield the last read's alignments
 		if line_num == n_aligns:
-				yield read_id, True, fivep_sites[True]
-				yield read_id, False, fivep_sites[False]
+				yield current_read_id, True, fivep_sites[True]
+				yield current_read_id, False, fivep_sites[False]
 
 
-def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, output_base:str) -> None:
+def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, output_base:str, log_level) -> None:
 	'''
 	Filter and trim the reads to which 5'ss sequences were mapped
 	Write trimmed read information and their aligned 5' splice site(s) to fivep_info_table_out.txt
 	Write trimmed read sequences to fivep_mapped_reads_trimmed.fa
 	'''
-	failed_alignments = []		
-	out_reads = []
-	
+	# We have to set the log level in each process because the children don't inherit the log level from their parent,
+	# even if you pass the log object itself
+	log = functions.get_logger(log_level)
+	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
+
 	# Go through the assigned chunk of lines, reading and processing all 5'ss alignments to each read together
 	# We will split each read into a forward read (with all the 5'ss aligning to the forward sequence) and a reverse read (with all the 5'ss alinging to the reverse sequence)
+	failed_alignments = []		
+	out_reads = []
 	for read_id, read_is_reverse, fivep_sites in yield_read_aligns(fivep_to_reads, chunk_start, chunk_end, n_aligns):
 		if len(fivep_sites) == 0:
 			continue
@@ -239,6 +248,8 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 		failed_alignments = pd.DataFrame(failed_alignments, columns=FAILED_ALIGNMENTS_COLS)
 		failed_alignments.to_csv(f'{output_base}failed_fivep_alignments.tsv', mode='a', sep='\t', index=False, header=False)
 
+	log.debug(f'Process {os.getpid()}: Chunk finished')
+
 
 
 # =============================================================================#
@@ -279,14 +290,14 @@ if __name__ == '__main__' :
 	with open(f'{output_base}failed_fivep_alignments.tsv', 'w') as w:
 		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
 
-	# 
-	log.debug(f'Processing')
+	log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 	processes = []
 	for chunk_start, chunk_end in chunk_ranges:
-		process = multiprocessing.Process(target=filter_reads_chunk, args=(fivep_to_reads, chunk_start, chunk_end, n_aligns, read_seqs, fivep_upstream_seqs, output_base,))
+		process = multiprocessing.Process(target=filter_reads_chunk, args=(fivep_to_reads, chunk_start, chunk_end, n_aligns, read_seqs, fivep_upstream_seqs, output_base, log_level, ))
 		process.start()
 		processes.append(process)
 
+	# Check if any processes hit an error
 	for process in processes:
 		process.join()
 		if process.exitcode != 0:
