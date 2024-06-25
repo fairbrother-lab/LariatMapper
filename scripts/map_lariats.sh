@@ -140,7 +140,9 @@ python -u $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FAST
 ### Map 5' trimmed reads to genome
 printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' trimmed reads to genome...\n"
 hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
-	   --no-unal --no-head --threads $THREADS -f -x $GENOME_INDEX -U $fivep_trimmed_reads \
+	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $fivep_trimmed_reads \
+	| samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n \
+	| samtools view \
 	> $trimmed_reads_to_genome \
 	|| exit 1
 

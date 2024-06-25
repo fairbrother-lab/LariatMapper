@@ -160,9 +160,11 @@ def infer_read_bp(row:pd.Series) -> str:
 		return row['trim_seq'][-1]
 
 
-def parse_alignments_chunk(alignments_sam:str, chunk_start:int):
+def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n_aligns:int):
 	# We get mismatch number from the XM tag, but it can end up 3rd, 4th, or 5th in the tags depending on whether or not ZS and YS are included
 	# So we load all three columns it could be in and grab it
+	# We grab the line directly before the starting line and the line directly after the ending line 
+	# to check that we're keeping all of each read's alignments in 1 chunk 
 	alignments = pd.read_csv(alignments_sam, 
 								sep='\t',
 								comment='@',
@@ -170,9 +172,36 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int):
 								usecols=[0, 1, 2, 3, 4, 5, 9, 13, 14, 15],
 								names=['read_id', 'flag', 'chrom', 'align_start', 'quality', 'cigar', 'trim_seq', 'tag1', 'tag2', 'tag3'],
 								dtype={'read_id': 'string', 'chrom': 'category', 'align_start': 'UInt64', 'quality': 'UInt16'},
-								skiprows=chunk_start-1,
-								nrows=ALIGN_CHUNKSIZE,)
+								skiprows=chunk_start-2,
+								nrows=chunk_end-chunk_start+2,)
+	
+	# Same chunk start check as in filter_fivep_alignments.py, just implemented with pandas
+	if chunk_start != 1:
+		previous_line_rid = alignments.iloc[0]['read_id'][:-6]
+		start_line_rid = alignments.iloc[1]['read_id'][:-6]
+		if start_line_rid == previous_line_rid:
+			alignments = alignments.loc[alignments.read_id.str.slice(0,-6)!=previous_line_rid].reset_index()
 
+	# The chunk end check is also functionally the same
+	# Well, it SHOUlD be
+	if chunk_end != n_aligns:
+		last_rid = alignments.iloc[-2]['read_id'][:-6]
+		next_rid = alignments.iloc[-2]['read_id'][:-6]
+		while last_rid == next_rid:
+			next_line = pd.read_csv(alignments_sam, 
+									sep='\t',
+									comment='@',
+									header=None,
+									usecols=[0, 1, 2, 3, 4, 5, 9, 13, 14, 15],
+									names=['read_id', 'flag', 'chrom', 'align_start', 'quality', 'cigar', 'trim_seq', 'tag1', 'tag2', 'tag3'],
+									dtype={'read_id': 'string', 'chrom': 'category', 'align_start': 'UInt64', 'quality': 'UInt16'},
+									skiprows=chunk_end-chunk_start+2,
+									nrows=1)
+			next_rid = next_line.iloc[0]['read_id']
+			alignments = pd.concat([alignments, next_line])
+			chunk_end += 1
+		alignments = alignments.iloc[:-1]
+		
 	# Convert 1-based inclusive to 0-based inclusive
 	alignments.align_start = (alignments.align_start-1).astype('UInt64')
 	# Infer some more info
@@ -271,11 +300,14 @@ def drop_failed_alignments(alignments:pd.DataFrame, output_base:str) -> pd.DataF
 		return alignments
 
 
-def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base, log) -> None:
-	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_start+ALIGN_CHUNKSIZE-1:,}')
+def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, fivep_info, introns_shared, output_base, log_level) -> None:
+	# We have to set the log level in each process because the children don't inherit the log level from their parent,
+	# even if you pass the log object itself
+	log = functions.get_logger(log_level)
+	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
 	# Load in the assigned chunk of alignments, excluding skipping low-quality alignments
-	alignments = parse_alignments_chunk(f'{output_base}trimmed_reads_to_genome.sam', chunk_start)
+	alignments = parse_alignments_chunk(f'{output_base}trimmed_reads_to_genome.sam', chunk_start, chunk_end, n_aligns)
 
 	# Merge alignments with fivep_info
 	# This expands each alignment row into alignment-5'ss-combination rows
@@ -296,6 +328,7 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 	temp_switches = alignments.loc[alignments.template_switching].copy()
 	if not temp_switches.empty:
 		temp_switches = temp_switches.astype(str)
+		temp_switches.read_id = temp_switches.read_id.str.slice(0,-6)
 		temp_switches['fivep_sites'] = temp_switches[['fivep_chrom', 'strand', 'fivep_pos']].agg(';'.join, axis=1)
 		temp_switches['temp_switch_sites'] = temp_switches[['chrom', 'bp_pos']].agg(';'.join, axis=1)
 		temp_switches = temp_switches[TEMPLATE_SWITCHING_COLS]
@@ -345,6 +378,7 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 	circulars = alignments.loc[alignments.circular].copy()
 	if not circulars.empty:
 		circulars = circulars.astype(str)
+		circulars.read_id = circulars.read_id.str.slice(0,-6)
 		circulars['fivep_sites'] = circulars[['fivep_chrom', 'strand', 'fivep_pos']].agg(functions.comma_join, axis=1)
 		circulars = circulars[FINAL_INFO_TABLE_COLS]
 		with circulars_lock:
@@ -372,16 +406,6 @@ def filter_alignments_chunk(chunk_start, fivep_info, introns_shared, output_base
 	log.debug(f'Process {os.getpid()}: Chunk finished')
 
 
-def collapse_to_rid(file:str) -> None:
-	df = pd.read_csv(file, sep='\t', dtype='string')
-	df['read_id'] = df.read_id.transform(lambda rid: rid[:-4].split('/')[0])
-	df = (df
-			.groupby(['read_id'], as_index=False)
-			.agg({col: functions.comma_join for col in df.columns if col != 'read_id'})
-			)
-	df.to_csv(file, sep='\t', index=False)
-
-
 
 # =============================================================================#
 #                                    Main                                      #
@@ -399,8 +423,9 @@ if __name__ == '__main__':
 	with open(f'{output_base}trimmed_reads_to_genome.sam') as sam:
 		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} trimmed alignments')
-	chunk_starts = [start for start in range(1, n_aligns+1, ALIGN_CHUNKSIZE)]
-	log.debug(f'chunk starts: {chunk_starts}')
+	chunk_ranges = [[chunk_start, chunk_start+ALIGN_CHUNKSIZE] for chunk_start in range(1, n_aligns+1, ALIGN_CHUNKSIZE)]
+	chunk_ranges[-1][-1] = n_aligns
+	log.debug(f'chunk_ranges: {chunk_ranges}')
 
 	if n_aligns == 0:
 		log.info('No reads remaining')
@@ -426,26 +451,39 @@ if __name__ == '__main__':
 	with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
 
-	# 
-	log.debug('Processing')
-	if len(chunk_starts) == 1:
-		filter_alignments_chunk(chunk_starts[0], fivep_info, introns, output_base, log)
+
+	# log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
+	# pool = multiprocessing.Pool(processes=threads)
+	# processes = []
+	# for chunk_start, chunk_end in chunk_ranges:
+	# 	process = pool.apply_async(filter_alignments_chunk, args=(chunk_start, chunk_end, n_aligns, fivep_info, introns, output_base, log,))
+		# processes.append(process)
+	
+		
+	# # Don't create any more processes
+	# pool.close()
+	# # Wait until all processes are finished
+	# pool.join()
+
+	# multiprocessing won't run correctly with just 1 chunk for some reason
+	if len(chunk_ranges) == 1:
+		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
+		filter_alignments_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, fivep_info, introns, output_base, log_level)
 	else:
+		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 		pool = multiprocessing.Pool(processes=threads)
-		for start in chunk_starts:
-			pool.apply_async(filter_alignments_chunk, args=(start, fivep_info, introns, output_base, log,))
+		for chunk_start, chunk_end in chunk_ranges:
+			pool.apply_async(filter_alignments_chunk, args=(chunk_start, chunk_end, n_aligns, fivep_info, introns, output_base, log_level,))
 		
 		# Don't create any more processes
 		pool.close()
 		# Wait until all processes are finished
 		pool.join()
 
-	# Collapse the template-switching and circularized intron files so each row is one read
-	# We have to do this at the end because alignments to the same read can end up in different alignment chunk
-	log.debug('Collapsing temp switch')
-	collapse_to_rid(f'{output_base}template_switching_reads.tsv')
-	log.debug('Collapsing circulars')
-	collapse_to_rid(f'{output_base}circularized_intron_reads.tsv')
+	# # Check if any processes hit an error
+	# # Raise an error if any did
+	# for process in processes:
+	# 	process.successful()
+
 
 	log.debug('End of script')
-
