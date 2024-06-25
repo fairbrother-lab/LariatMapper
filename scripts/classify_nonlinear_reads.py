@@ -28,11 +28,9 @@ CLASS_AND_STEP = (
 #                                  Functions                                   #
 # =============================================================================#
 def exclude_classed_reads(read_ids:np.array, read_classes) -> np.array:
-	print('Starting:', len(read_ids))
 	classed_rids = [row[0] for row in read_classes]
 	keep = np.isin(read_ids, classed_rids, assume_unique=True, invert=True)
 	read_ids = read_ids[keep]
-	print('Post-filter:', len(read_ids))
 
 	return read_ids
 
@@ -98,7 +96,6 @@ if __name__ == '__main__':
 			r.readline()
 
 	unmapped_reads = np.asarray(list(unmapped_reads))
-	og_count = len(unmapped_reads)
 	unmapped_reads = exclude_classed_reads(unmapped_reads, read_classes)
 	unmapped_reads = [[read_id, "Unmapped", "5'ss mapping"] for read_id in unmapped_reads]
 	read_classes.extend(unmapped_reads)
@@ -111,4 +108,3 @@ if __name__ == '__main__':
 	read_classes.to_csv(f'{output_base}read_classes.tsv', sep='\t', mode='a', index=False, header=False, na_rep='N/A')
 
 	log.debug('End of script')
-
