@@ -17,25 +17,27 @@ GENOME_FASTA=$4
 # ANNO_FILE=$5
 # # FASTA file of 5' splice sites (first 20nts of all introns)
 FIVEP_FASTA=$5
+# Annotated exons
+EXONS_TSV=$6
 # Annotated introns
-INTRONS_BED=$6
+INTRONS_TSV=$7
 # Annotated repeat regions
-REPEATS_BED=$7
+REPEATS_BED=$8
 # Keep the intermediate files created during the run ("True" or "False", default "False")
-KEEP_INTERMEDIATES=$8
+KEEP_INTERMEDIATES=$9
 # Run make_lariat_track.py after filter_lariats.py
-UCSC_TRACK="${9}"
+UCSC_TRACK="${10}"
 # Directory containing lariat mapping pipeline files
-PIPELINE_DIR="${10}"
+PIPELINE_DIR="${11}"
 # Directory containing lariat mapping pipeline files
-LOG_LEVEL="${11}"
+LOG_LEVEL="${12}"
 # RNA-seq fastq read file(s)
-if [ $# == 12 ]; then
-	READ_FILE="${12}"
+if [ $# == 13 ]; then
+	READ_FILE="${13}"
 	single_end=true
 else
-	READ_ONE="${12}"
-	READ_TWO="${13}"
+	READ_ONE="${13}"
+	READ_TWO="${14}"
 	single_end=false
 fi
 
@@ -58,6 +60,7 @@ trimmed_info_table="$OUTPUT_BASE"trimmed_info_table.tsv
 failed_fivep="$OUTPUT_BASE"failed_fivep_alignments.tsv
 failed_trimmed="$OUTPUT_BASE"failed_trimmed_alignments.tsv
 failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
+
 
 
 
@@ -105,9 +108,6 @@ samtools fasta -N -o $unmapped_fasta $unmapped_bam >/dev/null 2>&1 || exit 1
 printf "$(date +'%d/%b/%y %H:%M:%S') | Indexing unmapped reads fasta file...\n"
 samtools faidx $unmapped_fasta || exit 1
 
-
-
-
 ### Build a bowtie2 index of the unmapped reads
 printf "$(date +'%d/%b/%y %H:%M:%S') | Building bowtie2 index of unmapped fasta...\n"
 bowtie2-build --quiet --threads $THREADS $unmapped_fasta $unmapped_fasta || exit 1 
@@ -129,13 +129,8 @@ bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threa
 
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%d/%b/%y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
-# scalene --html --outfile "$OUTPUT_BASE"filter_fivep_profile.html $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE \
 python -u $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
-
-
-
-
 
 ### Map 5' trimmed reads to genome
 printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' trimmed reads to genome...\n"
@@ -148,8 +143,7 @@ hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 
 ### Filter trimmed alignments
 printf "$(date +'%d/%b/%y %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
-# scalene --html --outfile "$OUTPUT_BASE"filter_trim_profile.html $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE \
-python -u $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_BED $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
 ### Filter lariat mappings and choose 1 for each read
