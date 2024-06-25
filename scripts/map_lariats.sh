@@ -164,6 +164,13 @@ if $UCSC_TRACK; then
 		|| exit 1
 fi
 
+### Classify reads
+python -u $PIPELINE_DIR/scripts/classify_linear_reads.py $EXONS_TSV $INTRONS_TSV $OUTPUT_BASE $LOG_LEVEL \
+	|| exit 1
+python -u $PIPELINE_DIR/scripts/classify_nonlinear_reads.py $OUTPUT_BASE $LOG_LEVEL \
+	|| exit 1
+
+
 
 wait
 ### Delete the intermediate files 
