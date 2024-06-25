@@ -1,9 +1,7 @@
 import sys
-import os
 import itertools as it
 
 import pysam
-import numpy as np
 import pandas as pd
 from intervaltree import Interval, IntervalTree
 
@@ -15,12 +13,12 @@ import functions
 #                                  Globals                                     #
 # =============================================================================#
 COLUMNS = ('read_id', 
-				  'chrom', 
-				  'align_is_reverse',
-				  'blocks', 
-				  'cigar',
-				  'read',
-				  )
+			'chrom', 
+			'align_is_reverse',
+			'blocks', 
+			'cigar',
+			'read',
+			)
 CIGARTUPLE_CODES = {0: 'M',
 					1: 'I',
 					2: 'D',
@@ -85,6 +83,7 @@ def tree_covers_interval(tree:IntervalTree, interval:Interval) -> bool:
 	
 	return total_coverage
 
+
 def parse_linear_alignments(output_base:str) -> pd.DataFrame:
 	# Run through mapped reads file, loading read alignments
 	linear_reads = []
@@ -109,32 +108,31 @@ def parse_linear_alignments(output_base:str) -> pd.DataFrame:
 	return linear_reads
 
 
-
 def classify_seg(row):
 	if row['Intergenic'] is True:
 		return 'Intergenic'
 	
-	if len(row['exons_f'])==0 and len(row['introns_f'])==0:
+	if len(row['exons'])==0 and len(row['introns'])==0:
 		return 'Ambiguous'
 	
-	if len(row['exons_f'])==0:
-		if row['align_is_reverse'] is False and any(row['seg'].begin==intron.begin for intron in row['introns_f'] if intron.data['strand']=='+'):
+	if len(row['exons'])==0:
+		if row['align_is_reverse'] is False and any(row['seg'].begin==intron.begin for intron in row['introns'] if intron.data['strand']=='+'):
 			return "Starts at 5'ss"
-		elif row['align_is_reverse'] is True and any(row['seg'].end==intron.end for intron in row['introns_f'] if intron.data['strand']=='-'):
+		elif row['align_is_reverse'] is True and any(row['seg'].end==intron.end for intron in row['introns'] if intron.data['strand']=='-'):
 			return "Starts at 5'ss"
 		else:
 			return 'Intronic'
 	
 	#TODO: Maybe move this inside next if and add after pre-mRNA check since segment could cross intron-exon junction AND get spliced at another exon junction
-	if any([row['seg'].begin==exon.begin for exon in row['exons_f']]) or any([row['seg'].end==exon.end for exon in row['exons_f']]):
+	if any([row['seg'].begin==exon.begin for exon in row['exons']]) or any([row['seg'].end==exon.end for exon in row['exons']]):
 		return 'Exon junction'
 
-	if len(row['introns_f'])==0:
+	if len(row['introns'])==0:
 		return 'Exonic'
 	
 	# At this point there's at least 1 filtered exon and 1 filtered intron
 	# We need to see if it's pre-mRNA
-	for exon, intron in it.product(row['exons_f'], row['introns_f']):
+	for exon, intron in it.product(row['exons'], row['introns']):
 		if len(exon.data['gene_id'].intersection(intron.data['gene_id']))==0:
 			continue
 		
@@ -144,15 +142,12 @@ def classify_seg(row):
 			exon_5bp = junc_spot-5
 			intron_5bp = junc_spot+4
 
-			# # Disregard if segment doesn't have at least 5bp on each side
-			# if exon_5bp < row['seg'].begin or intron_5bp >= row['seg'].end:
-			# 	continue
 			# Disregard if last 5bp of exon overlaps any introns
 			# Disregard if first 5bp of intron overlaps any exons
 			# This accounts for alternative splice sites
-			if len(row['introns_f'].overlap(exon_5bp, junc_spot)) > 0:
+			if len(row['introns'].overlap(exon_5bp, junc_spot)) > 0:
 				continue
-			if len(row['exons_f'].overlap(junc_spot, intron_5bp+1)) > 0:
+			if len(row['exons'].overlap(junc_spot, intron_5bp+1)) > 0:
 				continue
 
 			return 'pre-mRNA'
@@ -163,15 +158,12 @@ def classify_seg(row):
 			intron_5bp = junc_spot-5
 			exon_5bp = junc_spot+4
 
-			# # Disregard if segment doesn't have at least 5bp on each side
-			# if intron_5bp < row['seg'].begin or exon_5bp >= row['seg'].end:
-				# continue
 			# Disregard if last 5bp of exon overlaps any introns
 			# Disregard if first 5bp of intron overlaps any exons
 			# This accounts for alternative splice sites
-			if len(row['exons_f'].overlap(intron_5bp, junc_spot)) > 0:
+			if len(row['exons'].overlap(intron_5bp, junc_spot)) > 0:
 				continue
-			if len(row['introns_f'].overlap(junc_spot, exon_5bp+1)) > 0:
+			if len(row['introns'].overlap(junc_spot, exon_5bp+1)) > 0:
 				continue
 
 			return 'pre-mRNA'
@@ -191,7 +183,6 @@ def classify_read(seg_rows:pd.DataFrame) -> str:
 			return classes_set.pop()
 		
 	# Now we know it's 2 classes at minimum
-	
 	if 'Intergenic' in classes_set:
 		return 'Ambiguous'
 	
@@ -223,7 +214,6 @@ def classify_read(seg_rows:pd.DataFrame) -> str:
 		return "Starts at 5'ss"
 	
 	return tuple(classes_set)
-	# return 'Ambiguous'
 
 
 
@@ -253,23 +243,22 @@ if __name__ == '__main__':
 	# Load linear read alignments
 	linear_reads = parse_linear_alignments(output_base)
 
+	# Infer spliced/unspliced and explode read alignments into alignment segments
 	linear_reads['spliced'] = linear_reads.blocks.transform(lambda blocks: len(blocks)>1)
-	print(linear_reads.spliced.value_counts())
 	linear_reads['segs'] = linear_reads.apply(infer_segments, axis=1, result_type='reduce')
 	linear_reads = linear_reads.explode('segs', ignore_index=True)
 	linear_reads['seg'] = linear_reads.segs.transform(lambda segs: Interval(*segs))
-	linear_reads = linear_reads.drop(columns=['blocks', 'segs', 'cigar'])
 
 	# Chromosome by chromosome, add all exons and introns 
 	for chrom in linear_reads.chrom.unique():
 		if chrom not in exons.keys():
-			print(f'No exons in {chrom}')
+			log.debug(f'No exons in {chrom}')
 			continue
 		chrom_exons = exons[chrom]
 		linear_reads.loc[linear_reads.chrom==chrom, 'exons'] = linear_reads.loc[linear_reads.chrom==chrom, 'seg'].transform(chrom_exons.overlap)
 		
 		if chrom not in introns.keys():
-			print(f'No introns in {chrom}')
+			log.debug(f'No introns in {chrom}')
 			continue
 		chrom_introns = introns[chrom]
 		linear_reads.loc[linear_reads.chrom==chrom, 'introns'] = linear_reads.loc[linear_reads.chrom==chrom, 'seg'].transform(chrom_introns.overlap)
@@ -277,31 +266,31 @@ if __name__ == '__main__':
 	linear_reads.exons = linear_reads.exons.fillna('').transform(set)
 	linear_reads.introns = linear_reads.introns.fillna('').transform(set)
 
+	# Infer intergenic
 	linear_reads['Intergenic'] = (linear_reads.exons.transform(len)==0) & (linear_reads.introns.transform(len)==0)
-	linear_reads['common_genes'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(infer_common_genes))
-	print(linear_reads.common_genes.transform(len).value_counts())
-	linear_reads['exons_f'] = linear_reads.apply(lambda row: IntervalTree(exon for exon in row['exons'] if len(exon.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
-	linear_reads['introns_f'] = linear_reads.apply(lambda row: IntervalTree(intron for intron in row['introns'] if len(intron.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
-	linear_reads
 
+	# For each segment, filter out exons and introns whose genes (yes, unfortunately they can have multiple) don't cover all segments of the read
+	linear_reads['common_genes'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(infer_common_genes, include_groups=False))
+	linear_reads['exons'] = linear_reads.apply(lambda row: IntervalTree(exon for exon in row['exons'] if len(exon.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
+	linear_reads['introns'] = linear_reads.apply(lambda row: IntervalTree(intron for intron in row['introns'] if len(intron.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
+
+	# Classify segments
 	linear_reads['seg_class'] = linear_reads.apply(classify_seg, axis=1)
-	print(linear_reads[['read_id', 'read', 'seg_class']].seg_class.value_counts())
-	linear_reads
 
-	# linear_reads.seg_class = linear_reads.seg_class.replace(['Ambiguous m', 'Ambiguous f'], 'Ambiguous')
-	linear_reads['read_class'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(classify_read))
-	print(linear_reads[['read_id', 'read_class']].drop_duplicates().read_class.value_counts())
-	print(linear_reads.read_id.nunique())
+	# Classify reads based on their segment(s) class(es)
+	log.debug(f'segment class counts: {linear_reads.seg_class.value_counts().sort_index().to_dict()}')
+	linear_reads['read_class'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(classify_read, include_groups=False))
 
+	# Designate any unclassifiable combo of seg classes as 'Ambiguous'
+	log.debug(f'read class counts: {linear_reads.read_class.astype('str').value_counts().sort_index().to_dict()}')
 	linear_reads.read_class = linear_reads.read_class.transform(lambda rc: 'Ambiguous' if isinstance(rc, tuple) else rc)
 
-	linear_reads_sum = linear_reads.groupby(['read_id', 'read_class'], as_index=False).agg({'spliced': any})
-	linear_reads_sum['stage_reached'] = 'linear_map'
-	linear_reads_sum = linear_reads_sum[['read_id', 'read_class', 'stage_reached', 'spliced']]
-	assert linear_reads_sum.read_id.is_unique
-	print(linear_reads_sum.spliced.value_counts())
-	print(linear_reads_sum.read_class.value_counts())
-	linear_reads_sum
+	# Collapse segments back into one row per read and prepare to write to file 
+	linear_reads = linear_reads.groupby(['read_id', 'read_class'], as_index=False).agg({'spliced': any})
+	linear_reads['stage_reached'] = 'Linear mapping'
+	linear_reads = linear_reads[['read_id', 'read_class', 'stage_reached', 'spliced']]
 
 	# Write to file
-	linear_reads_sum.to_csv(f'{output_base}read_classes.tsv', sep='\t', index=False)
+	linear_reads.to_csv(f'{output_base}read_classes.tsv', sep='\t', index=False)
+
+	log.debug('End of script')
