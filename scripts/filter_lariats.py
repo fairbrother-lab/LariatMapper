@@ -112,15 +112,15 @@ def filter_lariats(row:pd.Series, repeat_rids:set, temp_switch_rids:set, circula
 	if row['quality'] < row['max_quality']:
 		return 'align_quality'
 
-	if row['read_id'] in repeat_rids:
-		return 'in_repeat'
-	
 	if row['read_id'] in temp_switch_rids:
 		return 'template_switching'
 	
 	if row['read_id'] in circular_rids:
 		return 'circularized_intron'
 
+	if row['read_id'] in repeat_rids:
+		return 'in_repeat'
+	
 	return np.nan
 
 
