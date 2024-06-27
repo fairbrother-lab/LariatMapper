@@ -282,7 +282,7 @@ if __name__ == '__main__':
 	linear_reads['read_class'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(classify_read, include_groups=False))
 
 	# Designate any unclassifiable combo of seg classes as 'Ambiguous'
-	log.debug(f'read class counts: {linear_reads.read_class.astype('str').value_counts().sort_index().to_dict()}')
+	log.debug(f'read class counts: {linear_reads.read_class.astype("str").value_counts().sort_index().to_dict()}')
 	linear_reads.read_class = linear_reads.read_class.transform(lambda rc: 'Ambiguous' if isinstance(rc, tuple) else rc)
 
 	# Collapse segments back into one row per read and prepare to write to file 
