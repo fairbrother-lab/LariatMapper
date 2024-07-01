@@ -332,6 +332,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, fivep_info, intron
 		temp_switches['fivep_sites'] = temp_switches[['fivep_chrom', 'strand', 'fivep_pos']].agg(';'.join, axis=1)
 		temp_switches['temp_switch_sites'] = temp_switches[['chrom', 'bp_pos']].agg(';'.join, axis=1)
 		temp_switches = temp_switches[TEMPLATE_SWITCHING_COLS]
+		temp_switches = temp_switches.groupby('read_id', as_index=False).agg({col: functions.comma_join for col in temp_switches.columns if col != 'read_id'})
 		with temp_switch_lock:
 			temp_switches.to_csv(f'{output_base}template_switching_reads.tsv', mode='a', sep='\t', header=False, index=False)
 
@@ -381,6 +382,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, fivep_info, intron
 		circulars.read_id = circulars.read_id.str.slice(0,-6)
 		circulars['fivep_sites'] = circulars[['fivep_chrom', 'strand', 'fivep_pos']].agg(functions.comma_join, axis=1)
 		circulars = circulars[FINAL_INFO_TABLE_COLS]
+		circulars = circulars.groupby('read_id', as_index=False).agg({col: functions.comma_join for col in circulars.columns if col != 'read_id'})
 		with circulars_lock:
 			circulars.to_csv(f'{output_base}circularized_intron_reads.tsv', mode='a', sep='\t', header=False, index=False)
 
