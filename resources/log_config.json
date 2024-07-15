@@ -7,7 +7,7 @@
 		"style": "{"
 	  },
 	  "extensive":{
-		"format": "{asctime} | {filename} | line {lineno:<3} | {message}",
+		"format": "{asctime} | {filename} | {lineno:<3} | {message}",
 		"datefmt": "%d/%b/%y %H:%M:%S",
 		"style": "{"
 	  }
@@ -33,9 +33,13 @@
 			"level": "INFO",
 			"handlers": [ "simple" ]
 			},
+		"warning": {
+			"level": "WARNING",
+			"handlers": [ "simple" ]
+			},
 		"error": {
 			"level": "ERROR",
-			"handlers": [ "extensive" ]
+			"handlers": [ "simple" ]
 		}
 	}
   }
