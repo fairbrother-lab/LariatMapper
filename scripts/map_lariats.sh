@@ -31,14 +31,17 @@ UCSC_TRACK="${10}"
 PIPELINE_DIR="${11}"
 # Directory containing lariat mapping pipeline files
 LOG_LEVEL="${12}"
+# Type of sequencing run
+SEQ_TYPE="${13}"
 # RNA-seq fastq read file(s)
-if [ $# == 13 ]; then
-	READ_FILE="${13}"
-	single_end=true
+if [ "$SEQ_TYPE" == "single" ]; then
+	READ_FILE="${14}"
+elif [ "$SEQ_TYPE" == "paired" ]; then
+	READ_ONE="${14}"
+	READ_TWO="${15}"
 else
-	READ_ONE="${13}"
-	READ_TWO="${14}"
-	single_end=false
+	echo "SEQ_TYPE '$SEQ_TYPE' not recognized"
+	exit 1
 fi
 
 #=============================================================================#
@@ -71,14 +74,16 @@ failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
 printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping reads to genome...\n"
-if $single_end; then
-	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
+if [ "$SEQ_TYPE" == "single" ]; then
+	# hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
+	hisat2 --no-softclip -k 5 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 	       --threads $THREADS -x $GENOME_INDEX -U $READ_FILE \
 		| samtools view --bam --with-header --add-flags PAIRED,READ1 \
 		> $output_bam \
 		|| exit 1
-else
-	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
+elif [ "$SEQ_TYPE" == "paired" ]; then
+	# hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
+	hisat2 --no-softclip -k 5 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 		   --threads $THREADS -x $GENOME_INDEX -1 $READ_ONE -2 $READ_TWO \
 		| samtools view --bam --with-header \
 		> $output_bam \
@@ -89,7 +94,7 @@ samtools view --bam --with-header --exclude-flags 4 $output_bam > $mapped_bam
 samtools view --bam --with-header --require-flags 4 $output_bam > $unmapped_bam
 mapped_read_count=$(samtools view --count $mapped_bam)
 unmapped_read_count=$(samtools view --count $unmapped_bam)
-if ! $single_end; then
+if [ "$SEQ_TYPE" == "paired" ]; then
 	mapped_read_count=$((mapped_read_count/2))
 	unmapped_read_count=$((unmapped_read_count/2))
 fi
@@ -159,9 +164,9 @@ if $UCSC_TRACK; then
 fi
 
 ### Classify reads
-python -u $PIPELINE_DIR/scripts/classify_linear_reads.py $EXONS_TSV $INTRONS_TSV $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/classify_linear_reads.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
 	|| exit 1
-python -u $PIPELINE_DIR/scripts/classify_nonlinear_reads.py $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/classify_nonlinear_reads.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
 	|| exit 1
 
 
