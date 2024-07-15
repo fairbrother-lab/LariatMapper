@@ -12,27 +12,59 @@ import functions
 #                                  Globals                                     #
 # =============================================================================#
 CLASS_AND_STEP = (
-				('Lariat', 'Lariat filtering'),
-				('Circularized intron', 'Lariat filtering'),
-				('Template-switching', 'Lariat filtering'),
+				('Lariat', 'To the end'),
 				('In repetitive region', 'Lariat filtering'),
-				("Unmapped, with 5'ss alignment", 'Trimmed alignment filtering'),
-				("Unmapped, with 5'ss alignment", 'Trimmed read mapping'),
-				("Unmapped, with 5'ss alignment", "5'ss alignment filtering"),
+				('Circularized intron', 'Trimmed alignment filtering'),
+				('Template-switching', 'Trimmed alignment filtering'),
+				("Unmapped with 5'ss alignment", 'Trimmed alignment filtering'),
+				("Unmapped with 5'ss alignment", 'Trimmed read mapping'),
+				("Unmapped with 5'ss alignment", "5'ss alignment filtering"),
 				("Unmapped", "5'ss mapping")
-				  )
+)
+
+OUT_COLS = ['read_id',
+			'read_class',
+			'stage_reached',
+			'filter_failed',
+			'spliced',
+			'gene_id',
+			]
 
 
 
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
-def exclude_classed_reads(read_ids:np.array, read_classes) -> np.array:
+def exclude_classed_reads(df:pd.DataFrame, read_classes) -> np.array:
 	classed_rids = [row[0] for row in read_classes]
-	keep = np.isin(read_ids, classed_rids, assume_unique=True, invert=True)
-	read_ids = read_ids[keep]
+	# keep = np.isin(read_ids, classed_rids, assume_unique=True, invert=True)
+	# read_ids = read_ids[keep]
+	df = df.loc[~df.read_id.isin(classed_rids)]
 
-	return read_ids
+	return df
+
+
+def add_reads(file:str, class_:str, stage:str, read_classes:list, read_id_process=None) -> list:
+	if not os.path.isfile(file):
+		log.warning(f'{file} not found')
+		return read_classes
+	
+	df = pd.read_csv(file, sep='\t')
+
+	if read_id_process is not None:
+		df.read_id = df.read_id.transform(read_id_process)
+	if 'filter_failed' not in df:
+		df['filter_failed'] = ''
+	if 'gene_id' not in df:
+		df['gene_id'] = ''
+	df = df.groupby('read_id', as_index=False).agg({'filter_failed': lambda ffs: functions.str_join(ffs, unique=True), 'gene_id': lambda gids: functions.str_join(gids, unique=True)})
+
+	df = exclude_classed_reads(df, read_classes)
+
+	reads = [[read_id, class_, stage, filter_failed, gene_id] for read_id, filter_failed, gene_id in df.values] 
+	read_classes.extend(reads)
+
+	return read_classes
 
 
 
@@ -41,7 +73,7 @@ def exclude_classed_reads(read_ids:np.array, read_classes) -> np.array:
 # =============================================================================#
 if __name__ == '__main__':
 	# Get args
-	output_base, log_level = sys.argv[1:]
+	output_base, seq_type, log_level = sys.argv[1:]
 
 	# Get logger
 	log = functions.get_logger(log_level)
@@ -51,52 +83,47 @@ if __name__ == '__main__':
 	# while recording their class and the furthest they got in the pipeline before being filtered out 
 	read_classes = []
 
-	# TODO: Make this a function to remove code duplication
-	if os.path.isfile(f'{output_base}lariat_reads.tsv'):
-		lariat = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t', usecols=[0]).read_id.unique()
-		lariat = [[read_id, 'Lariat', 'To the end'] for read_id in lariat] 
-		read_classes.extend(lariat) 
-	else:
-		log.warning(f'{output_base}lariat_reads.tsv not found')
+	read_classes = add_reads(f'{output_base}lariat_reads.tsv', 
+						  'Lariat', 
+						  'To the end', 
+						  read_classes)
 
-	if os.path.isfile(f'{output_base}circularized_intron_reads.tsv'):
-		circular = pd.read_csv(f'{output_base}circularized_intron_reads.tsv', sep='\t', usecols=[0]).read_id.unique()
-		circular = [[read_id, 'Circularized intron', 'To the end'] for read_id in circular] 
-		read_classes.extend(circular) 
+	read_classes = add_reads(f'{output_base}template_switching_reads.tsv', 
+						  'Template-switching', 
+						  'Trimmed alignment filtering', 
+						  read_classes)
 
-	if os.path.isfile(f'{output_base}template_switching_reads.tsv'):
-		temp_switch = pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t', usecols=[0]).read_id.unique()
-		temp_switch = [[read_id, 'Template-switching', 'To the end'] for read_id in temp_switch] 
-		read_classes.extend(temp_switch) 
+	read_classes = add_reads(f'{output_base}circularized_intron_reads.tsv', 
+						  'Circularized intron', 
+						  'Trimmed alignment filtering', 
+						  read_classes)
 
 	if os.path.isfile(f'{output_base}failed_lariat_alignments.tsv'):
 		lariat_failed = pd.read_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t')
-		lariat_failed = lariat_failed.loc[lariat_failed.filter_failed=='in_repeat', 'read_id'].unique()
+		lariat_failed = lariat_failed.loc[lariat_failed.filter_failed=='in_repeat']
+		lariat_failed = lariat_failed.groupby('read_id', as_index=False).agg({'gene_id': lambda gids: functions.str_join(gids, unique=True)})
 		lariat_failed = exclude_classed_reads(lariat_failed, read_classes)
-		lariat_failed = [[read_id, 'In repetitive region', 'Lariat filtering'] for read_id in lariat_failed] 
+		lariat_failed = [[read_id, 'In repetitive region', 'Lariat filtering', 'in_repeat', gene_id] for read_id, gene_id in lariat_failed.values] 
 		read_classes.extend(lariat_failed) 
 
-	if os.path.isfile(f'{output_base}failed_trimmed_alignments.tsv'):
-		trim_failed = pd.read_csv(f'{output_base}failed_trimmed_alignments.tsv', sep='\t', usecols=[0]).read_id
-		trim_failed = trim_failed.str.slice(0,-6).unique()
-		trim_failed = exclude_classed_reads(trim_failed, read_classes)
-		trim_failed = [[read_id, "Unmapped, with 5'ss alignment", 'Trimmed alignment filtering'] for read_id in trim_failed] 
-		read_classes.extend(trim_failed) 
+	read_classes = add_reads(f'{output_base}failed_trimmed_alignments.tsv', 
+						  "Unmapped with 5'ss alignment", 
+						  'Trimmed alignment filtering', 
+						  read_classes,
+						  lambda read_id: read_id[:-6])
 
-	if os.path.isfile(f'{output_base}fivep_info_table.tsv'):
-		fivep_passed = pd.read_csv(f'{output_base}fivep_info_table.tsv', sep='\t', usecols=[0]).read_id
-		fivep_passed = fivep_passed.str.slice(0,-6).unique()
-		fivep_passed = exclude_classed_reads(fivep_passed, read_classes)
-		fivep_passed = [[read_id, "Unmapped, with 5'ss alignment", 'Trimmed read mapping'] for read_id in fivep_passed]
-		read_classes.extend(fivep_passed) 
+	read_classes = add_reads(f'{output_base}fivep_info_table.tsv', 
+						  "Unmapped with 5'ss alignment", 
+						  'Trimmed read mapping', 
+						  read_classes,
+						  lambda read_id: read_id[:-6])
 
-	if os.path.isfile(f'{output_base}failed_fivep_alignments.tsv'):
-		fivep_failed = pd.read_csv(f'{output_base}failed_fivep_alignments.tsv', sep='\t', usecols=[0]).read_id
-		fivep_failed = fivep_failed.str.slice(0,-2).unique()
-		fivep_failed = exclude_classed_reads(fivep_failed, read_classes)
-		fivep_failed = [[read_id, "Unmapped, with 5'ss alignment", "5'ss alignment filtering"] for read_id in fivep_failed]
-		read_classes.extend(fivep_failed)
-
+	read_classes = add_reads(f'{output_base}failed_fivep_alignments.tsv', 
+						  "Unmapped with 5'ss alignment", 
+						  "5'ss alignment filtering", 
+						  read_classes,
+						  lambda read_id: read_id[:-2])
+	
 	if os.path.isfile(f'{output_base}unmapped_reads.fa'):
 		# Now get all the reads that didn't get past the first stage of 5'ss mapping
 		unmapped_reads = set()
@@ -106,20 +133,33 @@ if __name__ == '__main__':
 				unmapped_reads.add(rid)
 				r.readline()
 
-		unmapped_reads = np.asarray(list(unmapped_reads))
+		unmapped_reads = pd.DataFrame({'read_id': list(unmapped_reads)})
 		unmapped_reads = exclude_classed_reads(unmapped_reads, read_classes)
-		unmapped_reads = [[read_id, "Unmapped", "5'ss mapping"] for read_id in unmapped_reads]
+		unmapped_reads = [[read_id, "Unmapped", "5'ss mapping", '', '',] for read_id in unmapped_reads.read_id]
 		read_classes.extend(unmapped_reads)
 
 	if len(read_classes) == 0:
 		log.warning('0 nonlinear read alignments')
-		exit()
 
-	# Convert to a dataframe 
-	read_classes = pd.DataFrame(read_classes, columns=['read_id', 'read_class', 'stage_reached'])
-	read_classes['spliced'] = np.nan
+	# Convert to DataFrame
+	read_classes = pd.DataFrame(read_classes, columns=['read_id', 'read_class', 'stage_reached', 'filter_failed', 'gene_id'])
+	log.debug(f'read class counts: {read_classes.read_class.astype("str").value_counts().sort_index().to_dict()}')
+
+	read_classes['spliced'] = pd.Series(np.nan, dtype='object')
+	# read_classes = read_classes[OUT_COLS]
+	
+	# Do this to prevent ('id_a', 'id_a,id_b') -> 'id_a,id_a,id_b' since the gene_id col may already be comma-delimited
+	read_classes.gene_id = read_classes.gene_id.transform(lambda gids: functions.str_join(gids.split(','), unique=True))
+
+	# Concat the linearly-aligned reads 
+	linear_classes = pd.read_csv(f'{output_base}linear_classes.tsv', sep='\t', na_filter=False)
+	read_classes = pd.concat([linear_classes.drop(columns=['mate']), read_classes])
+
+	# Collapse paired-end reads where one mate got linearly aligned and one mate didn't
+	if seq_type == 'paired':
+		read_classes = read_classes.groupby('read_id', as_index=False).agg({col: functions.str_join for col in read_classes.columns if col != 'read_id'})
 
 	# Write to file
-	read_classes.to_csv(f'{output_base}read_classes.tsv', sep='\t', mode='a', index=False, header=False, na_rep='N/A')
+	read_classes.to_csv(f'{output_base}read_classes.tsv', sep='\t', index=False, na_rep='N/A')
 
 	log.debug('End of script')
