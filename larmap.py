@@ -88,8 +88,9 @@ if __name__ == '__main__':
 	parser.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
 	parser.add_argument('-k', '--keep_intermediates', action='store_true', help='Don\'t delete the intermediate files created while running the pipeline (default=delete)')
 	log_levels = parser.add_mutually_exclusive_group()
-	log_levels.add_argument('-q', '--quiet', action='store_true', help="Don't print any status messages")
-	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages")
+	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR)")
+	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING)")
+	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages (sets logging level to DEBUG)")
 
 	# Parse
 	args = parser.parse_args()
@@ -100,6 +101,8 @@ if __name__ == '__main__':
 	# Setup logging
 	if args.quiet is True:
 		log_level = 'ERROR'
+	if args.warning is True:
+		log_level = 'WARNING'
 	elif args.debug is True:
 		log_level = 'DEBUG'
 	else:
@@ -127,12 +130,12 @@ if __name__ == '__main__':
 		os.mkdir(args.output_dir)
 
 	# Prepare call to map_lariats.sh
-	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_intermediates).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level]
+	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_intermediates).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level, seq_type]
 	if seq_type == 'single':
 		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
 		log.debug('Processing single-end read file...')
 		map_lariats_args += [args.read_file]
-	else:
+	elif seq_type == 'paired':
 		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing paired-end read files...'), flush=True)
 		log.debug('Processing paired-end read files...')
 		map_lariats_args += [args.read_one, args.read_two]
