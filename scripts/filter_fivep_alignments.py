@@ -30,7 +30,7 @@ FAILED_ALIGNMENTS_COLS = ['read_id',
 						'read_fivep_start',
 						'read_fivep_end',
 						'read_is_reverse',
-						'fail_reason',
+						'filter_failed',
 						]
 
 out_lock = multiprocessing.Lock()
