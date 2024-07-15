@@ -4,6 +4,8 @@ import logging.config
 import json
 import subprocess
 
+import pandas as pd
+
 
 
 
@@ -20,11 +22,30 @@ def reverse_complement(seq:str):
 	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
 
 
-def comma_join(items) -> str:
+def str_join(items:list|tuple|pd.Series, join_string:str=',', unique:bool=False) -> str:
 	'''
-	Return ','.join(set(<items>))
+	If <items> contains only 1 unique item, return str(that item)
+	Else, return a <join_string>-delimited string of <items>
+		e.g.) 	[toy1, toy2, toy2, toy3]			  	  -> "toy1,toy2,toy2,toy3"
+			 	[toy1, toy2, toy2, toy3], join_string=";" -> "toy1;toy2;toy2;toy3"
+			 	[toy1, toy2, toy2, toy3], unique=True     -> "toy1,toy2,toy3"
 	'''
-	return ','.join(set(items))
+	if len(set(items)) == 1:
+		if isinstance(items, pd.Series):
+			return str(items.iloc[0])
+		else:
+			return str(items[0])
+	
+	if unique is True:
+		out = []
+		for item in items:
+			if item not in out:
+				out.append(str(item))
+		return join_string.join(out)
+	
+	else:
+		return join_string.join([str(item) for item in items])
+	
 
 
 def align_is_reverse(flag:int) -> bool:
@@ -39,9 +60,9 @@ def align_is_reverse(flag:int) -> bool:
 def get_logger(level:str) -> logging.Logger:
 	'''
 	Configure logging settings based on <pipeline_dir>/resources/log_config.json file, and return a logging.Logger object for the specified <level>
-	<level> must be "DEBUG", "INFO", or "ERROR"
+	<level> must be "DEBUG", "INFO", "WARNING", or "ERROR"
 	'''
-	assert level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
+	assert level in ('DEBUG', 'INFO', 'WARNING', 'ERROR')
 	config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../resources/log_config.json')
 	with open(config_file) as file_in:
 		config = json.load(file_in)
