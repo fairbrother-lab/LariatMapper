@@ -68,3 +68,5 @@ if __name__ == '__main__':
 		w.write(f'track name=Lariats itemRgb=On visibility="squish"\n')
 	lariat_reads.to_csv(f'{output_base}lariat_reads.bed', mode='a', sep='\t', index=False, header=False)
 
+	log.debug('End of script')
+
