@@ -7,7 +7,7 @@
 		"style": "{"
 	  },
 	  "extensive":{
-		"format": "{asctime} | {filename} | {lineno:<3} | {message}",
+		"format": "{asctime} | {filename:<21} | {lineno:<3} | {message}",
 		"datefmt": "%d/%b/%y %H:%M:%S",
 		"style": "{"
 	  }

@@ -14,10 +14,10 @@ import functions
 CLASS_AND_STEP = (
 				('Lariat', 'To the end'),
 				('In repetitive region', 'Lariat filtering'),
-				('Circularized intron', 'Trimmed alignment filtering'),
-				('Template-switching', 'Trimmed alignment filtering'),
-				("Unmapped with 5'ss alignment", 'Trimmed alignment filtering'),
-				("Unmapped with 5'ss alignment", 'Trimmed read mapping'),
+				('Circularized intron', 'Head alignment filtering'),
+				('Template-switching', 'Head alignment filtering'),
+				("Unmapped with 5'ss alignment", 'Head alignment filtering'),
+				("Unmapped with 5'ss alignment", 'Head mapping'),
 				("Unmapped with 5'ss alignment", "5'ss alignment filtering"),
 				("Unmapped", "5'ss mapping")
 )
@@ -90,12 +90,12 @@ if __name__ == '__main__':
 
 	read_classes = add_reads(f'{output_base}template_switching_reads.tsv', 
 						  'Template-switching', 
-						  'Trimmed alignment filtering', 
+						  'Head alignment filtering', 
 						  read_classes)
 
 	read_classes = add_reads(f'{output_base}circularized_intron_reads.tsv', 
 						  'Circularized intron', 
-						  'Trimmed alignment filtering', 
+						  'Head alignment filtering', 
 						  read_classes)
 
 	if os.path.isfile(f'{output_base}failed_lariat_alignments.tsv'):
@@ -106,15 +106,15 @@ if __name__ == '__main__':
 		lariat_failed = [[read_id, 'In repetitive region', 'Lariat filtering', 'in_repeat', gene_id] for read_id, gene_id in lariat_failed.values] 
 		read_classes.extend(lariat_failed) 
 
-	read_classes = add_reads(f'{output_base}failed_trimmed_alignments.tsv', 
+	read_classes = add_reads(f'{output_base}failed_head_alignments.tsv', 
 						  "Unmapped with 5'ss alignment", 
-						  'Trimmed alignment filtering', 
+						  'Head alignment filtering', 
 						  read_classes,
 						  lambda read_id: read_id[:-6])
 
 	read_classes = add_reads(f'{output_base}fivep_info_table.tsv', 
 						  "Unmapped with 5'ss alignment", 
-						  'Trimmed read mapping', 
+						  'Head read mapping', 
 						  read_classes,
 						  lambda read_id: read_id[:-6])
 
@@ -145,12 +145,11 @@ if __name__ == '__main__':
 	read_classes = pd.DataFrame(read_classes, columns=['read_id', 'read_class', 'stage_reached', 'filter_failed', 'gene_id'])
 	log.debug(f'read class counts: {read_classes.read_class.astype("str").value_counts().sort_index().to_dict()}')
 
-	read_classes['spliced'] = pd.Series(np.nan, dtype='object')
-	# read_classes = read_classes[OUT_COLS]
-	
 	# Do this to prevent ('id_a', 'id_a,id_b') -> 'id_a,id_a,id_b' since the gene_id col may already be comma-delimited
 	read_classes.gene_id = read_classes.gene_id.transform(lambda gids: functions.str_join(gids.split(','), unique=True))
 
+	read_classes['spliced'] = pd.Series(np.nan, dtype='object')
+	
 	# Concat the linearly-aligned reads 
 	linear_classes = pd.read_csv(f'{output_base}linear_classes.tsv', sep='\t', na_filter=False)
 	read_classes = pd.concat([linear_classes.drop(columns=['mate']), read_classes])

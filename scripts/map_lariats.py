@@ -147,10 +147,10 @@ bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threa
 # 		--no-unal --no-head --threads $THREADS -x $FIVEP_INDEX -f -U $unmapped_fasta \
 # 	> $reads_to_fivep 
 
-	filter_fivep_alignments()
+	filter_fivep_aligns()
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%d/%b/%y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
-python -u $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
 	map_trimmed_to_genome()
@@ -164,31 +164,31 @@ hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 	|| exit 1
 
 	
-	filter_trimmed_alignments()
+	filter_trim_aligns()
 ### Filter trimmed alignments
 printf "$(date +'%d/%b/%y %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
-python -u $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/filter_trim_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
-	filter_trimmed_alignments()
+	filter_trim_aligns()
 ### Filter lariat mappings and choose 1 for each read
 printf "$(date +'%d/%b/%y %H:%M:%S') | Filtering putative lariat alignments...\n"
 python -u $PIPELINE_DIR/scripts/filter_lariats.py $GENOME_FASTA $REPEATS_BED $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
-	make_lariat_track()
+	make_track()
 ### Make a custom track BED file of identified lariats 
 if $UCSC_TRACK; then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | Making UCSC Genome Browser track...\n"
-	python -u $PIPELINE_DIR/scripts/make_lariat_track.py $OUTPUT_BASE $LOG_LEVEL \
+	python -u $PIPELINE_DIR/scripts/make_track.py $OUTPUT_BASE $LOG_LEVEL \
 		|| exit 1
 fi
 
 	classify_reads()
 ### Classify reads
-python -u $PIPELINE_DIR/scripts/classify_linear_reads.py $EXONS_TSV $INTRONS_TSV $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/classify_linear.py $EXONS_TSV $INTRONS_TSV $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1
-python -u $PIPELINE_DIR/scripts/classify_nonlinear_reads.py $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1
 
 
