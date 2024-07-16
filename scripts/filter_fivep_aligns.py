@@ -15,15 +15,15 @@ import functions
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
-FIVEP_INFO_TABLE_COLS = ['read_id',
-						'read_seq',
-						'fivep_seq',
-						'fivep_sites',
-						'read_is_reverse',
-						'read_fivep_start',
-						'read_fivep_end',
-						'read_bp_pos',
-						]
+TAILS_COLS = ['read_id',
+			'read_seq',
+			'fivep_seq',
+			'fivep_sites',
+			'read_is_reverse',
+			'read_fivep_start',
+			'read_fivep_end',
+			'read_bp_pos',
+			]
 FAILED_ALIGNMENTS_COLS = ['read_id',
 						'read_seq',
 						'fivep_site',
@@ -156,9 +156,9 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 
 def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, output_base:str, log_level) -> None:
 	'''
-	Filter and trim the reads to which 5'ss sequences were mapped
-	Write trimmed read information and their aligned 5' splice site(s) to fivep_info_table_out.txt
-	Write trimmed read sequences to fivep_mapped_reads_trimmed.fa
+	Filter and trim the reads to which 5'ss sequences were mapped, the trimmed section being the read "head" and the trimmed-off section being the read "tail" 
+	Write read information and their aligned 5' splice site(s) to tails.tsv
+	Write head sequences to heads.fa
 	'''
 	# We have to set the log level in each process because the children don't inherit the log level from their parent,
 	# even if you pass the log object itself
@@ -194,13 +194,13 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 		if len(fivep_pass) == 0:
 			continue
 			
-		# For each orientation, trim off the upstream-most 5'ss and everything upstream of it, then write the trimmed sequence + alignments to file
+		# For each orientation, trim off the upstream-most 5'ss and everything upstream of it, then write the sequence + alignments to file
 		if read_is_reverse:
 			# Get the start and end of the rightmost alignment in the read 
 			_, furthest_fivep_start, furthest_fivep_end = max(fivep_pass, key=lambda fp:fp[1])
 			read_bp_pos = furthest_fivep_end
 			# Trim off the rightmost alignment and everything to the left of it
-			trim_seq = read_seq[furthest_fivep_end:]
+			head_seq = read_seq[furthest_fivep_end:]
 			# Get sequence of rightmost alignment
 			fivep_seq = functions.reverse_complement(read_seq[furthest_fivep_start:furthest_fivep_end])
 		else:
@@ -208,7 +208,7 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 			_, furthest_fivep_start, furthest_fivep_end = min(fivep_pass, key=lambda fp:fp[1])
 			read_bp_pos = furthest_fivep_start - 1
 			# Trim off the leftmost alignment and everything to the right of it
-			trim_seq = read_seq[:furthest_fivep_start]
+			head_seq = read_seq[:furthest_fivep_start]
 			# Get sequence of leftmost alignment
 			fivep_seq = read_seq[furthest_fivep_start:furthest_fivep_end]
 
@@ -221,27 +221,27 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 				failed_alignments.append((read_id, read_seq, *fp, read_is_reverse, 'furthest_upstream'))
 
 		# Check if less than 20bp is left in the read
-		if len(trim_seq) < 20:
+		if len(head_seq) < 20:
 			for fp in fivep_pass_sub:
-				failed_alignments.append((read_id, read_seq, *fp, read_is_reverse, 'enough_trim_seq'))
+				failed_alignments.append((read_id, read_seq, *fp, read_is_reverse, 'enough_head_seq'))
 			continue
 		
 		# Add reads + alignment(s) that passed filtering to out_reads 
 		out_rid = read_id + '_rev' if read_is_reverse else read_id + '_for'
 		fivep_sites = sorted([fp[0] for fp in fivep_pass_sub])
 		fivep_sites = ','.join(fivep_sites)
-		out_reads.append((trim_seq, out_rid, read_seq, fivep_seq, fivep_sites, read_is_reverse, furthest_fivep_start, furthest_fivep_end, read_bp_pos))
+		out_reads.append((head_seq, out_rid, read_seq, fivep_seq, fivep_sites, read_is_reverse, furthest_fivep_start, furthest_fivep_end, read_bp_pos))
 
-	# Write the filtered alignments and trimmed sequences to file
+	# Write the filtered alignments and head sequences to file
 	with out_lock:
-		with open(f'{output_base}fivep_info_table.tsv', 'a') as info_out, open(f'{output_base}fivep_mapped_reads_trimmed.fa', 'a') as trimmed_out:
+		with open(f'{output_base}tails.tsv', 'a') as info_out, open(f'{output_base}heads.fa', 'a') as seq_out:
 			for row in out_reads:
 				row = [str(item) for item in row]
 				info_out.write('\t'.join(row[1:]) + '\n')
 
-				trim_seq = row[0]
+				head_seq = row[0]
 				out_rid = row[1]
-				trimmed_out.write(f'>{out_rid}\n{trim_seq}\n')
+				seq_out.write(f'>{out_rid}\n{head_seq}\n')
 	
 	# Write the failed alignments to file
 	with failed_out_lock:
@@ -283,9 +283,9 @@ if __name__ == '__main__' :
 	log.debug(f'chunk ranges: {chunk_ranges}')
 
 	# Prep out files with a header row
-	with open(f'{output_base}fivep_info_table.tsv', 'w') as w:
-		w.write('\t'.join(FIVEP_INFO_TABLE_COLS) + '\n')
-	with open(f'{output_base}fivep_mapped_reads_trimmed.fa', 'w') as w:
+	with open(f'{output_base}tails.tsv', 'w') as w:
+		w.write('\t'.join(TAILS_COLS) + '\n')
+	with open(f'{output_base}heads.fa', 'w') as w:
 		pass
 	with open(f'{output_base}failed_fivep_alignments.tsv', 'w') as w:
 		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
