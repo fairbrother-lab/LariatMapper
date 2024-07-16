@@ -13,9 +13,7 @@ THREADS=$2
 GENOME_INDEX=$3
 # Reference genome FASTA file
 GENOME_FASTA=$4
-# Gene annotation of the reference genome in GTF or GFF format
-# ANNO_FILE=$5
-# # FASTA file of 5' splice sites (first 20nts of all introns)
+# FASTA file of 5' splice sites (first 20nts of all introns)
 FIVEP_FASTA=$5
 # Annotated exons
 EXONS_TSV=$6
@@ -25,13 +23,13 @@ INTRONS_TSV=$7
 REPEATS_BED=$8
 # Keep the intermediate files created during the run ("True" or "False", default "False")
 KEEP_INTERMEDIATES=$9
-# Run make_lariat_track.py after filter_lariats.py
+# Run make_track.py after filter_lariats.py ("True" or "False", default "False")
 UCSC_TRACK="${10}"
 # Directory containing lariat mapping pipeline files
 PIPELINE_DIR="${11}"
 # Directory containing lariat mapping pipeline files
 LOG_LEVEL="${12}"
-# Type of sequencing run
+# Type of sequencing run ("single" or "paired")
 SEQ_TYPE="${13}"
 # RNA-seq fastq read file(s)
 if [ "$SEQ_TYPE" == "single" ]; then
@@ -134,7 +132,7 @@ bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threa
 
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%d/%b/%y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
-python -u $PIPELINE_DIR/scripts/filter_fivep_alignments.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
 ### Map 5' trimmed reads to genome
@@ -148,7 +146,7 @@ hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 
 ### Filter trimmed alignments
 printf "$(date +'%d/%b/%y %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
-python -u $PIPELINE_DIR/scripts/filter_trimmed_alignments.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/filter_trim_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
 ### Filter lariat mappings and choose 1 for each read
@@ -159,14 +157,14 @@ python -u $PIPELINE_DIR/scripts/filter_lariats.py $GENOME_FASTA $REPEATS_BED $OU
 ### Make a custom track BED file of identified lariats 
 if $UCSC_TRACK; then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | Making UCSC Genome Browser track...\n"
-	python -u $PIPELINE_DIR/scripts/make_lariat_track.py $OUTPUT_BASE $LOG_LEVEL \
+	python -u $PIPELINE_DIR/scripts/make_track.py $OUTPUT_BASE $LOG_LEVEL \
 		|| exit 1
 fi
 
 ### Classify reads
-python -u $PIPELINE_DIR/scripts/classify_linear_reads.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/classify_linear.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
 	|| exit 1
-python -u $PIPELINE_DIR/scripts/classify_nonlinear_reads.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
 	|| exit 1
 
 
