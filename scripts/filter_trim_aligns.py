@@ -36,18 +36,6 @@ ALIGN_INITIAL_COLS = ['read_id',
 					  'quality',
 					  'read_bp_nt']
 
-FIVEP_INFO_COLS = ['read_id',
-				'read_seq',
-				'fivep_seq',
-				'fivep_sites',
-				'read_fivep_start',
-				'read_fivep_end',
-				'read_bp_pos',
-				'gene_id',
-				'fivep_chrom',
-				'fivep_pos',
-				'strand']
-
 TEMPLATE_SWITCHING_COLS = ['read_id',
 						'fivep_sites',
 						'temp_switch_sites',
@@ -106,20 +94,20 @@ def parse_intron_info(ref_introns):
 	return introns, fivep_genes	
 
 
-def parse_fivep_info(output_base:str, fivep_genes:dict):
-	fivep_info = pd.read_csv(f'{output_base}fivep_info_table.tsv', sep='\t', dtype={'fivep_chrom': 'category', 'strand': 'category'})
-	fivep_info = fivep_info.drop(columns=['read_is_reverse'])
+def parse_tails(output_base:str, fivep_genes:dict):
+	tails = pd.read_csv(f'{output_base}tails.tsv', sep='\t', dtype={'fivep_chrom': 'category', 'strand': 'category'})
+	tails = tails.drop(columns=['read_is_reverse'])
 
 	# Unpack fivep_sites
-	fivep_info.fivep_sites = fivep_info.fivep_sites.str.split(',')
-	fivep_info = fivep_info.explode('fivep_sites')
-	fivep_info['gene_id'] = fivep_info.apply(lambda row: tuple(fivep_genes[row['fivep_sites']]), axis=1)
-	fivep_info[['fivep_chrom', 'fivep_pos', 'strand']] = fivep_info.fivep_sites.str.split(';', expand=True)
-	fivep_info.fivep_pos = fivep_info.fivep_pos.astype(int)
-	fivep_info.fivep_chrom = fivep_info.fivep_chrom.astype('category')
-	fivep_info.strand = fivep_info.strand.astype('category')
+	tails.fivep_sites = tails.fivep_sites.str.split(',')
+	tails = tails.explode('fivep_sites')
+	tails['gene_id'] = tails.apply(lambda row: tuple(fivep_genes[row['fivep_sites']]), axis=1)
+	tails[['fivep_chrom', 'fivep_pos', 'strand']] = tails.fivep_sites.str.split(';', expand=True)
+	tails.fivep_pos = tails.fivep_pos.astype(int)
+	tails.fivep_chrom = tails.fivep_chrom.astype('category')
+	tails.strand = tails.strand.astype('category')
 
-	return fivep_info
+	return tails
 
 
 def cigar_str_to_tup(cigar:str) -> tuple[tuple[str, int]]:
@@ -151,13 +139,13 @@ def infer_mismatches(tags) -> int:
 
 def infer_read_bp(row:pd.Series) -> str:
 	if not row['read_is_reverse'] and not row['align_is_reverse']:
-		return row['trim_seq'][-1]
+		return row['head_seq'][-1]
 	elif not row['read_is_reverse'] and row['align_is_reverse']:
-		return functions.reverse_complement(row['trim_seq'][0])
+		return functions.reverse_complement(row['head_seq'][0])
 	elif row['read_is_reverse'] and not row['align_is_reverse']:
-		return functions.reverse_complement(row['trim_seq'][0])
+		return functions.reverse_complement(row['head_seq'][0])
 	elif row['read_is_reverse'] and row['align_is_reverse']:
-		return row['trim_seq'][-1]
+		return row['head_seq'][-1]
 
 
 def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n_aligns:int):
@@ -170,7 +158,7 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 								comment='@',
 								header=None,
 								usecols=[0, 1, 2, 3, 4, 5, 9, 13, 14, 15],
-								names=['read_id', 'flag', 'chrom', 'align_start', 'quality', 'cigar', 'trim_seq', 'tag1', 'tag2', 'tag3'],
+								names=['read_id', 'flag', 'chrom', 'align_start', 'quality', 'cigar', 'head_seq', 'tag1', 'tag2', 'tag3'],
 								dtype={'read_id': 'string', 'chrom': 'category', 'align_start': 'UInt64', 'quality': 'UInt16'},
 								skiprows=chunk_start-2,
 								nrows=chunk_end-chunk_start+2,)
@@ -193,7 +181,7 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 									comment='@',
 									header=None,
 									usecols=[0, 1, 2, 3, 4, 5, 9, 13, 14, 15],
-									names=['read_id', 'flag', 'chrom', 'align_start', 'quality', 'cigar', 'trim_seq', 'tag1', 'tag2', 'tag3'],
+									names=['read_id', 'flag', 'chrom', 'align_start', 'quality', 'cigar', 'head_seq', 'tag1', 'tag2', 'tag3'],
 									dtype={'read_id': 'string', 'chrom': 'category', 'align_start': 'UInt64', 'quality': 'UInt16'},
 									skiprows=chunk_end-chunk_start+2,
 									nrows=1)
@@ -206,7 +194,7 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 	alignments.align_start = (alignments.align_start-1).astype('UInt64')
 	# Infer some more info
 	alignments['read_is_reverse'] = alignments.read_id.transform(lambda rid: {'_rev': True, '_for': False}[rid[-4:]]).astype('bool')
-	alignments['length'] = alignments.trim_seq.str.len()
+	alignments['length'] = alignments.head_seq.str.len()
 	alignments['align_end'] = (alignments.align_start + alignments.length).astype('UInt64')
 	alignments['align_is_reverse'] = alignments.flag.transform(functions.align_is_reverse)
 	alignments.cigar = alignments.cigar.transform(cigar_str_to_tup)
@@ -295,27 +283,27 @@ def drop_failed_alignments(alignments:pd.DataFrame, output_base:str) -> pd.DataF
 		# Arrange cols and a write to file
 		failed_aligns = failed_aligns[[*FINAL_INFO_TABLE_COLS, 'filter_failed']].drop_duplicates()
 		with failed_out_lock:
-			failed_aligns.to_csv(f'{output_base}failed_trimmed_alignments.tsv', mode='a', sep='\t', header=False, index=False)
+			failed_aligns.to_csv(f'{output_base}failed_head_alignments.tsv', mode='a', sep='\t', header=False, index=False)
 
 		# Remove failed alignments from DataFrame
 		alignments = alignments.loc[alignments.filter_failed.isna()]
 		return alignments
 
 
-def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, fivep_info, introns_shared, output_base, log_level) -> None:
+def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_shared, output_base, log_level) -> None:
 	# We have to set the log level in each process because the children don't inherit the log level from their parent,
 	# even if you pass the log object itself
 	log = functions.get_logger(log_level)
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
 	# Load in the assigned chunk of alignments, excluding skipping low-quality alignments
-	alignments = parse_alignments_chunk(f'{output_base}trimmed_reads_to_genome.sam', chunk_start, chunk_end, n_aligns)
+	alignments = parse_alignments_chunk(f'{output_base}heads_to_genome.sam', chunk_start, chunk_end, n_aligns)
 
-	# Merge alignments with fivep_info
+	# Merge alignments with tails
 	# This expands each alignment row into alignment-5'ss-combination rows
-	alignments = pd.merge(alignments, fivep_info, 'left', on=['read_id'])
+	alignments = pd.merge(alignments, tails, 'left', on=['read_id'])
 	if alignments.fivep_pos.isna().any():
-		raise RuntimeError(f"{alignments.fivep_pos.isna().sum()} alignments didn't match any fivep_info_table read IDs, this shouldn't be possible")
+		raise RuntimeError(f"{alignments.fivep_pos.isna().sum()} alignments didn't match any tails read IDs, this shouldn't be possible")
 	
 	# Infer info
 	alignments.fivep_pos = alignments.fivep_pos.astype('UInt64')
@@ -405,7 +393,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, fivep_info, intron
 					)
 
 	with filtered_out_lock:
-		alignments.to_csv(f'{output_base}trimmed_info_table.tsv', mode='a', sep='\t', index=False, header=False)
+		alignments.to_csv(f'{output_base}putative_lariats.tsv', mode='a', sep='\t', index=False, header=False)
 
 	log.debug(f'Process {os.getpid()}: Chunk finished')
 
@@ -424,9 +412,9 @@ if __name__ == '__main__':
 
 	threads = int(threads)
 	
-	with open(f'{output_base}trimmed_reads_to_genome.sam') as sam:
+	with open(f'{output_base}heads_to_genome.sam') as sam:
 		n_aligns = sum(1 for _ in sam)
-	log.debug(f'{n_aligns:,} trimmed alignments')
+	log.debug(f'{n_aligns:,} head alignments')
 	chunk_ranges = [[chunk_start, chunk_start+ALIGN_CHUNKSIZE] for chunk_start in range(1, n_aligns+1, ALIGN_CHUNKSIZE)]
 	chunk_ranges[-1][-1] = n_aligns
 	log.debug(f'chunk_ranges: {chunk_ranges}')
@@ -437,18 +425,18 @@ if __name__ == '__main__':
 
 	# Load reference data for processing alignments
 	introns, fivep_genes = parse_intron_info(ref_introns)
-	fivep_info = parse_fivep_info(output_base, fivep_genes)
+	tails = parse_tails(output_base, fivep_genes)
 
 	# Record # of reads that passed fivep_filtering
-	count = fivep_info.read_id.str.rstrip('/1').str.rstrip('/2').nunique()
+	count = tails.read_id.str.rstrip('/1').str.rstrip('/2').nunique()
 	with open(f'{output_base}read_counts.tsv', 'a') as a:
 		a.write(f'fivep_filter_passed\t{count}\n')
 
-	# Write headers for the failed_trimmed_alignments and template_switching_alignments out-files
+	# Write headers for the outfiles
 	# The rows will get appended in chunks during filter_alignments_chunk()
-	with open(f'{output_base}trimmed_info_table.tsv', 'w') as w:
+	with open(f'{output_base}putative_lariats.tsv', 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
-	with open(f'{output_base}failed_trimmed_alignments.tsv', 'w') as w:
+	with open(f'{output_base}failed_head_alignments.tsv', 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\tfilter_failed' + '\n')
 	with open(f'{output_base}template_switching_reads.tsv', 'w') as w:
 		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
@@ -460,7 +448,7 @@ if __name__ == '__main__':
 	# pool = multiprocessing.Pool(processes=threads)
 	# processes = []
 	# for chunk_start, chunk_end in chunk_ranges:
-	# 	process = pool.apply_async(filter_alignments_chunk, args=(chunk_start, chunk_end, n_aligns, fivep_info, introns, output_base, log,))
+	# 	process = pool.apply_async(filter_alignments_chunk, args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log,))
 		# processes.append(process)
 	
 		
@@ -472,12 +460,12 @@ if __name__ == '__main__':
 	# multiprocessing won't run correctly with just 1 chunk for some reason
 	if len(chunk_ranges) == 1:
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
-		filter_alignments_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, fivep_info, introns, output_base, log_level)
+		filter_alignments_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, tails, introns, output_base, log_level)
 	else:
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 		pool = multiprocessing.Pool(processes=threads)
 		for chunk_start, chunk_end in chunk_ranges:
-			pool.apply_async(filter_alignments_chunk, args=(chunk_start, chunk_end, n_aligns, fivep_info, introns, output_base, log_level,))
+			pool.apply_async(filter_alignments_chunk, args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level,))
 		
 		# Don't create any more processes
 		pool.close()

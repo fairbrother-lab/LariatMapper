@@ -51,15 +51,14 @@ unmapped_bam="$OUTPUT_BASE"unmapped_reads.bam
 run_data="$OUTPUT_BASE"read_counts.tsv
 unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
 fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
-fivep_trimmed_reads="$OUTPUT_BASE"fivep_mapped_reads_trimmed.fa
-trimmed_reads_to_genome="$OUTPUT_BASE"trimmed_reads_to_genome.sam
-reads_to_fivep="$OUTPUT_BASE"reads_to_fivep.sam
-FIVEP_INDEX=/datasets2/lariat_mapping/testing/output/test_ref/fivep_sites
+heads_fasta="$OUTPUT_BASE"heads.fa
+heads_to_genome="$OUTPUT_BASE"heads_to_genome.sam
+# reads_to_fivep="$OUTPUT_BASE"reads_to_fivep.sam
 
-fivep_info_table="$OUTPUT_BASE"fivep_info_table.tsv
-trimmed_info_table="$OUTPUT_BASE"trimmed_info_table.tsv
+tails="$OUTPUT_BASE"tails.tsv
+putative_lariats="$OUTPUT_BASE"putative_lariats.tsv
 failed_fivep="$OUTPUT_BASE"failed_fivep_alignments.tsv
-failed_trimmed="$OUTPUT_BASE"failed_trimmed_alignments.tsv
+failed_head="$OUTPUT_BASE"failed_head_alignments.tsv
 failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
 
 
@@ -135,18 +134,18 @@ printf "$(date +'%d/%b/%y %H:%M:%S') | Finding 5' read alignments and trimming r
 python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
-### Map 5' trimmed reads to genome
-printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' trimmed reads to genome...\n"
+### Map read heads to genome
+printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping heads to genome...\n"
 hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
-	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $fivep_trimmed_reads \
+	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $heads_fasta \
 	| samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n \
 	| samtools view \
-	> $trimmed_reads_to_genome \
+	> $heads_to_genome \
 	|| exit 1
 
-### Filter trimmed alignments
-printf "$(date +'%d/%b/%y %H:%M:%S') | Analyzing trimmed alignments and outputting lariat table...\n"
-python -u $PIPELINE_DIR/scripts/filter_trim_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
+### Filter head alignments
+printf "$(date +'%d/%b/%y %H:%M:%S') | Analyzing head alignments and outputting lariat table...\n"
+python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
 	|| exit 1 
 
 ### Filter lariat mappings and choose 1 for each read
@@ -186,12 +185,12 @@ if ! $KEEP_INTERMEDIATES; then
 	rm $unmapped_fasta.rev.1.bt*
 	rm $unmapped_fasta.rev.2.bt*
 	rm $fivep_to_reads
-	rm $fivep_trimmed_reads
-	rm $trimmed_reads_to_genome
-	rm $fivep_info_table
-	rm $trimmed_info_table
+	rm $heads_fasta
+	rm $heads_to_genome
+	rm $tails
+	rm $putative_lariats
 	rm $failed_fivep
-	rm $failed_trimmed
+	rm $failed_heads
 	rm $failed_lariat
 fi 
 

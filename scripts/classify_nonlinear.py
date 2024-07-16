@@ -112,7 +112,7 @@ if __name__ == '__main__':
 						  read_classes,
 						  lambda read_id: read_id[:-6])
 
-	read_classes = add_reads(f'{output_base}fivep_info_table.tsv', 
+	read_classes = add_reads(f'{output_base}tails.tsv', 
 						  "Unmapped with 5'ss alignment", 
 						  'Head read mapping', 
 						  read_classes,

@@ -41,7 +41,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_lariat_info_table.tsv and put them in a dict, which
 	can then be added to the experiment-wide superset dict
 	'''
-	lariat_reads = pd.read_csv(f'{output_base}trimmed_info_table.tsv', sep='\t')
+	lariat_reads = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t')
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
 	if lariat_reads.empty:
@@ -213,7 +213,7 @@ if __name__ == '__main__':
 
 	# Record read count
 	with open(f'{output_base}read_counts.tsv', 'a') as a:
-		a.write(f'trimmed_filter_passed\t{lariat_reads.read_id.nunique()}\n')	
+		a.write(f'head_filter_passed\t{lariat_reads.read_id.nunique()}\n')	
 		a.write(f'lariat\t{filtered_lariats.read_id.nunique()}\n')
 		a.write(f'template-switch\t{len(temp_switch_rids)}\n')
 		a.write(f'circularized_intron\t{len(circular_rids)}\n')
