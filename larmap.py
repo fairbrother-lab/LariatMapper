@@ -118,7 +118,7 @@ if __name__ == '__main__':
 	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, output_base = process_args(args, log)
 	log.debug(f'seq_type: {repr(seq_type)}, output_base: {repr(output_base)}')
 
-	# Set start method for multiprocessing in filter_fivep_alignments.py and filter_trimmed_alignments.py
+	# Set start method for multiprocessing in filter_fivep_aligns.py and filter_head_aligns.py
 	# Using the default "fork" method causes memory errors when processing bigger RNA-seq inputs
 	# This has to be defined in the first python script and only once, or else we get "RuntimeError: context has already been set" 
 	multiprocessing.set_start_method('spawn')	
