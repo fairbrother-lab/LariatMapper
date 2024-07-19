@@ -60,32 +60,6 @@ The data should be preprocessed to remove low-quality reads, adapter sequences, 
 ## Running the Pipeline
 Run `python larmap.py` with the following arguments:
 
-  	-r, --ref_dir				Directory with reference files for lariat mapping. Create by running build_references.py
-	-o, --output_dir			Directory for output files (will be created if it does not exist)
-	For paired-end sequencing data
-	  -1, --read_one			Read 1 input FASTQ file when processing paired-end RNA-seq data. Can be uncompressed or gzip-compressed. 
-	  -2, --read_two			Read 2 input FASTQ file when processing paired-end RNA-seq data. Can be uncompressed or gzip-compressed. 
-	For single-end sequencing data
-	  -f, --read_file			Input FASTQ file when processing single-end RNA-seq data. Can be uncompressed or gzip-compressed.
-	
-If you did not create a reference directory and instead want to input the neccesary reference files at runtime, use the following arguments instead of `-r, --ref_dir`:
-
-	  -i, --ref_h2index			hisat2 index of the reference genome
-	  -g, --ref_fasta			FASTA file of the reference genome
-	  -a, --ref_anno			Gene annotation of the reference genome in GTF or GFF format (may be gzipped with .gz extension)
-	  -5, --ref_5p_fasta		FASTA file with sequences of first 20nt of annotated introns
-	  -n, --ref_introns			BED file of all annotated introns
-	  -m, --ref_repeatmasker	BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Optional)
-
-Optional arguments:
-
-	  -q, --quiet				Don't print any status messages (work in progress)
-	  -d, --debug				Print extensive any status messages (work in progress)
-	  -t, --threads				Number of threads to use for parallel processing (default=1)
-	  -p, --output_prefix		Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv)
-	  -u, --ucsc_track			Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments
-	  -k, --keep_intermediates	Don't delete the intermediate files created while running the pipeline (default=delete)
-     
 
 ## Output
 All output will be written in the directory specified with `-o, --output_dir`. This includes:

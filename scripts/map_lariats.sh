@@ -21,8 +21,8 @@ EXONS_TSV=$6
 INTRONS_TSV=$7
 # Annotated repeat regions
 REPEATS_BED=$8
-# Keep the intermediate files created during the run ("True" or "False", default "False")
-KEEP_INTERMEDIATES=$9
+# Keep the temp files created during the run ("True" or "False", default "False")
+KEEP_TEMP=$9
 # Run make_track.py after filter_lariats.py ("True" or "False", default "False")
 UCSC_TRACK="${10}"
 # Directory containing lariat mapping pipeline files
@@ -167,9 +167,9 @@ python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LO
 
 
 wait
-### Delete the intermediate files 
-if ! $KEEP_INTERMEDIATES; then
-	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting intermediate files...\n"
+### Delete the temporary files 
+if ! $KEEP_TEMP; then
+	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting temporary files...\n"
 	rm $output_bam
 	rm $mapped_bam
 	rm $unmapped_bam
