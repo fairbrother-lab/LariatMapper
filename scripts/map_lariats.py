@@ -23,7 +23,7 @@ FAILED_FIVEP='{output_base}failed_fivep_alignments.tsv'
 FAILED_HEAD='{output_base}failed_head_alignments.tsv'
 FAILED_LARIAT='{output_base}failed_lariat_alignments.tsv'
 
-INTERMEDIATES = (
+TEMP_FILES = (
 				OUTPUT_BAM, MAPPED_BAM, UNMAPPED_BAM, UNMAPPED_FASTA,
 				'{output_base}unmapped_reads.fa', '{output_base}.1.bt2l', '{output_base}.2.bt2l', '{output_base}.3.bt2l', '{output_base}.4.bt2l', '{output_base}.rev.1.bt2l', '{output_base}.rev.2.bt2l',
 				FIVEP_TO_READS, HEADS_FASTA, HEADS_TO_GENOME, TAILS, PUTATIVE_LARIATS, 
@@ -36,11 +36,11 @@ INTERMEDIATES = (
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
-def delete_intermediates(log):
-	log.info('Deleting intermediate files...')
+def delete_temp(log):
+	log.debug('Deleting temporary files...')
 
-	intermediates = [path_skeleton.format(output_base) for path_skeleton in INTERMEDIATES]
-	for file in intermediates:
+	temp_files = [path_skeleton.format(output_base) for path_skeleton in TEMP_FILES]
+	for file in temp_files:
 		if os.path.isfile(file):
 			os.remove(file)
 
@@ -49,8 +49,8 @@ def try_run_command(command, log, input=None):
 	try:
 		functions.run_command(command, input=input, log=log)
 	except subprocess.CalledProcessError as error:
-		if keep_intermediates is False:
-			delete_intermediates(output_base, log)
+		if keep_temp is False:
+			delete_temp(output_base, log)
 		raise error
 
 
@@ -86,8 +86,8 @@ def build_unmapped_reads_index(threads, log):
 	unmapped_count = try_run_command(command, log)
 	if unmapped_count == '0':
 		log.warning('All reads mapped linearly, no reads remaining')
-		if keep_intermediates is False:
-			delete_intermediates(output_base, log)
+		if keep_temp is False:
+			delete_temp(output_base, log)
 		exit()
 
 	# Create fasta file of unmapped reads 
@@ -131,11 +131,11 @@ def map_heads_to_genome(threads, genome_index, log):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	# Get args and make keep_intermediates and output_base global variables
+	# Get args and make keep_temp and output_base global variables
 	# for reading ONLY so we don't need to pass them into basically every function
 	global output_base
-	global keep_intermediates
-	output_base, output_prefix, threads, genome_index, genome_fasta, fivep_fasta, exons_tsv, introns_tsv, repeats_bed, keep_intermediates, ucsc_track, pipeline_dir, log_level, seq_type, read_files = sys.argv[1:]
+	global keep_temp
+	output_base, output_prefix, threads, genome_index, genome_fasta, fivep_fasta, exons_tsv, introns_tsv, repeats_bed, keep_temp, ucsc_track, pipeline_dir, log_level, seq_type, read_files = sys.argv[1:]
 
 	# Get logger and make it global for logging ONLY 
 	# so we don't need to pass them into basically every function
@@ -144,7 +144,7 @@ if __name__ == '__main__':
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Process args
-	keep_intermediates = True if keep_intermediates=='True' else False
+	keep_temp = True if keep_temp=='True' else False
 	ucsc_track = True if ucsc_track=='True' else False
 	read_files = read_files.split(',')
 
@@ -189,9 +189,9 @@ if __name__ == '__main__':
 	command = f'python -u {pipeline_dir}/scripts/classify_nonlinear.py {output_base} {seq_type} {log_level}'
 	try_run_command(command, log)
 
-	# Delete the intermediate files 
-	if keep_intermediates is False:
-		delete_intermediates(output_base, log)
+	# Delete the temporary files 
+	if keep_temp is False:
+		delete_temp(output_base, log)
 	
 	# End
 	if output_prefix == 'None':
