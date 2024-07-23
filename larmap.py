@@ -7,6 +7,7 @@ import time
 from subprocess import run
 import multiprocessing
 import logging
+import subprocess
 
 
 
@@ -139,8 +140,18 @@ if __name__ == '__main__':
 		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing paired-end read files...'), flush=True)
 		log.debug('Processing paired-end read files...')
 		map_lariats_args += [args.read_one, args.read_two]
+	# map_lariats_args = [output_base, str(args.output_prefix), str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp), str(args.ucsc_track), pipeline_dir, log_level, seq_type]
+	# if seq_type == 'single':
+	# 	# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
+	# 	log.debug('Processing single-end read file...')
+	# 	map_lariats_args += [args.read_file]
+	# elif seq_type == 'paired':
+	# 	# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing paired-end read files...'), flush=True)
+	# 	log.debug('Processing paired-end read files...')
+	# 	map_lariats_args += [','.join([args.read_one, args.read_two])]
 	log.debug(f'map_lariats args: {map_lariats_args}')
 
 	# Run it
 	map_call = f'{os.path.join(pipeline_dir, "scripts", "map_lariats.sh")} {" ".join(map_lariats_args)}'
-	run(map_call.split(' '))
+	# map_call = f'python -u {os.path.join(pipeline_dir, "scripts", "map_lariats.py")} {" ".join(map_lariats_args)}'
+	subprocess.run(map_call.split(' '))
