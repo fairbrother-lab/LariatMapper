@@ -148,7 +148,7 @@ python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GEN
 
 ### Filter lariat mappings and choose 1 for each read
 printf "$(date +'%d/%b/%y %H:%M:%S') | Filtering putative lariat alignments...\n"
-python -u $PIPELINE_DIR/scripts/filter_lariats.py $GENOME_FASTA $REPEATS_BED $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED \
 	|| exit 1 
 
 ### Make a custom track BED file of identified lariats 
