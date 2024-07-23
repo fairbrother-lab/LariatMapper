@@ -6,6 +6,8 @@ import subprocess
 
 import pandas as pd
 
+from scripts import exceptions
+
 
 
 
@@ -78,8 +80,14 @@ def run_command(command:str, input:str=None, log:logging.Logger=None) -> str:
 	'''
 	if log is not None:
 		log.debug(f'Running command: {repr(command)}')
-		
+		if input is not None: 
+			if len(input) <= 1_000:
+				log.debug(f'Input: \n{input}')
+			else:
+				log.debug(f'Input (TRUNCATED): \n{input[:1_000]}')
+
 	response = subprocess.run(command.split(' '), input=input, capture_output=True, text=True)
-	response.check_returncode()
+	if response.returncode != 0:
+		raise exceptions.RunCommandError(process=response)
 	
-	return response.stdout.strip()
+	return response.stderr.strip() + response.stdout.strip()
