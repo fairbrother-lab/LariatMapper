@@ -50,7 +50,7 @@ def get_read_seqs(unmapped_fasta:str) -> dict:
 	return read_seqs
 
 
-def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str) -> dict:
+def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 	# Prepare 5' sites for input into bedtools getfasta
 	# We're retrieving the 5bp upstream of the 5'ss, which is the last 5bp in the upstream exon
 	bedtools_input = ''
@@ -62,7 +62,8 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str) -> dict:
 
 	# Call bedtools getfasta 
 	bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {genome_fasta} -bed -'
-	bedtools_output = subprocess.run(bedtools_call.split(' '), input=bedtools_input, check=True, capture_output=True, text=True).stdout.strip().split('\n')
+	bedtools_output = functions.run_command(bedtools_call, input=bedtools_input, log=log)
+	bedtools_output = bedtools_output.split('\n')
 
 	# Parse output
 	fivep_upstream_seqs = dict([(l.split('\t')[0][:-3], l.split('\t')[1].upper()) for l in bedtools_output])
@@ -268,7 +269,7 @@ if __name__ == '__main__' :
 
 	# Load reference info
 	read_seqs = get_read_seqs(f'{output_base}unmapped_reads.fa')
-	fivep_upstream_seqs = get_fivep_upstream_seqs(fivep_fasta, genome_fasta)
+	fivep_upstream_seqs = get_fivep_upstream_seqs(fivep_fasta, genome_fasta, log)
 
 	# Get the total number of alignments
 	with open(fivep_to_reads) as sam:
