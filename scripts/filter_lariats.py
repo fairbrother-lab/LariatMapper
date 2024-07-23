@@ -41,7 +41,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_lariat_info_table.tsv and put them in a dict, which
 	can then be added to the experiment-wide superset dict
 	'''
-	lariat_reads = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t')
+	lariat_reads = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t', dtype={'filter_failed': 'object'})
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
 	if lariat_reads.empty:
@@ -64,15 +64,17 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	return lariat_reads
 
 
-def add_mapped_reads(output_base:str) -> int:
+def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
 	'''
-	Get the number of reads that mapped to the reference genome from the *read_counts.tsv file 
+	Get the number of reads that mapped to the reference genome
 	'''
-	with open(f'{output_base}read_counts.tsv', 'r') as file:
-		line = file.readline()
-		sample_read_count = int(line.split('\t')[1])
+	command = f'samtools view --count --exclude-flags 4 {output_base}output.bam'
+	count = int(functions.run_command(command, log=log))
 
-	return sample_read_count
+	if seq_type == 'paired':
+		count = count/2
+
+	return count
 
 
 #TODO: Implement a more elaborate check. We only need to check for UBC-type repeats as possible false-positives
@@ -88,8 +90,8 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str) -> se
 
 	# Identify 5'ss that overlap a repeat region
 	bedtools_call = f'bedtools intersect -u -a - -b {ref_repeatmasker}'
-	bedtools_fivep_output = subprocess.run(bedtools_call.split(' '), input=bedtools_fivep_input, capture_output=True, text=True).stdout.strip().split('\n')
-	bedtools_bp_output = subprocess.run(bedtools_call.split(' '), input=bedtools_bp_input, capture_output=True, text=True).stdout.strip().split('\n')
+	bedtools_fivep_output = functions.run_command(bedtools_call, input=bedtools_fivep_input, log=log).split('\n')
+	bedtools_bp_output = functions.run_command(bedtools_call, input=bedtools_bp_input, log=log).split('\n')
 
 	# Add reads where both sites overlapped to repeat_rids for removal
 	fivep_repeat_rids, bp_repeat_rids = set(), set()
@@ -167,7 +169,7 @@ def choose_read_mapping(lariat_reads):
 # =============================================================================#
 if __name__ == '__main__':
 	# Get args
-	ref_fasta, ref_repeatmasker, output_base, log_level = sys.argv[1:]
+	output_base, log_level, seq_type, ref_fasta, ref_repeatmasker = sys.argv[1:]
 
 	# Get logger
 	log = functions.get_logger(log_level)
@@ -182,7 +184,7 @@ if __name__ == '__main__':
 	log.info(f'Pre-filter read count = {len(lariat_reads.read_id.unique())}')
 
 	# Get linear mapped reads count 
-	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base)
+	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base, seq_type, log)
 
 	# Check for reads aligned to annotated repetitive region 
 	log.debug('Checking repeat regions')

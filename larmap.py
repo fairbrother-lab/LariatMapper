@@ -7,6 +7,7 @@ import time
 from subprocess import run
 import multiprocessing
 import logging
+import subprocess
 
 
 
@@ -86,7 +87,7 @@ if __name__ == '__main__':
 	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
 	parser.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	parser.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
-	parser.add_argument('-k', '--keep_intermediates', action='store_true', help='Don\'t delete the intermediate files created while running the pipeline (default=delete)')
+	parser.add_argument('-k', '--keep_temp', action='store_true', help='Don\'t delete the temporary files created while running the pipeline (default=delete)')
 	log_levels = parser.add_mutually_exclusive_group()
 	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR)")
 	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING)")
@@ -130,7 +131,7 @@ if __name__ == '__main__':
 		os.mkdir(args.output_dir)
 
 	# Prepare call to map_lariats.sh
-	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_intermediates).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level, seq_type]
+	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level, seq_type]
 	if seq_type == 'single':
 		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
 		log.debug('Processing single-end read file...')
@@ -139,8 +140,18 @@ if __name__ == '__main__':
 		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing paired-end read files...'), flush=True)
 		log.debug('Processing paired-end read files...')
 		map_lariats_args += [args.read_one, args.read_two]
+	# map_lariats_args = [output_base, str(args.output_prefix), str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp), str(args.ucsc_track), pipeline_dir, log_level, seq_type]
+	# if seq_type == 'single':
+	# 	# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
+	# 	log.debug('Processing single-end read file...')
+	# 	map_lariats_args += [args.read_file]
+	# elif seq_type == 'paired':
+	# 	# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing paired-end read files...'), flush=True)
+	# 	log.debug('Processing paired-end read files...')
+	# 	map_lariats_args += [','.join([args.read_one, args.read_two])]
 	log.debug(f'map_lariats args: {map_lariats_args}')
 
 	# Run it
 	map_call = f'{os.path.join(pipeline_dir, "scripts", "map_lariats.sh")} {" ".join(map_lariats_args)}'
-	run(map_call.split(' '))
+	# map_call = f'python -u {os.path.join(pipeline_dir, "scripts", "map_lariats.py")} {" ".join(map_lariats_args)}'
+	subprocess.run(map_call.split(' '))

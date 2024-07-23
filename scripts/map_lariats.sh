@@ -21,8 +21,8 @@ EXONS_TSV=$6
 INTRONS_TSV=$7
 # Annotated repeat regions
 REPEATS_BED=$8
-# Keep the intermediate files created during the run ("True" or "False", default "False")
-KEEP_INTERMEDIATES=$9
+# Keep the temp files created during the run ("True" or "False", default "False")
+KEEP_TEMP=$9
 # Run make_track.py after filter_lariats.py ("True" or "False", default "False")
 UCSC_TRACK="${10}"
 # Directory containing lariat mapping pipeline files
@@ -72,15 +72,13 @@ failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
 printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping reads to genome...\n"
 if [ "$SEQ_TYPE" == "single" ]; then
-	# hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
-	hisat2 --no-softclip -k 5 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
+	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 	       --threads $THREADS -x $GENOME_INDEX -U $READ_FILE \
 		| samtools view --bam --with-header --add-flags PAIRED,READ1 \
 		> $output_bam \
 		|| exit 1
 elif [ "$SEQ_TYPE" == "paired" ]; then
-	# hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
-	hisat2 --no-softclip -k 5 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
+	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 		   --threads $THREADS -x $GENOME_INDEX -1 $READ_ONE -2 $READ_TWO \
 		| samtools view --bam --with-header \
 		> $output_bam \
@@ -150,7 +148,7 @@ python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GEN
 
 ### Filter lariat mappings and choose 1 for each read
 printf "$(date +'%d/%b/%y %H:%M:%S') | Filtering putative lariat alignments...\n"
-python -u $PIPELINE_DIR/scripts/filter_lariats.py $GENOME_FASTA $REPEATS_BED $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED \
 	|| exit 1 
 
 ### Make a custom track BED file of identified lariats 
@@ -169,9 +167,9 @@ python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LO
 
 
 wait
-### Delete the intermediate files 
-if ! $KEEP_INTERMEDIATES; then
-	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting intermediate files...\n"
+### Delete the temporary files 
+if ! $KEEP_TEMP; then
+	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting temporary files...\n"
 	rm $output_bam
 	rm $mapped_bam
 	rm $unmapped_bam
