@@ -114,7 +114,7 @@ if __name__ == '__main__':
 
 	read_classes = add_reads(f'{output_base}tails.tsv', 
 						  "Unmapped with 5'ss alignment", 
-						  'Head read mapping', 
+						  'Head mapping', 
 						  read_classes,
 						  lambda read_id: read_id[:-6])
 
