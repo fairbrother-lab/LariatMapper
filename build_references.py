@@ -165,7 +165,7 @@ def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str, l
 	
 	# Get fivep sequences
 	bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {ref_fasta} -bed -'
-	bedtools_output = subprocess.run(bedtools_call.split(' '), input=bedtools_input, check=True, capture_output=True, text=True).stdout
+	bedtools_output = functions.run_command(bedtools_call, input=bedtools_input, log=log)
 
 	# Parse output
 	fivep_seqs = [line.split('\t') for line in bedtools_output.strip().split('\n')]
@@ -179,11 +179,7 @@ def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str, l
 	
 	log.debug('Building fivep index')
 	build_index_call = f'bowtie2-build --quiet --threads {threads} {out_dir}/{REF_FIVEP_FILE} {out_dir}/{REF_FIVEP_INDEX}'
-	indexing = subprocess.run(build_index_call.split(' '), capture_output=True)
-	if indexing.stdout != b'':
-		print(indexing.stdout.decode())
-	if indexing.stderr != b'':
-		print(indexing.stderr.decode())
+	functions.run_command(build_index_call, log=log)
 
 
 
