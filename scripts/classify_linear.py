@@ -194,7 +194,7 @@ def classify_seg(row):
 			return 'pre-mRNA'
 		
 	if any([row['seg'].begin==exon.begin for exon in row['exons']]) or any([row['seg'].end==exon.end for exon in row['exons']]):
-		return 'Exon junction'
+		return 'Splice junction'
 
 	if len(row['introns'])==0:
 		return 'Exonic'
@@ -206,7 +206,7 @@ def classify_seg(row):
 def classify_read(seg_rows:pd.DataFrame) -> str:
 	classes_set = set(seg_rows['seg_class'])
 	if len(classes_set)==1:
-		if classes_set == {'Exon junction'}:
+		if classes_set == {'Splice junction'}:
 			if seg_rows.spliced.any():
 				return 'mRNA'
 			else:
@@ -221,7 +221,7 @@ def classify_read(seg_rows:pd.DataFrame) -> str:
 		return "Starts at 5'ss"
 	if 'pre-mRNA' in classes_set:
 		return 'pre-mRNA'
-	if 'Exon junction' in classes_set:
+	if 'Splice junction' in classes_set:
 		return 'mRNA'
 	
 	return tuple(classes_set)
