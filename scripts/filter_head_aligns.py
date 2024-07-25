@@ -214,12 +214,14 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 
 def get_bp_seqs(alignments:pd.DataFrame, genome_fasta:str):
 	alignments = alignments.copy()
-	alignments['window_start'] = alignments.apply(lambda row: row['bp_pos']-4 if row['strand']=='+' else row['bp_pos']-5, axis=1).astype(str)
-	alignments['window_end'] = alignments.apply(lambda row: row['bp_pos']+6 if row['strand']=='+' else row['bp_pos']+5, axis=1).astype(str)
+	# alignments['window_start'] = alignments.apply(lambda row: row['bp_pos']-8 if row['strand']=='+' else row['bp_pos']-8, axis=1).astype(str)
+	# alignments['window_end'] = alignments.apply(lambda row: row['bp_pos']+9 if row['strand']=='+' else row['bp_pos']+9, axis=1).astype(str)
+	alignments['window_start'] = pd.Series(alignments.bp_pos - 8, dtype='str')
+	alignments['window_end'] = pd.Series(alignments.bp_pos + 9, dtype='str')
 	alignments['align_num'] = alignments.index.to_series().astype(str)
 	alignments['zero'] = '0'
 	alignments['bedtools_line'] = alignments[['chrom', 'window_start', 'window_end', 'align_num', 'zero', 'strand']].agg('\t'.join, axis=1)
-	
+
 	bedtools_input = '\n'.join(alignments.bedtools_line) + '\n'
 	bedtools_call = f'bedtools getfasta -nameOnly -s -tab -fi {genome_fasta} -bed -'
 	response = functions.run_command(bedtools_call, bedtools_input)
@@ -240,9 +242,11 @@ def is_template_switch(row):
 
 def add_nearest_threep(row:pd.Series):
 	if row['strand'] == '+':
-		threep_pos = min(row['overlap_introns'], key=lambda s: s.end-row['bp_pos']).end - 1
+		candidate_introns = [intron for intron in row['overlap_introns'] if intron.end>row['bp_pos']]
+		threep_pos = min(candidate_introns, key=lambda i: i.end-row['bp_pos']).end - 1
 	else:
-		threep_pos = min(row['overlap_introns'], key=lambda s: row['bp_pos']-s.begin).begin
+		candidate_introns = [intron for intron in row['overlap_introns'] if intron.begin<=row['bp_pos']]
+		threep_pos = min(candidate_introns, key=lambda i: row['bp_pos']-i.begin).begin
 
 	return threep_pos
 
@@ -309,7 +313,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 	alignments.fivep_pos = alignments.fivep_pos.astype('UInt64')
 	alignments['bp_pos'] = alignments.apply(lambda row: row['align_end']-1 if row['strand']=='+' else row['align_start'], axis=1)
 	alignments = get_bp_seqs(alignments, genome_fasta)
-	alignments['genomic_bp_nt'] = alignments.genomic_bp_context.str.get(4)
+	alignments['genomic_bp_nt'] = alignments.genomic_bp_context.str.get(8)
 	
 	# Identify template-switching reads
 	alignments['template_switching'] = alignments.apply(is_template_switch, axis=1)
@@ -334,6 +338,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 	
 	# Identify introns that overlap the alignment
 	alignments['overlap_introns'] = alignments.apply(lambda row: introns_shared[row['chrom']][row['strand']].overlap(row['align_start'], row['align_end']), axis=1)
+	alignments['overlap_introns'] = alignments.apply(lambda row: [intron for intron in row['overlap_introns'] if intron.begin<=row['align_start'] and intron.end>=row['align_end']], axis=1)
 	
 	# Filter out alignments that don't overlap any introns
 	alignments.loc[alignments.overlap_introns.transform(len)==0, 'filter_failed'] = 'overlap_introns'
