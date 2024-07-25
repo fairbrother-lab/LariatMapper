@@ -2,9 +2,7 @@ import sys
 import os
 import subprocess
 
-from scripts import functions
-from scripts import exceptions
-
+from . import functions
 
 
 # =============================================================================#
