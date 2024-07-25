@@ -99,6 +99,10 @@ echo -e "linear_unmapped\t$unmapped_read_count" >> $run_data
 ### Check if 0 reads were left unmapped
 if [ $unmapped_read_count == 0 ];then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining"
+	python -u $PIPELINE_DIR/scripts/classify_linear.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
+		|| exit 1
+	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
+		|| exit 1
 	exit
 fi
 
