@@ -6,8 +6,25 @@ import subprocess
 
 import pandas as pd
 
-from scripts import exceptions
 
+
+# =============================================================================#
+#                                  Classes                                     #
+# =============================================================================#
+class RunCommandError(Exception):
+	'''
+	Custom Exception class raised when subprocess.run(command) fails, 
+	allowing us to print the stdout and stderr from the command so we know why 
+	it failed
+	'''
+
+	def __init__(self, process:subprocess.CompletedProcess):
+		super().__init__()
+		self.process = process
+		self.response = process.stdout + process.stderr
+
+	def __str__(self):
+		return f'Command returned non-zero exit status {self.process.returncode}. \n{self.response}'
 
 
 
@@ -88,6 +105,6 @@ def run_command(command:str, input:str=None, log:logging.Logger=None) -> str:
 
 	response = subprocess.run(command.split(' '), input=input, capture_output=True, text=True)
 	if response.returncode != 0:
-		raise exceptions.RunCommandError(process=response)
+		raise RunCommandError(process=response)
 	
 	return response.stderr.strip() + response.stdout.strip()
