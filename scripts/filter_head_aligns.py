@@ -76,7 +76,7 @@ circulars_lock = multiprocessing.Lock()
 # =============================================================================#
 def parse_intron_info(ref_introns):
 	introns_df = pd.read_csv(ref_introns, sep='\t')
-	introns_df['gene_id_dict'] = introns_df.gene_id.transform(lambda gene_id: {'gene_id': gene_id})
+	introns_df['gene_id_dict'] = introns_df.gene_id.transform(lambda gene_id: {'gene_id': set(gene_id.split(','))})
 	
 	introns = {}
 	for chrom in introns_df.chrom.unique():
@@ -86,6 +86,9 @@ def parse_intron_info(ref_introns):
 		introns[chrom]['+'] = IntervalTree.from_tuples([row for i, row in pos_subset.iterrows()])
 		neg_subset = introns_df.loc[(introns_df.chrom==chrom) & (introns_df.strand=='-'), ['start', 'end', 'gene_id_dict']]
 		introns[chrom]['-'] = IntervalTree.from_tuples([row for i, row in neg_subset.iterrows()])
+
+	# Convert introns dict into a defaultdict to avoid a later KeyError if a head maps to a chromosome with 0 annotated introns
+	introns = collections.defaultdict(lambda: {'+': IntervalTree(), '-': IntervalTree()}, introns)
 
 	fivep_genes = introns_df.copy()
 	fivep_genes['fivep_site'] = fivep_genes.apply(lambda row: f"{row['chrom']};{row['start']};{row['strand']}" if row['strand']=='+' else f"{row['chrom']};{row['end']-1};{row['strand']}", axis=1)
@@ -240,6 +243,15 @@ def is_template_switch(row):
 	return base_matches == 5
 
 
+def filter_introns(row):
+	matched_introns = []
+	for intron in row['overlap_introns']:
+		if len(intron.data['gene_id'].intersection(set(row['gene_id'])))>0:
+			matched_introns.append(intron)
+
+	return matched_introns
+
+
 def add_nearest_threep(row:pd.Series):
 	if row['strand'] == '+':
 		candidate_introns = [intron for intron in row['overlap_introns'] if intron.end>row['bp_pos']]
@@ -336,7 +348,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after template-switching filter')
 		return 
 	
-	# Identify introns that overlap the alignment
+	# Identify introns that envelop the alignment
 	alignments['overlap_introns'] = alignments.apply(lambda row: introns_shared[row['chrom']][row['strand']].overlap(row['align_start'], row['align_end']), axis=1)
 	alignments['overlap_introns'] = alignments.apply(lambda row: [intron for intron in row['overlap_introns'] if intron.begin<=row['align_start'] and intron.end>=row['align_end']], axis=1)
 	
@@ -348,8 +360,9 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 		return 
 	
 	# Filter out alignments where 5'ss and BP segments aren't in the same gene
-	alignments = alignments.explode('gene_id')
-	alignments.overlap_introns = alignments.apply(lambda row: tuple(intron for intron in row['overlap_introns'] if row['gene_id'] in intron.data['gene_id']), axis=1)
+	# alignments = alignments.explode('gene_id')
+	# alignments.overlap_introns = alignments.apply(lambda row: tuple(intron for intron in row['overlap_introns'] if row['gene_id'] in intron.data['gene_id']), axis=1)
+	alignments.overlap_introns = alignments.apply(filter_introns, axis=1)
 	alignments.loc[alignments.overlap_introns.transform(len).eq(0), 'filter_failed'] = 'fivep_intron_match'
 	alignments = drop_failed_alignments(alignments, output_base)
 	if alignments.empty:
