@@ -36,10 +36,6 @@ REF_FIVEP_INDEX = 'fivep_sites'
 #=============================================================================#
 #                                  Functions                                  #
 #=============================================================================#
-def comma_join(x): 
-	return ','.join(set(x))
-
-
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
 	if file_type == 'gtf':
 		attributes = attribute_string.rstrip('";').split('; ')
@@ -100,11 +96,9 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 		chrom = transcripts[transcript_id]['chrom']
 		strand = transcripts[transcript_id]['strand']
 		gene_id = transcripts[transcript_id]['gene']
-
-		reverse_orient = True if strand == '-' else False
-		transcript_exons = sorted(transcripts[transcript_id]['exons'], key=lambda e: e[0], reverse=reverse_orient)
+		transcript_exons = sorted(transcripts[transcript_id]['exons'])
 		n_exons = len(transcript_exons)
-		
+
 		for i in range(n_exons):
 			# Add the ith exon to list
 			exon = (chrom, strand, transcript_exons[i][0], transcript_exons[i][1], gene_id)
@@ -115,25 +109,21 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 				break
 			
 			# Add the ith intron to list
-			if strand == '+':
-				intron_start = transcript_exons[i][1]
-				intron_end = transcript_exons[i+1][0] - 1
-			else:
-				intron_start = transcript_exons[i+1][1]
-				intron_end = transcript_exons[i][0]
+			intron_start = transcript_exons[i][1]
+			intron_end = transcript_exons[i+1][0]
 			intron = (chrom, strand, intron_start, intron_end, gene_id)
 			introns.append(intron)
 	
 	# Collapse gene ids
 	exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
-	exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': comma_join})
+	exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
 	# Write to file
 	exons.to_csv(f'{out_dir}/exons.tsv.gz', sep='\t', index=False, compression='gzip')
 
 	# Collapse gene ids
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
-	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': comma_join})
-	# Remove introns 20bp or shorter
+	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
+	# # Remove introns 20bp or shorter
 	log.info(f'{sum(introns.end-introns.start<20):,} of {len(introns):,} introns excluded for being shorter than 20nt')
 	introns = introns.loc[introns.end-introns.start>=20]
 	# Write to file
