@@ -49,7 +49,7 @@ def add_reads(file:str, class_:str, stage:str, read_classes:list, read_id_proces
 		log.warning(f'{file} not found')
 		return read_classes
 	
-	df = pd.read_csv(file, sep='\t')
+	df = pd.read_csv(file, sep='\t', low_memory=False)
 
 	if read_id_process is not None:
 		df.read_id = df.read_id.transform(read_id_process)
