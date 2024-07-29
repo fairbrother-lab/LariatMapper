@@ -3,12 +3,12 @@
 	"formatters": {
 	  "simple": {
 		"format": "{asctime} | {message}",
-		"datefmt": "%d/%b/%y %H:%M:%S",
+		"datefmt": "%d/%b/%Y %H:%M:%S",
 		"style": "{"
 	  },
 	  "extensive":{
-		"format": "{asctime} | {filename:<22} | {lineno:<3} | {message}",
-		"datefmt": "%d/%b/%y %H:%M:%S",
+		"format": "{asctime} | {filename:<21} | {lineno:<3} | {message}",
+		"datefmt": "%d/%b/%Y %H:%M:%S",
 		"style": "{"
 	  }
 	},
