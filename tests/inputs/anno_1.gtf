@@ -1,0 +1,28 @@
+# DDX11L1 from https://www.ensembl.org/Homo_sapiens/Transcript/Exons?db=core;g=ENSG00000223972;r=1:12010-13670;t=ENST00000450305																					
+chr1	.	exon	1	48	.	+	.	gid "DDX11L1"; tid "DDX11L1_ENST00000450305.2";
+chr1	.	exon	168	216	.	+	.	gid "DDX11L1"; tid "DDX11L1_ENST00000450305.2";
+chr1	.	exon	600	684	.	+	.	gid "DDX11L1"; tid "DDX11L1_ENST00000450305.2";
+chr1	.	exon	960	1037	.	+	.	gid "DDX11L1"; tid "DDX11L1_ENST00000450305.2";
+chr1	.	exon	1204	1357	.	+	.	gid "DDX11L1"; tid "DDX11L1_ENST00000450305.2";
+chr1	.	exon	1434	1651	.	+	.	gid "DDX11L1"; tid "DDX11L1_ENST00000450305.2";
+# FOXN2, from https://www.ensembl.org/Homo_sapiens/Transcript/Exons?db=core;g=ENSG00000170802;r=2:48314637-48379295;t=ENST00000340553"																					
+chr2	.	exon	1	133	.	+	.	gid "FOXN2"; tid "FOXN2_ENST00000340553.8";
+chr2	.	exon	13878	14019	.	+	.	gid "FOXN2"; tid "FOXN2_ENST00000340553.8";
+chr2	.	exon	31516	32066	.	+	.	gid "FOXN2"; tid "FOXN2_ENST00000340553.8";
+chr2	.	exon	44360	44460	.	+	.	gid "FOXN2"; tid "FOXN2_ENST00000340553.8";
+chr2	.	exon	47954	48018	.	+	.	gid "FOXN2"; tid "FOXN2_ENST00000340553.8";
+chr2	.	exon	58601	58669	.	+	.	gid "FOXN2"; tid "FOXN2_ENST00000340553.8";
+chr2	.	exon	60227	64602	.	+	.	gid "FOXN2"; tid "FOXN2_ENST00000340553.8";
+# DBR1, from https://www.ensembl.org/Homo_sapiens/Transcript/Exons?db=core;g=ENSG00000138231;r=3:138160988-138174949;t=ENST00000260803"																					
+chr3 	.	exon	1	1595	.	-	.	gid "DBR1"; tid "DBR1_ENST00000260803.9";
+chr3 	.	exon	2360	2505	.	-	.	gid "DBR1"; tid "DBR1_ENST00000260803.9";
+chr3 	.	exon	2787	2867	.	-	.	gid "DBR1"; tid "DBR1_ENST00000260803.9";
+chr3 	.	exon	6088	6312	.	-	.	gid "DBR1"; tid "DBR1_ENST00000260803.9";
+chr3 	.	exon	9112	9197	.	-	.	gid "DBR1"; tid "DBR1_ENST00000260803.9";
+chr3 	.	exon	10636	10716	.	-	.	gid "DBR1"; tid "DBR1_ENST00000260803.9";
+chr3 	.	exon	12503	12627	.	-	.	gid "DBR1"; tid "DBR1_ENST00000260803.9";
+chr3 	.	exon	13598	13920	.	-	.	gid "DBR1"; tid "DBR1_ENST00000260803.9";
+chr_noseq	.	exon	1	100	.	-	.	gid "chr_noseq_gene_1"; tid "chr_noseq_gene_1_tx_1";
+chr_noseq	.	exon	201	300	.	-	.	gid "chr_noseq_gene_1"; tid "chr_noseq_gene_1_tx_1";
+chr_toosmall	.	exon	1	10	.	-	.	gid "chr_toosmall_gene_1"; tid "chr_toosmall_gene_1_tx_1";
+chr_toosmall	.	exon	20	30	.	-	.	gid "chr_toosmall_gene_1"; tid "chr_toosmall_gene_1_tx_1";
