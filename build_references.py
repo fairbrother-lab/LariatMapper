@@ -65,7 +65,11 @@ def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attri
 			continue
 		
 		# Parse the line, making sure it's an exon feature
-		chrom, _, feature, start, end, _, strand, _, attributes = line.strip().split('\t')
+		try:
+			chrom, _, feature, start, end, _, strand, _, attributes = line.strip().split('\t')
+		except ValueError:
+			raise ValueError(f'Line: {repr(line)}')
+		
 		if feature != 'exon':
 			continue
 		start = int(start) - 1
@@ -75,7 +79,7 @@ def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attri
 		if transcript_attribute not in attributes:
 			raise ValueError(f'Attribute for transcript id "{transcript_attribute}" not found in attributes of line "{line}"')
 		if gene_attribute not in attributes:
-			raise ValueError(f'Attribute for gene id "{gene_attribute}" not found in attributes of line "{line}"')
+			raise ValueError(f'Attribute for gene id "{gene_attribute}" not found in attributes {repr(attributes)} of line "{line}"')
 		
 		# Add the exon to its transcript's list
 		exon = (start, end)
@@ -156,10 +160,18 @@ def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str, l
 	# Get fivep sequences
 	bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {ref_fasta} -bed -'
 	bedtools_output = functions.run_command(bedtools_call, input=bedtools_input, log=log)
-
+	bedtools_output = bedtools_output.strip().split('\n')
+	
+	# Report warnings (usually an annotated chromosome wasn't present in the fasta file)
+	warnings = set()
+	for line in bedtools_output:
+		if line.startswith('WARNING') and line not in warnings:
+			log.warning(line)
+			warnings.add(line)
+	bedtools_output = [line.split('\t') for line in bedtools_output if not line.startswith('WARNING')]
+			
 	# Parse output
-	fivep_seqs = [line.split('\t') for line in bedtools_output.strip().split('\n')]
-	fivep_seqs = pd.DataFrame(fivep_seqs, columns=['fivep_site', 'seq'])
+	fivep_seqs = pd.DataFrame(bedtools_output, columns=['fivep_site', 'seq'])
 	fivep_seqs.fivep_site = fivep_seqs.fivep_site.str.slice(0,-3)
 
 	# Write sequences to fasta file
@@ -216,8 +228,8 @@ if __name__ == '__main__':
 		hisat2_file_extensions = [f'.{i}.ht2l' for i in range(1,9)]
 	else:
 		raise FileNotFoundError(f'hisat2 index does not exist at {hisat2_index}')
-	ref_names = ['Genome fasta', 'Reference annotation', 'RepeatMasker BED'] + ['hisat2 index']*8
-	ref_files = [ref_fasta, ref_anno, ref_repeatmasker] + [f'{hisat2_index}{ext}' for ext in hisat2_file_extensions]
+	ref_names = ['Genome fasta', 'Reference annotation'] + ['hisat2 index']*8
+	ref_files = [ref_fasta, ref_anno] + [f'{hisat2_index}{ext}' for ext in hisat2_file_extensions]
 	for rn, rf in zip(ref_names, ref_files):
 		if not os.path.isfile(rf):
 			raise FileNotFoundError(f'{rn} file does not exist at {rf}')
