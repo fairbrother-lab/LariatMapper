@@ -363,6 +363,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 	# alignments = alignments.explode('gene_id')
 	# alignments.overlap_introns = alignments.apply(lambda row: tuple(intron for intron in row['overlap_introns'] if row['gene_id'] in intron.data['gene_id']), axis=1)
 	alignments.overlap_introns = alignments.apply(filter_introns, axis=1)
+	alignments.gene_id = alignments.gene_id.transform(functions.str_join)
 	alignments.loc[alignments.overlap_introns.transform(len).eq(0), 'filter_failed'] = 'fivep_intron_match'
 	alignments = drop_failed_alignments(alignments, output_base)
 	if alignments.empty:
