@@ -17,18 +17,18 @@ from scripts import functions
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
-def process_args(args:argparse.ArgumentParser, log):
+def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	# Determine whether input is single-end or paired-end and confirm that the read file(s) exit
 	if args.read_file is not None:
 		seq_type = 'single'
 		if not os.path.isfile(args.read_file):
-			raise ValueError(f'"{args.read_file}" is not an existing file')
+			parser.error(f'"{args.read_file}" is not an existing file')
 	elif args.read_one is not None and args.read_two is not None:
 		seq_type = 'paired'
 		if not os.path.isfile(args.read_one):
-			raise ValueError(f'"{args.read_one}" is not an existing file')
+			parser.error(f'"{args.read_one}" is not an existing file')
 		if not os.path.isfile(args.read_two):
-			raise ValueError(f'"{args.read_two}" is not an existing file')
+			parser.error(f'"{args.read_two}" is not an existing file')
 	else:
 		parser.error('Provide either -f/--read_file (for single-end read) OR -1/--read_one and -2/--read_two (for paired-end reads)')
 
@@ -116,7 +116,7 @@ if __name__ == '__main__':
 	log.info(f'Arguments: \n\t{arg_message}')
 
 	# Validate the args and determine additional variables
-	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, output_base = process_args(args, log)
+	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, output_base = process_args(args, parser, log)
 	log.debug(f'seq_type: {repr(seq_type)}, output_base: {repr(output_base)}')
 
 	# Set start method for multiprocessing in filter_fivep_aligns.py and filter_head_aligns.py
@@ -125,7 +125,6 @@ if __name__ == '__main__':
 	multiprocessing.set_start_method('spawn')	
 
 	# Make output dir
-	# print(time.strftime('%m/%d/%y - %H:%M:%S | Preparing directories...'), flush=True)
 	log.info('Preparing directories...')
 	if not os.path.isdir(args.output_dir):
 		os.mkdir(args.output_dir)
@@ -133,11 +132,9 @@ if __name__ == '__main__':
 	# Prepare call to map_lariats.sh
 	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level, seq_type]
 	if seq_type == 'single':
-		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
 		log.debug('Processing single-end read file...')
 		map_lariats_args += [args.read_file]
 	elif seq_type == 'paired':
-		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing paired-end read files...'), flush=True)
 		log.debug('Processing paired-end read files...')
 		map_lariats_args += [args.read_one, args.read_two]
 	# map_lariats_args = [output_base, str(args.output_prefix), str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp), str(args.ucsc_track), pipeline_dir, log_level, seq_type]
