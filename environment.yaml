@@ -10,7 +10,7 @@ dependencies:
   - numpy
   - pandas
   - pyarrow         # pandas whines if this isn't included
-  - python
+  - python<=3.11
   - pyfaidx
   - pysam
   - samtools
