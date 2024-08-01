@@ -57,8 +57,8 @@ heads_to_genome="$OUTPUT_BASE"heads_to_genome.sam
 
 tails="$OUTPUT_BASE"tails.tsv
 putative_lariats="$OUTPUT_BASE"putative_lariats.tsv
-failed_fivep="$OUTPUT_BASE"failed_fivep_alignments.tsv
-failed_head="$OUTPUT_BASE"failed_head_alignments.tsv
+failed_fiveps="$OUTPUT_BASE"failed_fivep_alignments.tsv
+failed_heads="$OUTPUT_BASE"failed_head_alignments.tsv
 failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
 
 
@@ -191,7 +191,7 @@ if ! $KEEP_TEMP; then
 	rm $heads_to_genome
 	rm $tails
 	rm $putative_lariats
-	rm $failed_fivep
+	rm $failed_fiveps
 	rm $failed_heads
 	rm $failed_lariat
 fi 
