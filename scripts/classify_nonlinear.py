@@ -161,4 +161,7 @@ if __name__ == '__main__':
 	# Write to file
 	read_classes.to_csv(f'{output_base}read_classes.tsv', sep='\t', index=False, na_rep='N/A')
 
+	# Delete the linear classes file
+	os.remove(f'{output_base}linear_classes.tsv')
+
 	log.debug('End of script')
