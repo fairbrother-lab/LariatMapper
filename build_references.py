@@ -7,35 +7,65 @@ import time
 import gzip
 import argparse
 import collections
+import tempfile
 
 
 import pandas as pd
+
+from scripts import functions
 
 
 
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
-EXON_INTRON_COLUMNS = ('chrom',
-					'strand',
-					'start',
-					'end',
-					'gene_id')
+EXON_INTRON_COLUMNS = ('chrom', 'strand', 'start', 'end', 'gene_id')
 REF_GENOME_FILE = 'genome.fa'
-REF_REPEATMASKER_FILE = 'repeatmasker.bed'
 REF_HISAT2_INDEX = 'hisat2_index'
 REF_EXONS_FILE = 'exons.tsv.gz'
 REF_INTRONS_FILE = 'introns.tsv.gz'
 REF_FIVEP_FILE = 'fivep_sites.fa'
 REF_FIVEP_INDEX = 'fivep_sites'
+REF_REPEATMASKER_FILE = 'repeatmasker.bed'
+HISAT2_EXTENSIONS = ('1.ht2', '2.ht2', '.3.ht2', '.4.ht2','.5.ht2', '.6.ht2','.7.ht2', '.8.ht2')
 
 
 
 #=============================================================================#
 #                                  Functions                                  #
 #=============================================================================#
-def comma_join(x): 
-	return ','.join(set(x))
+def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
+	# Confirm that input files exist
+	ref_names = ['Genome fasta', 'Reference annotation']
+	ref_files = [args.genome_fasta, args.genome_anno]
+	for rn, rf in zip(ref_names, ref_files):
+		if not os.path.isfile(rf):
+			raise FileNotFoundError(f'{rn} file does not exist at {rf}')
+	if args.repeatmasker_bed is not None and not os.path.isfile(args.repeatmasker_bed):
+		parser.error(f'RepeatMasker file does not exist at {args.repeatmasker_bed}')
+		
+	# Determine the hisat2 file extensions and confirm the files exist
+	if os.path.isfile(f'{args.hisat2_index}.1.ht2'):
+		hisat2_extensions = [f'.{i}.ht2' for i in range(1,9)]
+	elif os.path.isfile(f'{args.hisat2_index}.1.ht2l'):
+		hisat2_extensions = [f'.{i}.ht2l' for i in range(1,9)]
+	else:
+		raise FileNotFoundError(f'hisat2 index does not exist at {args.hisat2_index}')
+	
+	# Determine the annotation file format
+	prev_ext, last_ext = args.genome_anno.split('.')[-2:]
+	if last_ext == 'gz':
+		anno_type, gunzip = prev_ext, True
+	else:
+		anno_type, gunzip = last_ext, False
+	if not anno_type in ('gtf', 'gff'):
+		parser.error(f'Annotation file must be in .gtf or .gff format, not .{anno_type}')
+
+	# Validate threads arg
+	if not args.threads>0:
+		parser.error(f'-t/--threads must be a positive integer. Input was "{repr(args.threads)}"')
+	
+	return hisat2_extensions, anno_type, gunzip
 
 
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
@@ -55,11 +85,11 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 	return attributes
 
 
-def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attribute:str, gene_attribute:str):
+def parse_transcripts(genome_anno:str, anno_type:str, gunzip:bool, transcript_attribute:str, gene_attribute:str, log):
 	if gunzip:
-		in_file = gzip.open(ref_anno, 'rt')
+		in_file = gzip.open(genome_anno, 'rt')
 	else:
-		in_file = open(ref_anno)
+		in_file = open(genome_anno)
 
 	transcripts = {}
 	for line in in_file:
@@ -67,7 +97,11 @@ def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attri
 			continue
 		
 		# Parse the line, making sure it's an exon feature
-		chrom, _, feature, start, end, _, strand, _, attributes = line.strip().split('\t')
+		try:
+			chrom, _, feature, start, end, _, strand, _, attributes = line.strip().split('\t')
+		except ValueError:
+			raise ValueError(f'Line: {repr(line)}')
+		
 		if feature != 'exon':
 			continue
 		start = int(start) - 1
@@ -77,7 +111,7 @@ def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attri
 		if transcript_attribute not in attributes:
 			raise ValueError(f'Attribute for transcript id "{transcript_attribute}" not found in attributes of line "{line}"')
 		if gene_attribute not in attributes:
-			raise ValueError(f'Attribute for gene id "{gene_attribute}" not found in attributes of line "{line}"')
+			raise ValueError(f'Attribute for gene id "{gene_attribute}" not found in attributes {repr(attributes)} of line "{line}"')
 		
 		# Add the exon to its transcript's list
 		exon = (start, end)
@@ -89,7 +123,7 @@ def parse_transcripts(ref_anno:str, anno_type:str, gunzip:bool, transcript_attri
 	return transcripts
 
 
-def build_exons_introns(transcripts:dict, out_dir:str) -> pd.DataFrame:
+def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 	exons = []
 	introns = []
 
@@ -98,11 +132,9 @@ def build_exons_introns(transcripts:dict, out_dir:str) -> pd.DataFrame:
 		chrom = transcripts[transcript_id]['chrom']
 		strand = transcripts[transcript_id]['strand']
 		gene_id = transcripts[transcript_id]['gene']
-
-		reverse_orient = True if strand == '-' else False
-		transcript_exons = sorted(transcripts[transcript_id]['exons'], key=lambda e: e[0], reverse=reverse_orient)
+		transcript_exons = sorted(transcripts[transcript_id]['exons'])
 		n_exons = len(transcript_exons)
-		
+
 		for i in range(n_exons):
 			# Add the ith exon to list
 			exon = (chrom, strand, transcript_exons[i][0], transcript_exons[i][1], gene_id)
@@ -113,34 +145,34 @@ def build_exons_introns(transcripts:dict, out_dir:str) -> pd.DataFrame:
 				break
 			
 			# Add the ith intron to list
-			if strand == '+':
-				intron_start = transcript_exons[i][1]
-				intron_end = transcript_exons[i+1][0] - 1
-			else:
-				intron_start = transcript_exons[i+1][1]
-				intron_end = transcript_exons[i][0]
+			intron_start = transcript_exons[i][1]
+			intron_end = transcript_exons[i+1][0]
 			intron = (chrom, strand, intron_start, intron_end, gene_id)
 			introns.append(intron)
 	
 	# Collapse gene ids
 	exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
-	exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': comma_join})
+	exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
+	# Sort to make debugging easier
+	exons = exons.sort_values(['chrom', 'start', 'end'])
 	# Write to file
 	exons.to_csv(f'{out_dir}/exons.tsv.gz', sep='\t', index=False, compression='gzip')
 
 	# Collapse gene ids
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
-	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': comma_join})
+	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
 	# Remove introns 20bp or shorter
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + f' | {sum(introns.end-introns.start<=20):,} of {len(introns):,} introns excluded for being 20nt or shorter')
-	introns = introns.loc[introns.end-introns.start>20]
+	log.info(f'{sum(introns.end-introns.start<20):,} of {len(introns):,} introns excluded for being shorter than 20nt')
+	introns = introns.loc[introns.end-introns.start>=20]
+	# Sort to make debugging easier
+	introns = introns.sort_values(['chrom', 'start', 'end'])
 	# Write to file
 	introns.to_csv(f'{out_dir}/introns.tsv.gz', sep='\t', index=False, compression='gzip')
 
 	return introns
 
 
-def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str) -> None:
+def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str, log) -> None:
 	#TODO: Refactor this through the "bedtools_input += fivep_line" line, it's the biggest time-consumer
 	introns = [row.to_list() for i, row in introns.iterrows()]
 	fivep_sites = set()
@@ -161,27 +193,33 @@ def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str) -
 		fivep_line = f'{chrom}\t{window_start}\t{window_end}\t{fivep_site}\t0\t{strand}\n'
 		bedtools_input += fivep_line
 	
-	# Get fivep sequences
-	bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {ref_fasta} -bed -'
-	bedtools_output = subprocess.run(bedtools_call.split(' '), input=bedtools_input, check=True, capture_output=True, text=True).stdout
+	# Get fivep sequences using bedtools getfasta
+	# We can't parse the standard output for the sequences because warnings will be included in some lines
+	# in a non-deterministic pattern 
+	with tempfile.NamedTemporaryFile() as tmp:
+		bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {genome_fasta} -fo {tmp.name} -bed -'
+		bedtools_output = functions.run_command(bedtools_call, input=bedtools_input, log=log)
+		if bedtools_output != '':
+			bedtools_output = bedtools_output.split('\n')
+			for warning in bedtools_output:
+				log.warning(warning)
+		fivep_seqs = pd.read_csv(tmp, sep='\t', header=None, names=['fivep_site', 'seq'])
 
 	# Parse output
-	fivep_seqs = [line.split('\t') for line in bedtools_output.strip().split('\n')]
-	fivep_seqs = pd.DataFrame(fivep_seqs, columns=['fivep_site', 'seq'])
 	fivep_seqs.fivep_site = fivep_seqs.fivep_site.str.slice(0,-3)
+	fivep_seqs[['chrom', 'pos', 'strand']] = fivep_seqs.fivep_site.str.split(';', expand=True)
+	fivep_seqs.pos = fivep_seqs.pos.astype('int')
+	# Sort to make debugging easier
+	fivep_seqs = fivep_seqs.sort_values(['chrom', 'pos', 'strand'])
 
 	# Write sequences to fasta file
 	with open(f'{out_dir}/{REF_FIVEP_FILE}', 'w') as fasta_out:
 		for i, row in fivep_seqs.iterrows():
 			fasta_out.write(f">{row['fivep_site']}\n{row['seq']}\n")
 	
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Building index of five-prime splice site sequences...')
-	build_index_call = f'bowtie2-build --quiet --threads {threads} {out_dir}/{REF_FIVEP_FILE} {out_dir}/{REF_FIVEP_INDEX}'
-	indexing = subprocess.run(build_index_call.split(' '), capture_output=True)
-	if indexing.stdout != b'':
-		print(indexing.stdout.decode())
-	if indexing.stderr != b'':
-		print(indexing.stderr.decode())
+	# log.debug('Building fivep index')
+	# build_index_call = f'bowtie2-build --quiet --threads {threads} {out_dir}/{REF_FIVEP_FILE} {out_dir}/{REF_FIVEP_INDEX}'
+	# functions.run_command(build_index_call, log=log)
 
 
 
@@ -189,66 +227,64 @@ def build_fivep(introns:pd.DataFrame, ref_fasta:str, threads:int, out_dir:str) -
 #                                    Main                                     #
 #=============================================================================#
 if __name__ == '__main__':
-	# Parse arguments
 	parser = argparse.ArgumentParser(prog='build_references',
 								  	description='Build custom reference files and create reference directory for lariat mapping')
 	
 	# Required arguments
-	parser.add_argument('-f', '--ref_fasta', required=True, help='Path to reference genome fasta file')
-	parser.add_argument('-a', '--ref_anno', required=True, help='Path to reference gene annotation file in GTF or GFF format\n(may be gzipped with .gz extension)')
+	parser.add_argument('-f', '--genome_fasta', required=True, help='Path to reference genome fasta file')
+	parser.add_argument('-a', '--genome_anno', required=True, help='Path to reference gene annotation file in GTF or GFF format\n(may be gzipped with .gz extension)')
 	parser.add_argument('-i', '--hisat2_index', required=True, help='Path to base name of hisat2 index of reference genome (i.e. everything before .1.ht2 extension)')
 	parser.add_argument('-o', '--out_dir', required=True, help='Path to directory where reference files will be output (will be created if it does not exist)')
 	# Optional arguments
 	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
-	parser.add_argument('-r', '--ref_repeatmasker', help='Path to BED file with RepeatMasker annotation of reference genome')
+	parser.add_argument('-r', '--repeatmasker_bed', help='Path to BED file with RepeatMasker annotation of reference genome')
 	parser.add_argument('-x', '--transcript_attribute', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute (default=transcript_id)',)
 	parser.add_argument('-g', '--gene_attribute', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute (default=transcript_id)',)
+	log_levels = parser.add_mutually_exclusive_group()
+	log_levels.add_argument('-q', '--quiet', action='store_true', help="Don't print any status messages")
+	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages")
 
+	# Parse args
 	args = parser.parse_args()
-	ref_fasta, ref_anno, ref_repeatmasker, hisat2_index, out_dir, threads, transcript_attribute, gene_attribute  = args.ref_fasta, args.ref_anno, args.ref_repeatmasker, args.hisat2_index, args.out_dir, args.threads, args.transcript_attribute, args.gene_attribute
-	
-	# Check input files
-	if os.path.isfile(f'{hisat2_index}.1.ht2'):
-		hisat2_file_extensions = [f'.{i}.ht2' for i in range(1,9)]
-	elif os.path.isfile(f'{hisat2_index}.1.ht2l'):
-		hisat2_file_extensions = [f'.{i}.ht2l' for i in range(1,9)]
+
+	# Setup logging
+	if args.quiet is True:
+		log_level = 'ERROR'
+	elif args.debug is True:
+		log_level = 'DEBUG'
 	else:
-		raise FileNotFoundError(f'hisat2 index does not exist at {hisat2_index}')
-	ref_names = ['Genome fasta', 'Reference annotation', 'RepeatMasker BED'] + ['hisat2 index']*8
-	ref_files = [ref_fasta, ref_anno, ref_repeatmasker] + [f'{hisat2_index}{ext}' for ext in hisat2_file_extensions]
-	for rn, rf in zip(ref_names, ref_files):
-		if not os.path.isfile(rf):
-			raise FileNotFoundError(f'{rn} file does not exist at {rf}')
-	
+		log_level = 'INFO'
+	log = functions.get_logger(log_level)
+
+	# Print arguments
+	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
+	arg_message = '\n\t'.join(arg_message)
+	log.info(f'Arguments: \n\t{arg_message}')
+
+	# Validate the args and determine additional variables
+	hisat2_extensions, anno_type, gunzip = process_args(args, parser, log)
+
+	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, out_dir, threads, transcript_attribute, gene_attribute  = args.genome_fasta, args.genome_anno, args.repeatmasker_bed, args.hisat2_index, args.out_dir, args.threads, args.transcript_attribute, args.gene_attribute
+
 	# Make dir
 	if not os.path.isdir(out_dir):
 		os.mkdir(out_dir)
 
 	# Copy the neccesary reference files
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Copying reference files...')
-	shutil.copyfile(ref_fasta, f'{out_dir}/{REF_GENOME_FILE}')
-	if ref_repeatmasker is not None:
-		shutil.copyfile(ref_repeatmasker, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
-	for ext in hisat2_file_extensions:
+	log.info('Copying reference files...')
+	shutil.copyfile(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
+	if repeatmasker_bed is not None:
+		shutil.copyfile(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
+	for ext in hisat2_extensions:
 		shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
 
-	prev_ext, last_ext = ref_anno.split('.')[-2:]
-	if last_ext == 'gz':
-		gunzip, anno_type = True, prev_ext
-		# anno_file = f'annotation.{anno_type}.gz'
-	else:
-		gunzip, anno_type = False, last_ext
-		# anno_file = f'annotation.{anno_type}'
-	if not anno_type in ('gtf', 'gff'):
-		raise ValueError(f'Annotation file must be in .gtf or .gff format, not ".{anno_type}"')
-
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Parsing transcripts from annotation file...')
-	transcripts = parse_transcripts(ref_anno, anno_type, gunzip, transcript_attribute, gene_attribute)
+	log.info('Parsing transcripts from annotation file...')
+	transcripts = parse_transcripts(genome_anno, anno_type, gunzip, transcript_attribute, gene_attribute, log)
 	
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Processing exons and introns...')
-	introns = build_exons_introns(transcripts, out_dir)
+	log.info('Processing exons and introns...')
+	introns = build_exons_introns(transcripts, out_dir, log)
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + " | Processing five-prime splice sites...")
-	build_fivep(introns, ref_fasta, threads, out_dir)
+	log.info("Processing five-prime splice sites...")
+	build_fivep(introns, genome_fasta, threads, out_dir, log)
 
-	print(time.strftime('%m/%d/%y - %H:%M:%S') + ' | Reference building complete.')
+	log.info('Reference building complete.')
