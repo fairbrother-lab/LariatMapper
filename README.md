@@ -11,19 +11,7 @@ Output: Lariats, circularized introns, and template-switching events
 ## Setup
 
 ### Dependencies
-This pipeline has the following dependencies:
-- bowtie2
-- hisat2
-- samtools
-- bedtools
-- python3
-- numpy
-- pandas
-- pyarrow
-- [pyfaidx](https://pypi.org/project/pyfaidx/)
-- [intervaltree](https://pypi.org/project/intervaltree/)
-
-These dependencies are included in the file `environment.yaml` which can be used to make a conda environment for the pipeline by running
+The software dependencies are detailed in `environment.yaml`, which can be used to make a conda environment for the pipeline by running
 
 	conda env create -f environment.yaml
 
@@ -36,20 +24,20 @@ before running scripts in the pipeline (RECOMMENDED).
 For M1 mac users: please install packages `bowtie2`, `bedtools`, and `samtools` using the command `arch -arm64 brew install [package]` before running `conda`, if any of the above pacakges has not previously been installed.
 
 ### Reference files
-Create a directory to store the neccessary reference files with `build_references.py`. Alternatively, you can skip this step and input the reference files at runtime.
+Create a directory with the reference genome data required by the pipeline. 
 
 You will need:
-- A FASTA file of reference genome sequences
+- A FASTA file of the reference genome 
 - A GTF or GFF file of annotations for the reference genome
 - A hisat2 index of the reference genome
 
-Run `build_references.py` with the following arguments:
+Run `build_references.py` with the path to each input file and the desired output path:
 
-	python build_references.py -f <REF_FASTA> -a <REF_ANNO> -i <HISAT2_INDEX> -o <OUT_DIR>
+	python build_references.py -f <GENOME_FASTA> -a <GENOME_ANNO> -i <HISAT2_INDEX> -o <OUT_DIR>
 
-If you have a BED file of repetitive regions from RepeatMasker, you can include the argument `-r <REF_REPEATMASKER>` to copy it to the reference directory. You can find such a file for several reference genomes on the UCSC Genome Browser (https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker".
+If you have a BED file of repetitive regions from RepeatMasker, you can include the argument `-r <REPEATMASKER_BED>` to copy it to the reference directory. You can find such a file for several reference genomes on the UCSC Genome Browser (https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker".
 
-You can then use `OUT_DIR` as the reference files directory when running the pipeline (argument `-r, --ref_dir`)
+You can then use `<OUT_DIR>` as the reference files directory when running the pipeline (argument `-r, --ref_dir`)
 
 ### Input
 LariatMapper accepts FASTQ-format RNA-sequencing data. 
