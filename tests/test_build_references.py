@@ -31,9 +31,11 @@ INPUTS_DIR = PACKAGE_DIR / 'tests' / 'inputs'
 						])
 @pytest.mark.parametrize('threads',
 						 [None, '-t 4', '--threads 4'])
-def test_run(req_args, repeatmasker_bed, threads, tmp_path):
+@pytest.mark.parametrize('copy',
+						 [None, '--copy'])
+def test_run(req_args, repeatmasker_bed, threads, copy, tmp_path):
 	command = f"python {SCRIPT} {req_args} -o {tmp_path}"
-	for optional_arg in (repeatmasker_bed, threads,):
+	for optional_arg in (repeatmasker_bed, threads, copy):
 		if optional_arg is not None:
 			command = f'{command} {optional_arg}'
 

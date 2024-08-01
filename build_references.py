@@ -228,16 +228,17 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 #=============================================================================#
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(prog='build_references',
-								  	description='Build custom reference files and create reference directory for lariat mapping')
+								  	description='Create a reference directory for running LariatMapper. It will contain symbolic links to the input files and custom-built reference files.')
 	
 	# Required arguments
 	parser.add_argument('-f', '--genome_fasta', required=True, help='Path to reference genome fasta file')
-	parser.add_argument('-a', '--genome_anno', required=True, help='Path to reference gene annotation file in GTF or GFF format\n(may be gzipped with .gz extension)')
+	parser.add_argument('-a', '--genome_anno', required=True, help='Path to reference gene annotation file in GTF or GFF format (may be gzipped with .gz extension)')
 	parser.add_argument('-i', '--hisat2_index', required=True, help='Path to base name of hisat2 index of reference genome (i.e. everything before .1.ht2 extension)')
 	parser.add_argument('-o', '--out_dir', required=True, help='Path to directory where reference files will be output (will be created if it does not exist)')
 	# Optional arguments
-	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
+	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default = 1)')
 	parser.add_argument('-r', '--repeatmasker_bed', help='Path to BED file with RepeatMasker annotation of reference genome')
+	parser.add_argument('-c', '--copy', action='store_true', help='Create deep copies of the input files in out_dir (default = create symbolic links)')
 	parser.add_argument('-x', '--transcript_attribute', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute (default=transcript_id)',)
 	parser.add_argument('-g', '--gene_attribute', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute (default=gene_id)',)
 	log_levels = parser.add_mutually_exclusive_group()
@@ -264,19 +265,27 @@ if __name__ == '__main__':
 	# Validate the args and determine additional variables
 	hisat2_extensions, anno_type, gunzip = process_args(args, parser, log)
 
-	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, out_dir, threads, transcript_attribute, gene_attribute  = args.genome_fasta, args.genome_anno, args.repeatmasker_bed, args.hisat2_index, args.out_dir, args.threads, args.transcript_attribute, args.gene_attribute
+	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, out_dir, threads, copy, transcript_attribute, gene_attribute  = args.genome_fasta, args.genome_anno, args.repeatmasker_bed, args.hisat2_index, args.out_dir, args.threads, args.copy, args.transcript_attribute, args.gene_attribute
 
 	# Make dir
 	if not os.path.isdir(out_dir):
 		os.mkdir(out_dir)
 
-	# Copy the neccesary reference files
-	log.info('Copying reference files...')
-	shutil.copyfile(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
-	if repeatmasker_bed is not None:
-		shutil.copyfile(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
-	for ext in hisat2_extensions:
-		shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
+	# Link or copy the neccesary input files
+	if copy is True:
+		log.info('Copying input files...')
+		shutil.copyfile(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
+		for ext in hisat2_extensions:
+			shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
+		if repeatmasker_bed is not None:
+			shutil.copyfile(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
+	else:
+		log.info('Creating links to input files...')
+		os.symlink(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
+		for ext in hisat2_extensions:
+			os.symlink(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
+		if repeatmasker_bed is not None:
+			os.symlink(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
 
 	log.info('Parsing transcripts from annotation file...')
 	transcripts = parse_transcripts(genome_anno, anno_type, gunzip, transcript_attribute, gene_attribute, log)
