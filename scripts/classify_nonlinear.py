@@ -150,9 +150,10 @@ if __name__ == '__main__':
 
 	read_classes['spliced'] = pd.Series(np.nan, dtype='object')
 	
-	# Concat the linearly-aligned reads 
-	linear_classes = pd.read_csv(f'{output_base}linear_classes.tsv', sep='\t', na_filter=False)
-	read_classes = pd.concat([linear_classes.drop(columns=['mate']), read_classes])
+	# Concat the linearly-aligned reads
+	if os.path.isfile(f'{output_base}linear_classes.tsv'):
+		linear_classes = pd.read_csv(f'{output_base}linear_classes.tsv', sep='\t', na_filter=False)
+		read_classes = pd.concat([linear_classes.drop(columns=['mate']), read_classes])
 
 	# Collapse paired-end reads where one mate got linearly aligned and one mate didn't
 	if seq_type == 'paired':
@@ -162,6 +163,7 @@ if __name__ == '__main__':
 	read_classes.to_csv(f'{output_base}read_classes.tsv', sep='\t', index=False, na_rep='N/A')
 
 	# Delete the linear classes file
-	os.remove(f'{output_base}linear_classes.tsv')
+	if os.path.isfile(f'{output_base}linear_classes.tsv'):
+		os.remove(f'{output_base}linear_classes.tsv')
 
 	log.debug('End of script')
