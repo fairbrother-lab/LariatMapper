@@ -41,7 +41,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_lariat_info_table.tsv and put them in a dict, which
 	can then be added to the experiment-wide superset dict
 	'''
-	lariat_reads = pd.read_csv(f'{output_base}trimmed_info_table.tsv', sep='\t')
+	lariat_reads = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t', dtype={'filter_failed': 'object'})
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
 	if lariat_reads.empty:
@@ -59,19 +59,22 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	lariat_reads.read_num = lariat_reads.read_num.astype(int)
 	lariat_reads['align_mismatch'] = lariat_reads.read_bp_nt != lariat_reads.genomic_bp_nt
 	lariat_reads['read_alignment'] = lariat_reads.read_is_reverse.map({True: 'reverse', False: 'forward'})
+	lariat_reads['max_quality'] = lariat_reads.groupby('read_id').quality.agg('max')
 	
 	return lariat_reads
 
 
-def add_mapped_reads(output_base:str) -> int:
+def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
 	'''
-	Get the number of reads that mapped to the reference genome from the *read_counts.tsv file 
+	Get the number of reads that mapped to the reference genome
 	'''
-	with open(f'{output_base}read_counts.tsv', 'r') as file:
-		line = file.readline()
-		sample_read_count = int(line.split('\t')[1])
+	command = f'samtools view --count --exclude-flags 4 {output_base}output.bam'
+	count = int(functions.run_command(command, log=log))
 
-	return sample_read_count
+	if seq_type == 'paired':
+		count = count/2
+
+	return count
 
 
 #TODO: Implement a more elaborate check. We only need to check for UBC-type repeats as possible false-positives
@@ -87,8 +90,8 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str) -> se
 
 	# Identify 5'ss that overlap a repeat region
 	bedtools_call = f'bedtools intersect -u -a - -b {ref_repeatmasker}'
-	bedtools_fivep_output = subprocess.run(bedtools_call.split(' '), input=bedtools_fivep_input, capture_output=True, text=True).stdout.strip().split('\n')
-	bedtools_bp_output = subprocess.run(bedtools_call.split(' '), input=bedtools_bp_input, capture_output=True, text=True).stdout.strip().split('\n')
+	bedtools_fivep_output = functions.run_command(bedtools_call, input=bedtools_fivep_input, log=log).split('\n')
+	bedtools_bp_output = functions.run_command(bedtools_call, input=bedtools_bp_input, log=log).split('\n')
 
 	# Add reads where both sites overlapped to repeat_rids for removal
 	fivep_repeat_rids, bp_repeat_rids = set(), set()
@@ -101,31 +104,25 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str) -> se
 	return repeat_rids
 
 
-def check_template_switching(output_base:str) -> set:
-	'''
-	Check if the read got flagged for template-switching in another orientation or trimmed alignment
-	'''
-	temp_switch_alignments = pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t')
-	template_switching_rids = set(temp_switch_alignments.read_id)
-	return template_switching_rids
-
-
-def filter_lariats(row:pd.Series, repeat_rids:set, template_switching_rids:set):
+def filter_lariats(row:pd.Series, repeat_rids:set, temp_switch_rids:set, circular_rids:set):
 	'''
 	Filter the candidate lariat reads to EXCLUDE any that meet the following criteria:
 			- Read maps to UBB or UBC (likely false positive due to the repetitive nature of the genes)
 			- Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive due to sequence repetition)
 			- BP is within 2bp of a splice site (likely an intron circle, not a lariat)
 	'''
+	if row['quality'] < row['max_quality']:
+		return 'align_quality'
+
+	if row['read_id'] in temp_switch_rids:
+		return 'template_switching'
+	
+	if row['read_id'] in circular_rids:
+		return 'circularized_intron'
+
 	if row['read_id'] in repeat_rids:
 		return 'in_repeat'
 	
-	if row['read_id'] in template_switching_rids:
-		return 'template_switching'
-	
-	if row['bp_dist_to_threep'] in (0, -1, -2):
-		return 'circularized'
-
 	return np.nan
 
 
@@ -172,54 +169,55 @@ def choose_read_mapping(lariat_reads):
 # =============================================================================#
 if __name__ == '__main__':
 	# Get args
-	ref_fasta, ref_repeatmasker, output_base, log_level = sys.argv[1:]
+	output_base, log_level, seq_type, ref_fasta, ref_repeatmasker = sys.argv[1:]
 
 	# Get logger
 	log = functions.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
+	# Load putatitve lariat alignments
 	log.debug('Parsing lariat reads...')
 	lariat_reads = load_lariat_table(output_base, log)
-	log.debug(f'Pre-filter read count = {len(lariat_reads.read_id.unique())}')
+	if len(lariat_reads)==0:
+		log.info('No reads remaining')
+		exit()
+	log.info(f'Pre-filter read count = {len(lariat_reads.read_id.unique())}')
 
-	# Record read count
-	rids = set(rid.split('/')[0] for rid in lariat_reads.read_id.values)
-	with open(f'{output_base}read_counts.tsv', 'a') as a:
-		a.write(f'trimmed_filter_passed\t{len(rids)}\n')	
-
-	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base)
+	# Get linear mapped reads count 
+	lariat_reads['total_mapped_reads'] = add_mapped_reads(output_base, seq_type, log)
 
 	# Check for reads aligned to annotated repetitive region 
+	log.debug('Checking repeat regions')
 	repeat_rids = check_repeat_overlap(lariat_reads, ref_repeatmasker)
 
 	# Check for reads which were probably created from the reverse-transcriptase switching RNA templates at the branchpoint
-	template_switching_rids = check_template_switching(output_base)
+	# Check for circularized intron reads
+	log.debug('Getting template-switching and circularized intron reads')
+	temp_switch_rids = set(pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t', usecols=['read_id']).read_id)
+	circular_rids = set(pd.read_csv(f'{output_base}circularized_intron_reads.tsv', sep='\t', usecols=['read_id']).read_id)
 
 	# Filter lariat reads
-	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, template_switching_rids=template_switching_rids, axis=1).astype('object')
-	circularized_introns = lariat_reads.loc[lariat_reads.filter_failed=='circularized', FINAL_RESULTS_COLS]
-	# There shall be no read that escapes failure for circularizing
-	circularized_intron_rids = set(circularized_introns.read_id)
-	lariat_reads.loc[(lariat_reads.read_id.isin(circularized_intron_rids)) & (lariat_reads.filter_failed.isna()), 'filter_failed'] = 'other_circularized'
+	log.debug('Filtering lariat reads')
+	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, temp_switch_rids=temp_switch_rids, circular_rids=circular_rids, axis=1)
 
 	# Choose 1 lariat mapping per read id 
 	lariat_reads = choose_read_mapping(lariat_reads)
 	
 	# Seperate failed mappings from passed mappings
-	failed_mappings = lariat_reads[lariat_reads.filter_failed.notna()].copy()
+	failed_aligns = lariat_reads[lariat_reads.filter_failed.notna()].copy()
 	filtered_lariats = lariat_reads.loc[lariat_reads.filter_failed.isna(), FINAL_RESULTS_COLS]
-	log.debug(f'Post-filter read count = {filtered_lariats.read_id.nunique()}')
+	log.info(f'Post-filter read count = {filtered_lariats.read_id.nunique()}')
 
 	# Now write it all to file
-	log.debug('Writing results to output files...')
-	failed_mappings.to_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', index=False)
+	log.info('Writing results to output files...')
+	failed_aligns.to_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', index=False)
 	filtered_lariats.to_csv(f'{output_base}lariat_reads.tsv', sep='\t', index=False)
-	circularized_introns.to_csv(f'{output_base}circularized_intron_reads.tsv', sep='\t', index=False)
 
 	# Record read count
 	with open(f'{output_base}read_counts.tsv', 'a') as a:
+		a.write(f'head_filter_passed\t{lariat_reads.read_id.nunique()}\n')	
 		a.write(f'lariat\t{filtered_lariats.read_id.nunique()}\n')
-		a.write(f'template-switch\t{len(template_switching_rids)}\n')
-		a.write(f'circularized_intron\t{circularized_introns.read_id.nunique()}\n')
+		a.write(f'template-switch\t{len(temp_switch_rids)}\n')
+		a.write(f'circularized_intron\t{len(circular_rids)}\n')
 
 	log.debug('End of script')

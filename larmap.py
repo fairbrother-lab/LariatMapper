@@ -7,6 +7,7 @@ import time
 from subprocess import run
 import multiprocessing
 import logging
+import subprocess
 
 
 
@@ -16,29 +17,29 @@ from scripts import functions
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
-def process_args(args:argparse.ArgumentParser):
+def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	# Determine whether input is single-end or paired-end and confirm that the read file(s) exit
 	if args.read_file is not None:
 		seq_type = 'single'
 		if not os.path.isfile(args.read_file):
-			raise ValueError(f'"{args.read_file}" is not an existing file')
+			parser.error(f'"{args.read_file}" is not an existing file')
 	elif args.read_one is not None and args.read_two is not None:
 		seq_type = 'paired'
 		if not os.path.isfile(args.read_one):
-			raise ValueError(f'"{args.read_one}" is not an existing file')
+			parser.error(f'"{args.read_one}" is not an existing file')
 		if not os.path.isfile(args.read_two):
-			raise ValueError(f'"{args.read_two}" is not an existing file')
+			parser.error(f'"{args.read_two}" is not an existing file')
 	else:
 		parser.error('Provide either -f/--read_file (for single-end read) OR -1/--read_one and -2/--read_two (for paired-end reads)')
 
 	# Get reference files from reference dir OR from direct input, and confirm that they exist
 	if args.ref_dir is not None:
-		ref_files = ['hisat2_index', 'genome.fa', 'fivep_sites.fa', 'introns.tsv.gz', 'repeatmasker.bed']
-		ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker = [os.path.join(args.ref_dir, f) for f in ref_files]
+		ref_files = ['hisat2_index', 'genome.fa', 'fivep_sites.fa', 'exons.tsv.gz', 'introns.tsv.gz', 'repeatmasker.bed']
+		ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker = [os.path.join(args.ref_dir, f) for f in ref_files]
 	else:
-		ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker = args.ref_h2index, args.ref_fasta, args.ref_5p_fasta, args.ref_introns, args.ref_repeatmasker
+		ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker = args.ref_h2index, args.ref_fasta, args.ref_5p_fasta, args.ref_exons, args.ref_introns, args.ref_repeatmasker
 
-	for file in (ref_fasta, ref_5p_fasta, ref_introns):
+	for file in (ref_fasta, ref_5p_fasta, ref_exons, ref_introns):
 		if not os.path.isfile(file):
 			parser.error(f'"{file}" is not an existing file')
 	if (not os.path.isfile(ref_h2index + '.1.ht2')) and (not os.path.isfile(ref_h2index + '.1.ht2l')):
@@ -58,7 +59,7 @@ def process_args(args:argparse.ArgumentParser):
 	if not args.threads>0:
 		parser.error(f'-t/--threads must be a positive integer. Input was "{repr(args.threads)}"')
 
-	return args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker, output_base
+	return args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, output_base
 		
 
 
@@ -79,16 +80,18 @@ if __name__ == '__main__':
 	reference_group.add_argument('-i', '--ref_h2index', help='hisat2 index of the reference genome')
 	parser.add_argument('-g', '--ref_fasta', help='FASTA file of the reference genome')
 	parser.add_argument('-5', '--ref_5p_fasta', help='FASTA file with sequences of first 20nt of annotated introns')
-	parser.add_argument('-n', '--ref_introns', help='BED file of all annotated introns')
+	parser.add_argument('-e', '--ref_exons', help='TSV file of all annotated exons')
+	parser.add_argument('-n', '--ref_introns', help='TSV file of all annotated introns')
 	# Optional arguments
-	log_levels = parser.add_mutually_exclusive_group()
-	log_levels.add_argument('-q', '--quiet', action='store_true', help="Don't print any status messages")
-	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages")
 	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Optional)')
 	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
 	parser.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	parser.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
-	parser.add_argument('-k', '--keep_intermediates', action='store_true', help='Don\'t delete the intermediate files created while running the pipeline (default=delete)')
+	parser.add_argument('-k', '--keep_temp', action='store_true', help='Don\'t delete the temporary files created while running the pipeline (default=delete)')
+	log_levels = parser.add_mutually_exclusive_group()
+	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR)")
+	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING)")
+	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages (sets logging level to DEBUG)")
 
 	# Parse
 	args = parser.parse_args()
@@ -99,6 +102,8 @@ if __name__ == '__main__':
 	# Setup logging
 	if args.quiet is True:
 		log_level = 'ERROR'
+	if args.warning is True:
+		log_level = 'WARNING'
 	elif args.debug is True:
 		log_level = 'DEBUG'
 	else:
@@ -106,36 +111,44 @@ if __name__ == '__main__':
 	log = functions.get_logger(log_level)
 
 	# Print arguments
-	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None]
-	arg_message = '\n'.join(arg_message) + '\n'
-	log.info(f'Arguments: {arg_message}')
+	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
+	arg_message = '\n\t'.join(arg_message)
+	log.info(f'Arguments: \n\t{arg_message}')
 
 	# Validate the args and determine additional variables
-	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker, output_base = process_args(args)
+	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, output_base = process_args(args, parser, log)
+	log.debug(f'seq_type: {repr(seq_type)}, output_base: {repr(output_base)}')
 
-	# Set start method for multiprocessing in filter_fivep_alignments.py and filter_trimmed_alignments.py
+	# Set start method for multiprocessing in filter_fivep_aligns.py and filter_head_aligns.py
 	# Using the default "fork" method causes memory errors when processing bigger RNA-seq inputs
 	# This has to be defined in the first python script and only once, or else we get "RuntimeError: context has already been set" 
 	multiprocessing.set_start_method('spawn')	
 
 	# Make output dir
-	# print(time.strftime('%m/%d/%y - %H:%M:%S | Preparing directories...'), flush=True)
 	log.info('Preparing directories...')
 	if not os.path.isdir(args.output_dir):
 		os.mkdir(args.output_dir)
 
 	# Prepare call to map_lariats.sh
-	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_introns, ref_repeatmasker, str(args.keep_intermediates).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level]
+	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level, seq_type]
 	if seq_type == 'single':
-		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
 		log.debug('Processing single-end read file...')
 		map_lariats_args += [args.read_file]
-	else:
-		# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing paired-end read files...'), flush=True)
+	elif seq_type == 'paired':
 		log.debug('Processing paired-end read files...')
 		map_lariats_args += [args.read_one, args.read_two]
+	# map_lariats_args = [output_base, str(args.output_prefix), str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp), str(args.ucsc_track), pipeline_dir, log_level, seq_type]
+	# if seq_type == 'single':
+	# 	# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
+	# 	log.debug('Processing single-end read file...')
+	# 	map_lariats_args += [args.read_file]
+	# elif seq_type == 'paired':
+	# 	# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing paired-end read files...'), flush=True)
+	# 	log.debug('Processing paired-end read files...')
+	# 	map_lariats_args += [','.join([args.read_one, args.read_two])]
+	log.debug(f'map_lariats args: {map_lariats_args}')
 
 	# Run it
-	log.debug('Running map_lariats.sh...')
 	map_call = f'{os.path.join(pipeline_dir, "scripts", "map_lariats.sh")} {" ".join(map_lariats_args)}'
-	run(map_call.split(' '))
+	# map_call = f'python -u {os.path.join(pipeline_dir, "scripts", "map_lariats.py")} {" ".join(map_lariats_args)}'
+	subprocess.run(map_call.split(' '))
