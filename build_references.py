@@ -239,7 +239,7 @@ if __name__ == '__main__':
 	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
 	parser.add_argument('-r', '--repeatmasker_bed', help='Path to BED file with RepeatMasker annotation of reference genome')
 	parser.add_argument('-x', '--transcript_attribute', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute (default=transcript_id)',)
-	parser.add_argument('-g', '--gene_attribute', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute (default=transcript_id)',)
+	parser.add_argument('-g', '--gene_attribute', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute (default=gene_id)',)
 	log_levels = parser.add_mutually_exclusive_group()
 	log_levels.add_argument('-q', '--quiet', action='store_true', help="Don't print any status messages")
 	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages")
