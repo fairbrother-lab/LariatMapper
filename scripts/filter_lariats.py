@@ -1,8 +1,7 @@
 import sys
-import subprocess 
 import gzip
 import random
-import logging
+import os
 
 import pandas as pd
 import numpy as np
@@ -78,10 +77,14 @@ def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
 
 
 #TODO: Implement a more elaborate check. We only need to check for UBC-type repeats as possible false-positives
-def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str) -> set:
+def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str, log) -> set:
 	''' 
     Check if both the 5'SS and the BP overlap with a repetitive region
     '''
+	if not os.path.isfile(ref_repeatmasker):
+		log.info('Repeatmasker file not found, skipping repeats check...')
+		return set()
+
 	# Write the 5'ss and BP coordinates to bedtools input strings
 	bedtools_fivep_input, bedtools_bp_input = '', ''
 	for _, row in lariat_reads.iterrows():
@@ -188,7 +191,7 @@ if __name__ == '__main__':
 
 	# Check for reads aligned to annotated repetitive region 
 	log.debug('Checking repeat regions')
-	repeat_rids = check_repeat_overlap(lariat_reads, ref_repeatmasker)
+	repeat_rids = check_repeat_overlap(lariat_reads, ref_repeatmasker, log)
 
 	# Check for reads which were probably created from the reverse-transcriptase switching RNA templates at the branchpoint
 	# Check for circularized intron reads
