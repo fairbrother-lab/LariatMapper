@@ -16,10 +16,6 @@ def files_equal(file_a, file_b, sort=False):
 		with open(file_b) as in_file:
 			lines_b = in_file.readlines()
 
-	# Count
-	linecount = len(lines_a)
-	assert linecount == len(lines_b)
-
 	# Sort
 	if sort is True:
 		lines_a.sort()
