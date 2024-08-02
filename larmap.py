@@ -14,6 +14,14 @@ import subprocess
 from scripts import functions
 
 
+
+# =============================================================================#
+#                                  Globals                                     #
+# =============================================================================#
+FORBIDDEN_CHARS = ('/', '\\', '>', '<', '&', '~', '*', '?', '[', ']', ';', '|', '!', '$', "'", '"')
+
+
+
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
@@ -49,10 +57,11 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	# All output files will be formatted like f"{output_base}file.ext"
 	if args.output_prefix is None:
 		output_prefix = ''
-	elif not args.output_prefx.isidentifier():
-		parser.error(f'-p/--output_prefix can only contain alphanumerics and underscores. Input was "{repr(output_prefix)}"')
 	else:
 		output_prefix = args.output_prefix + '_'
+	for char in FORBIDDEN_CHARS:
+		if char in args.output_prefix:
+			parser.error(f'Illegal character in output prefix: {char}')
 	output_base = os.path.join(args.output_dir, output_prefix)
 
 	# Validate threads arg
