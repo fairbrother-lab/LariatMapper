@@ -77,7 +77,7 @@ def decide_chunk_ranges(n_aligns:int, threads:int):
 	Start and end positions are 1-based inclusive
 	'''
 	# If there are only a handful of alignments just go through them all in one thread
-	if n_aligns < 2*threads:
+	if n_aligns <= 2*threads:
 		return [[1, n_aligns]]
 	
 	# Determine the range of lines to assign to each thread
@@ -138,16 +138,16 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 				# Then yield the forward-aligning 5'ss for filtering
 				yield current_read_id, False, fivep_sites[False]
 
+				# Set to processing next read's alignments
+				current_read_id = line_rid
+				fivep_sites = {True:[], False:[]}
+				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
+
 				# If we're at or have passed the end of the assigned chunk, we're done
 				# We don't do this check until we know we got all of the last read's alignments, 
 				# so we might process a few lines after the assigned chunk_end 
 				if line_num >= chunk_end:
 					break
-
-				# Set to processing next read's alignments
-				current_read_id = line_rid
-				fivep_sites = {True:[], False:[]}
-				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
 
 		# If this is the last chunk and it reached the end of the file, make sure to yield the last read's alignments
 		if line_num == n_aligns:
@@ -180,7 +180,7 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 			# If it does NOT, add the read alignment to fivep_pass
 			if read_is_reverse:
-				read_upstream = read_seq[read_fivep_end+1:read_fivep_end+6].upper()
+				read_upstream = read_seq[read_fivep_end:read_fivep_end+5].upper()
 				upstream_mismatch = read_upstream != functions.reverse_complement(fivep_upstream_seqs[fivep_site])
 			else:
 				read_upstream = read_seq[read_fivep_start-5:read_fivep_start].upper()
