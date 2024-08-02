@@ -58,10 +58,10 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	if args.output_prefix is None:
 		output_prefix = ''
 	else:
+		for char in FORBIDDEN_CHARS:
+			if char in args.output_prefix:
+				parser.error(f'Illegal character in output prefix: {char}')
 		output_prefix = args.output_prefix + '_'
-	for char in FORBIDDEN_CHARS:
-		if char in args.output_prefix:
-			parser.error(f'Illegal character in output prefix: {char}')
 	output_base = os.path.join(args.output_dir, output_prefix)
 
 	# Validate threads arg
