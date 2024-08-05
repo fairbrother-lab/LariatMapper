@@ -1,18 +1,10 @@
-import multiprocessing.shared_memory
-from dataclasses import dataclass, field
 import sys
 import os
-import gzip
-import subprocess
-import multiprocessing
-import time
+import multiprocessing as mp
 import collections
-import logging
 
 from intervaltree import Interval, IntervalTree
 import pandas as pd
-import numpy as np
-# import psutil
 
 import functions
 
@@ -21,6 +13,16 @@ import functions
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
+# In files
+HEADS_TO_GENOME_FILE = "{}heads_to_genome.sam"
+TAILS_FILE = "{}tails.tsv"
+# Out files
+FAILED_HEADS_FILE = "{}failed_head_alignments.tsv"
+TEMP_SWITCH_FILE = "{}template_switching_reads.tsv"
+CIRCULARS_FILE = "{}circularized_intron_reads.tsv"
+PUTATITVE_LARIATS_FILE = "{}putative_lariats.tsv"
+RUN_DATA_FILE = "{}read_counts.tsv"
+
 CIGAR_OPERATORS = ('M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X')
 MAX_MISMATCHES = 5
 MAX_MISMATCH_PERCENT = 0.1
@@ -64,10 +66,10 @@ FINAL_INFO_TABLE_COLS = ['read_id',
 						'gene_id', 
 						]
 
-filtered_out_lock = multiprocessing.Lock()
-failed_out_lock = multiprocessing.Lock()
-temp_switch_lock = multiprocessing.Lock()
-circulars_lock = multiprocessing.Lock()
+filtered_out_lock = mp.Lock()
+failed_out_lock = mp.Lock()
+temp_switch_lock = mp.Lock()
+circulars_lock = mp.Lock()
 
 
 
@@ -98,7 +100,7 @@ def parse_intron_info(ref_introns):
 
 
 def parse_tails(output_base:str, fivep_genes:dict):
-	tails = pd.read_csv(f'{output_base}tails.tsv', sep='\t', dtype={'fivep_chrom': 'category', 'strand': 'category'})
+	tails = pd.read_csv(TAILS_FILE.format(output_base), sep='\t', dtype={'fivep_chrom': 'category', 'strand': 'category'})
 	tails = tails.drop(columns=['read_is_reverse'])
 
 	# Unpack fivep_sites
@@ -299,7 +301,7 @@ def drop_failed_alignments(alignments:pd.DataFrame, output_base:str) -> pd.DataF
 		# Arrange cols and a write to file
 		failed_aligns = failed_aligns[[*FINAL_INFO_TABLE_COLS, 'filter_failed']].drop_duplicates()
 		with failed_out_lock:
-			failed_aligns.to_csv(f'{output_base}failed_head_alignments.tsv', mode='a', sep='\t', header=False, index=False)
+			failed_aligns.to_csv(FAILED_HEADS_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
 
 		# Remove failed alignments from DataFrame
 		alignments = alignments.loc[alignments.filter_failed.isna()]
@@ -313,7 +315,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
 	# Load in the assigned chunk of alignments, excluding skipping low-quality alignments
-	alignments = parse_alignments_chunk(f'{output_base}heads_to_genome.sam', chunk_start, chunk_end, n_aligns)
+	alignments = parse_alignments_chunk(HEADS_TO_GENOME_FILE.format(output_base), chunk_start, chunk_end, n_aligns)
 
 	# Merge alignments with tails
 	# This expands each alignment row into alignment-5'ss-combination rows
@@ -340,7 +342,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 		temp_switches = temp_switches[TEMPLATE_SWITCHING_COLS]
 		temp_switches = temp_switches.groupby('read_id', as_index=False).agg({col: functions.str_join for col in temp_switches.columns if col != 'read_id'})
 		with temp_switch_lock:
-			temp_switches.to_csv(f'{output_base}template_switching_reads.tsv', mode='a', sep='\t', header=False, index=False)
+			temp_switches.to_csv(TEMP_SWITCH_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
 
 	# Filter out template-switching reads
 	alignments = alignments.loc[~alignments.template_switching].drop(columns='template_switching')
@@ -393,7 +395,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 		circulars = circulars[FINAL_INFO_TABLE_COLS]
 		circulars = circulars.groupby('read_id', as_index=False).agg({col: functions.str_join for col in circulars.columns if col != 'read_id'})
 		with circulars_lock:
-			circulars.to_csv(f'{output_base}circularized_intron_reads.tsv', mode='a', sep='\t', header=False, index=False)
+			circulars.to_csv(CIRCULARS_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
 
 	# Filter out circularized intron reads
 	alignments = alignments.loc[~alignments.circular]
@@ -412,9 +414,14 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 					)
 
 	with filtered_out_lock:
-		alignments.to_csv(f'{output_base}putative_lariats.tsv', mode='a', sep='\t', index=False, header=False)
+		alignments.to_csv(PUTATITVE_LARIATS_FILE.format(output_base), mode='a', sep='\t', index=False, header=False)
 
 	log.debug(f'Process {os.getpid()}: Chunk finished')
+
+
+# If any processes hit an error, raise an error
+def error_callback(exception):
+	raise exception
 
 
 
@@ -431,7 +438,7 @@ if __name__ == '__main__':
 
 	threads = int(threads)
 	
-	with open(f'{output_base}heads_to_genome.sam') as sam:
+	with open(HEADS_TO_GENOME_FILE.format(output_base)) as sam:
 		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} head alignments')
 	chunk_ranges = [[chunk_start, chunk_start+ALIGN_CHUNKSIZE] for chunk_start in range(1, n_aligns+1, ALIGN_CHUNKSIZE)]
@@ -448,33 +455,19 @@ if __name__ == '__main__':
 
 	# Record # of reads that passed fivep_filtering
 	count = tails.read_id.str.rstrip('/1').str.rstrip('/2').nunique()
-	with open(f'{output_base}read_counts.tsv', 'a') as a:
+	with open(RUN_DATA_FILE.format(output_base), 'a') as a:
 		a.write(f'fivep_filter_passed\t{count}\n')
 
 	# Write headers for the outfiles
 	# The rows will get appended in chunks during filter_alignments_chunk()
-	with open(f'{output_base}putative_lariats.tsv', 'w') as w:
+	with open(PUTATITVE_LARIATS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
-	with open(f'{output_base}failed_head_alignments.tsv', 'w') as w:
+	with open(FAILED_HEADS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\tfilter_failed' + '\n')
-	with open(f'{output_base}template_switching_reads.tsv', 'w') as w:
+	with open(TEMP_SWITCH_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
-	with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
+	with open(CIRCULARS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
-
-
-	# log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
-	# pool = multiprocessing.Pool(processes=threads)
-	# processes = []
-	# for chunk_start, chunk_end in chunk_ranges:
-	# 	process = pool.apply_async(filter_alignments_chunk, args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log,))
-		# processes.append(process)
-	
-		
-	# # Don't create any more processes
-	# pool.close()
-	# # Wait until all processes are finished
-	# pool.join()
 
 	# multiprocessing won't run correctly with just 1 chunk for some reason
 	if len(chunk_ranges) == 1:
@@ -482,19 +475,15 @@ if __name__ == '__main__':
 		filter_alignments_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, tails, introns, output_base, log_level)
 	else:
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
-		pool = multiprocessing.Pool(processes=threads)
+		pool = mp.Pool(processes=threads)
 		for chunk_start, chunk_end in chunk_ranges:
-			pool.apply_async(filter_alignments_chunk, args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level,))
+			pool.apply_async(filter_alignments_chunk, 
+							args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level,), 
+							error_callback=error_callback)
 		
 		# Don't create any more processes
 		pool.close()
 		# Wait until all processes are finished
 		pool.join()
-
-	# # Check if any processes hit an error
-	# # Raise an error if any did
-	# for process in processes:
-	# 	process.successful()
-
 
 	log.debug('End of script')
