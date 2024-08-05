@@ -13,6 +13,16 @@ import functions
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
+# In files
+OUTPUT_BAM_FILE = "{}output.bam"
+TEMP_SWITCH_FILE = "{}template_switching_reads.tsv"
+CIRCULARS_FILE = "{}circularized_intron_reads.tsv"
+PUTATITVE_LARIATS_FILE = "{}putative_lariats.tsv"
+FAILED_LARIATS_FILE = "{}failed_lariat_alignments.tsv"
+# Out files
+LARIATS_FILE = "{}lariat_reads.tsv"
+RUN_DATA_FILE = "{}read_counts.tsv"
+
 FINAL_RESULTS_COLS = ['read_id',
                         'gene_id',
                         'chrom',
@@ -40,17 +50,16 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_lariat_info_table.tsv and put them in a dict, which
 	can then be added to the experiment-wide superset dict
 	'''
-	lariat_reads = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t', dtype={'filter_failed': 'object'})
+	lariat_reads = pd.read_csv(PUTATITVE_LARIATS_FILE.format(output_base), sep='\t', dtype={'filter_failed': 'object'})
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
 	if lariat_reads.empty:
 		log.info('No reads remaining')
-		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
+		with open(LARIATS_FILE.format(output_base), 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS))
-		with open(f'{output_base}failed_lariat_alignments.tsv', 'w') as w:
+		with open(FAILED_LARIATS_FILE.format(output_base), 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
-		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
-			w.write('\t'.join(FINAL_RESULTS_COLS))
+
 		exit()
 	
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
@@ -67,7 +76,7 @@ def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
 	'''
 	Get the number of reads that mapped to the reference genome
 	'''
-	command = f'samtools view --count --exclude-flags 4 {output_base}output.bam'
+	command = f'samtools view --count --exclude-flags 4 {OUTPUT_BAM_FILE.format(output_base)}'
 	count = int(functions.run_command(command, log=log))
 
 	if seq_type == 'paired':
@@ -196,12 +205,12 @@ if __name__ == '__main__':
 	# Check for reads which were probably created from the reverse-transcriptase switching RNA templates at the branchpoint
 	# Check for circularized intron reads
 	log.debug('Getting template-switching and circularized intron reads')
-	temp_switch_rids = set(pd.read_csv(f'{output_base}template_switching_reads.tsv', sep='\t', usecols=['read_id']).read_id)
-	circular_rids = set(pd.read_csv(f'{output_base}circularized_intron_reads.tsv', sep='\t', usecols=['read_id']).read_id)
+	temp_switch_rids = set(pd.read_csv(TEMP_SWITCH_FILE.format(output_base), sep='\t', usecols=['read_id']).read_id)
+	circular_rids = set(pd.read_csv(CIRCULARS_FILE.format(output_base), sep='\t', usecols=['read_id']).read_id)
 
 	# Filter lariat reads
 	log.debug('Filtering lariat reads')
-	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, temp_switch_rids=temp_switch_rids, circular_rids=circular_rids, axis=1)
+	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, temp_switch_rids=temp_switch_rids, circular_rids=circular_rids, axis=1).astype('object')
 
 	# Choose 1 lariat mapping per read id 
 	lariat_reads = choose_read_mapping(lariat_reads)
@@ -213,11 +222,11 @@ if __name__ == '__main__':
 
 	# Now write it all to file
 	log.info('Writing results to output files...')
-	failed_aligns.to_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', index=False)
-	filtered_lariats.to_csv(f'{output_base}lariat_reads.tsv', sep='\t', index=False)
+	failed_aligns.to_csv(FAILED_LARIATS_FILE.format(output_base), sep='\t', index=False)
+	filtered_lariats.to_csv(LARIATS_FILE.format(output_base), sep='\t', index=False)
 
 	# Record read count
-	with open(f'{output_base}read_counts.tsv', 'a') as a:
+	with open(RUN_DATA_FILE.format(output_base), 'a') as a:
 		a.write(f'head_filter_passed\t{lariat_reads.read_id.nunique()}\n')	
 		a.write(f'lariat\t{filtered_lariats.read_id.nunique()}\n')
 		a.write(f'template-switch\t{len(temp_switch_rids)}\n')

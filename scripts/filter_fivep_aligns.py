@@ -149,10 +149,9 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 				if line_num >= chunk_end:
 					break
 
-		# If this is the last chunk and it reached the end of the file, make sure to yield the last read's alignments
-		if line_num == n_aligns:
-				yield current_read_id, True, fivep_sites[True]
-				yield current_read_id, False, fivep_sites[False]
+		# Yield the last read's alignments
+		yield current_read_id, True, fivep_sites[True]
+		yield current_read_id, False, fivep_sites[False]
 
 
 def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, output_base:str, log_level) -> None:
