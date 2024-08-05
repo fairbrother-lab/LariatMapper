@@ -1,8 +1,8 @@
-chr1_ENST00000450305.2_head892-942_tail688-738_bp49_lariat/1	100	62	100	101
-chr1_ENST00000450305.2_head892-942_tail688-738_bp49_lariat/2	100	225	100	101
-chr1_ENST00000450305.2_head1374-1424_tail1365-1415_bp49_lariat/1	100	392	100	101
-chr1_ENST00000450305.2_head1374-1424_tail1365-1415_bp49_lariat/2	100	559	100	101
-chr1_ENST00000450305.2_head892-942_tail688-738_bp49_failfivep_enoughheadseq/1	100	739	100	101
-chr1_ENST00000450305.2_head892-942_tail688-738_bp49_failfivep_enoughheadseq/2	100	919	100	101
-chr1_ENST00000450305.2_head892-942_tail688-738_bp49_failfivep_5bpupmatch/1	100	1096	100	101
-chr1_ENST00000450305.2_head892-942_tail688-738_bp49_failfivep_5bpupmatch/2	100	1273	100	101
+true_lariat_1/1	100	17	100	101
+true_lariat_1/2	100	135	100	101
+true_lariat_2/1	100	253	100	101
+true_lariat_2/2	100	371	100	101
+fivep_fail_5bp_up_mismatch/1	100	502	100	101
+fivep_fail_5bp_up_mismatch/2	100	633	100	101
+fivep_fail_enough_head_seq/1	100	764	100	101
+fivep_fail_enough_head_seq/2	100	895	100	101
