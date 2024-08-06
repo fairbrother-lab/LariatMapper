@@ -18,8 +18,8 @@ OUTPUT_BAM_FILE = "{}output.bam"
 TEMP_SWITCH_FILE = "{}template_switching_reads.tsv"
 CIRCULARS_FILE = "{}circularized_intron_reads.tsv"
 PUTATITVE_LARIATS_FILE = "{}putative_lariats.tsv"
-FAILED_LARIATS_FILE = "{}failed_lariat_alignments.tsv"
 # Out files
+FAILED_LARIATS_FILE = "{}failed_lariat_alignments.tsv"
 LARIATS_FILE = "{}lariat_reads.tsv"
 RUN_DATA_FILE = "{}read_counts.tsv"
 
@@ -80,7 +80,7 @@ def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
 	count = int(functions.run_command(command, log=log))
 
 	if seq_type == 'paired':
-		count = count/2
+		count = count//2
 
 	return count
 
