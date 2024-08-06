@@ -69,12 +69,10 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 		bedtools_input += f'{chrom}\t{fivep_pos-5}\t{fivep_pos}\t{site}\t0\t{strand}\n' if strand == '+' else f'{chrom}\t{fivep_pos+1}\t{fivep_pos+6}\t{site}\t0\t{strand}\n'
 
 	# Call bedtools getfasta 
-	bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {genome_fasta} -bed -'
-	bedtools_output = functions.run_command(bedtools_call, input=bedtools_input, log=log)
-	bedtools_output = bedtools_output.split('\n')
-
-	# Parse output
-	fivep_upstream_seqs = dict([(l.split('\t')[0][:-3], l.split('\t')[1].upper()) for l in bedtools_output])
+	fivep_upstream_seqs = functions.getfasta(genome_fasta, bedtools_input, log)
+	# Make it a dict
+	fivep_upstream_seqs = fivep_upstream_seqs.set_index('name', drop=True)['seq'].to_dict()
+	print(fivep_upstream_seqs)
 
 	return fivep_upstream_seqs
 
