@@ -15,6 +15,14 @@ import functions
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
+# In files
+UNMAPPED_READS_FILE = "{}unmapped_reads.fa"
+FIVEP_TO_READS_FILE = "{}fivep_to_reads.sam"
+# Out files
+FAILED_FIVEPS_FILE = "{}failed_fivep_alignments.tsv"
+TAILS_FILE = "{}tails.tsv"
+HEADS_SEQ_FILE = "{}heads.fa"
+
 TAILS_COLS = ['read_id',
 			'read_seq',
 			'fivep_seq',
@@ -24,7 +32,7 @@ TAILS_COLS = ['read_id',
 			'read_fivep_end',
 			'read_bp_pos',
 			]
-FAILED_ALIGNMENTS_COLS = ['read_id',
+FAILED_FIVEPS_COLS = ['read_id',
 						'read_seq',
 						'fivep_site',
 						'read_fivep_start',
@@ -154,7 +162,7 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 		yield current_read_id, False, fivep_sites[False]
 
 
-def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, output_base:str, log_level) -> None:
+def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, output_base:str, log_level) -> None:
 	'''
 	Filter and trim the reads to which 5'ss sequences were mapped, the trimmed section being the read "head" and the trimmed-off section being the read "tail" 
 	Write read information and their aligned 5' splice site(s) to tails.tsv
@@ -169,7 +177,7 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 	# We will split each read into a forward read (with all the 5'ss aligning to the forward sequence) and a reverse read (with all the 5'ss alinging to the reverse sequence)
 	failed_alignments = []		
 	out_reads = []
-	for read_id, read_is_reverse, fivep_sites in yield_read_aligns(fivep_to_reads, chunk_start, chunk_end, n_aligns):
+	for read_id, read_is_reverse, fivep_sites in yield_read_aligns(FIVEP_TO_READS_FILE.format(output_base), chunk_start, chunk_end, n_aligns):
 		if len(fivep_sites) == 0:
 			continue
 
@@ -234,7 +242,7 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 
 	# Write the filtered alignments and head sequences to file
 	with out_lock:
-		with open(f'{output_base}tails.tsv', 'a') as info_out, open(f'{output_base}heads.fa', 'a') as seq_out:
+		with open(TAILS_FILE.format(output_base), 'a') as info_out, open(HEADS_SEQ_FILE.format(output_base), 'a') as seq_out:
 			for row in out_reads:
 				row = [str(item) for item in row]
 				info_out.write('\t'.join(row[1:]) + '\n')
@@ -245,8 +253,8 @@ def filter_reads_chunk(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_ali
 	
 	# Write the failed alignments to file
 	with failed_out_lock:
-		failed_alignments = pd.DataFrame(failed_alignments, columns=FAILED_ALIGNMENTS_COLS)
-		failed_alignments.to_csv(f'{output_base}failed_fivep_alignments.tsv', mode='a', sep='\t', index=False, header=False)
+		failed_alignments = pd.DataFrame(failed_alignments, columns=FAILED_FIVEPS_COLS)
+		failed_alignments.to_csv(FAILED_FIVEPS_FILE.format(output_base), mode='a', sep='\t', index=False, header=False)
 
 	log.debug(f'Process {os.getpid()}: Chunk finished')
 
@@ -264,14 +272,13 @@ if __name__ == '__main__' :
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 	
 	threads = int(threads)
-	fivep_to_reads = f'{output_base}fivep_to_reads.sam'
 
 	# Load reference info
-	read_seqs = get_read_seqs(f'{output_base}unmapped_reads.fa')
+	read_seqs = get_read_seqs(UNMAPPED_READS_FILE.format(output_base))
 	fivep_upstream_seqs = get_fivep_upstream_seqs(fivep_fasta, genome_fasta, log)
 
 	# Get the total number of alignments
-	with open(fivep_to_reads) as sam:
+	with open(FIVEP_TO_READS_FILE.format(output_base)) as sam:
 		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} read-fivep alignments')
 
@@ -283,17 +290,17 @@ if __name__ == '__main__' :
 	log.debug(f'chunk ranges: {chunk_ranges}')
 
 	# Prep out files with a header row
-	with open(f'{output_base}tails.tsv', 'w') as w:
+	with open(TAILS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(TAILS_COLS) + '\n')
-	with open(f'{output_base}heads.fa', 'w') as w:
+	with open(HEADS_SEQ_FILE.format(output_base), 'w') as w:
 		pass
-	with open(f'{output_base}failed_fivep_alignments.tsv', 'w') as w:
-		w.write('\t'.join(FAILED_ALIGNMENTS_COLS) + '\n')
+	with open(FAILED_FIVEPS_FILE.format(output_base), 'w') as w:
+		w.write('\t'.join(FAILED_FIVEPS_COLS) + '\n')
 
 	log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 	processes = []
 	for chunk_start, chunk_end in chunk_ranges:
-		process = multiprocessing.Process(target=filter_reads_chunk, args=(fivep_to_reads, chunk_start, chunk_end, n_aligns, read_seqs, fivep_upstream_seqs, output_base, log_level, ))
+		process = multiprocessing.Process(target=filter_reads_chunk, args=(chunk_start, chunk_end, n_aligns, read_seqs, fivep_upstream_seqs, output_base, log_level, ))
 		process.start()
 		processes.append(process)
 
