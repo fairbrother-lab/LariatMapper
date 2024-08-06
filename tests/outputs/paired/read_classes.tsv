@@ -1,0 +1,16 @@
+read_id	read_class	stage_reached	filter_failed	spliced	gene_id
+circular	Circularized intron	Head alignment filtering		nan	DDX11L1
+fivep_fail_5bp_up_match	Unmapped with 5'ss alignment	5'ss alignment filtering	5bp_up_match	nan	
+fivep_fail_enough_head_seq	Unmapped with 5'ss alignment	5'ss alignment filtering	enough_head_seq	nan	
+head_fail_fivep_intron_match	Unmapped with 5'ss alignment	Head alignment filtering	fivep_intron_match	nan	DDX11L1
+head_fail_gaps	Unmapped with 5'ss alignment	Head alignment filtering	gaps	nan	nan
+head_fail_mismatches	Unmapped with 5'ss alignment	Head alignment filtering	mismatches	nan	nan
+head_fail_overlap_introns	Unmapped with 5'ss alignment	Head alignment filtering	overlap_introns	nan	DDX11L1
+head_fail_wrong_orient	Unmapped with 5'ss alignment	Head alignment filtering	wrong_orient	nan	DDX11L1
+mRNA	mRNA	Linear mapping		True	DDX11L1
+pre-mRNA	pre-mRNA	Linear mapping		False	DDX11L1
+repeat	In repetitive region	Lariat filtering	in_repeat	nan	FOXN2
+temp_switch_1	Template-switching	Head alignment filtering		nan	
+temp_switch_2	Template-switching	Head alignment filtering		nan	
+true_lariat_1	Lariat	To the end		nan	DDX11L1
+true_lariat_2	Lariat	To the end		nan	DDX11L1
