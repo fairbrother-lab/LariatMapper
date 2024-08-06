@@ -3,6 +3,7 @@ import logging
 import logging.config
 import json
 import subprocess
+import tempfile
 
 import pandas as pd
 
@@ -108,3 +109,29 @@ def run_command(command:str, input:str=None, log:logging.Logger=None) -> str:
 		raise RunCommandError(process=response)
 	
 	return response.stderr.strip() + response.stdout.strip()
+
+
+def getfasta(genome_fasta:str, bedtools_input:str, log:logging.Logger=None) -> pd.DataFrame:
+	'''
+	Get the sequences from <genome_fasta> for the regions specified in <bedtools_input>
+	Uses the bedtools command "getfasta" with the args -s -tab -nameOnly
+	<bedtools_input> must be a string in BED format with a unique name, 
+		e.g. "chr1	100	200	feature1	0	+\nchr1	150	250	feature2	0	-\n"
+	Returns a pandas DataFrame with columns ['name', 'seq'], where 'name' is the feature name
+	We can't parse the standard output for the sequences because warnings will be included 
+	in some lines in a non-deterministic pattern 
+	'''
+	with tempfile.NamedTemporaryFile() as tmp:
+		bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {genome_fasta} -fo {tmp.name} -bed -'
+		bedtools_output = run_command(bedtools_call, input=bedtools_input, log=log)
+		# Check for warnings in bedtools_output
+		if bedtools_output != '' and log is not None:
+			bedtools_output = bedtools_output.split('\n')
+			for warning in bedtools_output:
+				log.warning(warning)
+		seqs = pd.read_csv(tmp, sep='\t', header=None, names=['name', 'seq'])
+	
+	# Remove the strand suffix from the names
+	seqs.name = seqs.name.str.slice(0,-3)
+	
+	return seqs
