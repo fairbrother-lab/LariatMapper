@@ -31,15 +31,6 @@ MAX_GAP_LENGTH = 3
 ALIGN_CHUNKSIZE = 1_000_000
 BP_CONTEXT_LENGTH = 8
 
-ALIGN_INITIAL_COLS = ['read_id', 
-					  'read_is_reverse',
-					  'chrom', 
-					  'align_start', 
-					  'align_end', 
-					  'align_is_reverse', 
-					  'quality',
-					  'read_bp_nt']
-
 TEMPLATE_SWITCHING_COLS = ['read_id',
 						'fivep_sites',
 						'temp_switch_sites',
@@ -129,15 +120,6 @@ def cigar_str_to_tup(cigar:str) -> tuple[tuple[str, int]]:
 
 	return tuple(out)
 
-
-def pass_gap_filter(cigar:tuple) -> tuple:
-	gaps = [length for op, length in cigar if op in ('I', 'D')]
-	if len(gaps) > 1 or (len(gaps) == 1 and gaps[0] > MAX_GAP_LENGTH):
-		return False
-	else:
-		return True
-
-
 def infer_mismatches(tags) -> int:
 	mismatches_tag = [tag for tag in tags.values if tag.startswith('XM:i:')][0]
 	mismatches = int(mismatches_tag.lstrip('XM:i:'))
@@ -208,21 +190,22 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 	alignments['mismatches'] = alignments[['tag1', 'tag2', 'tag3']].agg(infer_mismatches, axis=1)
 	alignments['mismatches_p'] = alignments.mismatches / alignments.length
 	alignments['read_bp_nt'] = alignments.apply(infer_read_bp, axis=1).astype('category')
-
-	# Exclude alignments which are too low-quality 
-	alignments['pass_gap_filter'] = alignments.cigar.transform(pass_gap_filter)
-	alignments['pass_mismatch_filter'] = ((alignments.mismatches<=MAX_MISMATCHES) & (alignments.mismatches_p<=MAX_MISMATCH_PERCENT))
-	alignments = alignments.loc[(alignments.pass_gap_filter) & (alignments.pass_mismatch_filter)]
 	# Discard uneeded columns
-	alignments = alignments[ALIGN_INITIAL_COLS]
+	alignments = alignments.drop(columns=['flag', 'tag1', 'tag2', 'tag3', 'length'])
 
 	return alignments
 
 
+def check_gaps(cigar:tuple) -> tuple:
+	gaps = [length for op, length in cigar if op in ('I', 'D')]
+	if len(gaps) > 1 or (len(gaps) == 1 and gaps[0] > MAX_GAP_LENGTH):
+		return False
+	else:
+		return True
+
+
 def get_bp_seqs(alignments:pd.DataFrame, genome_fasta:str):
 	alignments = alignments.copy()
-	# alignments['window_start'] = alignments.apply(lambda row: row['bp_pos']-8 if row['strand']=='+' else row['bp_pos']-8, axis=1).astype(str)
-	# alignments['window_end'] = alignments.apply(lambda row: row['bp_pos']+9 if row['strand']=='+' else row['bp_pos']+9, axis=1).astype(str)
 	alignments['window_start'] = pd.Series(alignments.bp_pos - BP_CONTEXT_LENGTH, dtype='str')
 	alignments['window_end'] = pd.Series(alignments.bp_pos + BP_CONTEXT_LENGTH+1, dtype='str')
 	alignments['align_num'] = alignments.index.to_series().astype(str)
@@ -271,14 +254,14 @@ def more_filters(row:pd.Series):
 	# Check if bad alignment orientation combination, which do NOT leave the branchpoint adjacent to the 5'ss in the read as is expected of lariats
 	if row['read_is_reverse'] is False:
 		if row['align_is_reverse'] is False and row['strand']=='-':
-			return 'wrong_orientation'
+			return 'wrong_orient'
 		elif row['align_is_reverse'] is True and row['strand']=='+':
-			return 'wrong_orientation'
+			return 'wrong_orient'
 	if row['read_is_reverse'] is True:
 		if row['align_is_reverse'] is False and row['strand']=='+':
-			return 'wrong_orientation'
+			return 'wrong_orient'
 		elif row['align_is_reverse'] is True and row['strand']=='-':
-			return 'wrong_orientation'
+			return 'wrong_orient'
 
 	# Check if the 5'ss is at or downstream of the tail's start
 	if row['strand'] == '+' and row['fivep_pos'] > row['align_start']:
@@ -319,6 +302,16 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 	# Load in the assigned chunk of alignments, excluding skipping low-quality alignments
 	alignments = parse_alignments_chunk(HEADS_TO_GENOME_FILE.format(output_base), chunk_start, chunk_end, n_aligns)
 
+	# Filter out low-quality alignments
+	pass_mismatch_filter = ((alignments.mismatches<=MAX_MISMATCHES) & (alignments.mismatches_p<=MAX_MISMATCH_PERCENT))
+	pass_gap_filter = alignments.cigar.transform(check_gaps)
+	alignments.loc[~pass_mismatch_filter, 'filter_failed'] = 'mismatches'
+	alignments.loc[(alignments.filter_failed.isna()) & (~pass_gap_filter), 'filter_failed'] = 'gaps'
+	alignments = drop_failed_alignments(alignments, output_base)
+	if alignments.empty:
+		log.debug(f'Process {os.getpid()}: Chunk exhausted after alignment quality filter')
+		return 
+	
 	# Merge alignments with tails
 	# This expands each alignment row into alignment-5'ss-combination rows
 	alignments = pd.merge(alignments, tails, 'left', on=['read_id'])
