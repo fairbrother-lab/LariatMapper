@@ -75,12 +75,14 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 		tags = [attr_val.strip('"') for attr_name, attr_val in attributes if attr_name=='tag']
 		attributes = {attr_name: attr_val.strip('"') for attr_name, attr_val in attributes if attr_name!='tag'}
 		attributes['tags'] = tags
-	else:
-		attributes = [attr.split('=') for attr in attribute_string.split(';')]
+	elif file_type == 'gff':
+		attributes = [attr.split('=') for attr in attribute_string.split('; ')]
 		attributes = [(attr[0].lstrip(), attr[1]) for attr in attributes]
 		attributes = dict(attributes)
 		if 'tag' in attributes:
 			attributes['tags'] = attributes['tag'].split(',')
+	else:
+		raise ValueError(f'Invalid file type "{file_type}"')
 
 	return attributes
 
@@ -194,19 +196,10 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 		bedtools_input += fivep_line
 	
 	# Get fivep sequences using bedtools getfasta
-	# We can't parse the standard output for the sequences because warnings will be included in some lines
-	# in a non-deterministic pattern 
-	with tempfile.NamedTemporaryFile() as tmp:
-		bedtools_call = f'bedtools getfasta -s -tab -nameOnly -fi {genome_fasta} -fo {tmp.name} -bed -'
-		bedtools_output = functions.run_command(bedtools_call, input=bedtools_input, log=log)
-		if bedtools_output != '':
-			bedtools_output = bedtools_output.split('\n')
-			for warning in bedtools_output:
-				log.warning(warning)
-		fivep_seqs = pd.read_csv(tmp, sep='\t', header=None, names=['fivep_site', 'seq'])
+	fivep_seqs = functions.getfasta(genome_fasta, bedtools_input, log=log)
+	fivep_seqs = fivep_seqs.rename(columns={'name': 'fivep_site'})
 
 	# Parse output
-	fivep_seqs.fivep_site = fivep_seqs.fivep_site.str.slice(0,-3)
 	fivep_seqs[['chrom', 'pos', 'strand']] = fivep_seqs.fivep_site.str.split(';', expand=True)
 	fivep_seqs.pos = fivep_seqs.pos.astype('int')
 	# Sort to make debugging easier

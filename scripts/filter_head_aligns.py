@@ -2,6 +2,7 @@ import sys
 import os
 import multiprocessing as mp
 import collections
+import tempfile
 
 from intervaltree import Interval, IntervalTree
 import pandas as pd
@@ -28,6 +29,7 @@ MAX_MISMATCHES = 5
 MAX_MISMATCH_PERCENT = 0.1
 MAX_GAP_LENGTH = 3
 ALIGN_CHUNKSIZE = 1_000_000
+BP_CONTEXT_LENGTH = 8
 
 ALIGN_INITIAL_COLS = ['read_id', 
 					  'read_is_reverse',
@@ -221,18 +223,18 @@ def get_bp_seqs(alignments:pd.DataFrame, genome_fasta:str):
 	alignments = alignments.copy()
 	# alignments['window_start'] = alignments.apply(lambda row: row['bp_pos']-8 if row['strand']=='+' else row['bp_pos']-8, axis=1).astype(str)
 	# alignments['window_end'] = alignments.apply(lambda row: row['bp_pos']+9 if row['strand']=='+' else row['bp_pos']+9, axis=1).astype(str)
-	alignments['window_start'] = pd.Series(alignments.bp_pos - 8, dtype='str')
-	alignments['window_end'] = pd.Series(alignments.bp_pos + 9, dtype='str')
+	alignments['window_start'] = pd.Series(alignments.bp_pos - BP_CONTEXT_LENGTH, dtype='str')
+	alignments['window_end'] = pd.Series(alignments.bp_pos + BP_CONTEXT_LENGTH+1, dtype='str')
 	alignments['align_num'] = alignments.index.to_series().astype(str)
 	alignments['zero'] = '0'
 	alignments['bedtools_line'] = alignments[['chrom', 'window_start', 'window_end', 'align_num', 'zero', 'strand']].agg('\t'.join, axis=1)
 
 	bedtools_input = '\n'.join(alignments.bedtools_line) + '\n'
-	bedtools_call = f'bedtools getfasta -nameOnly -s -tab -fi {genome_fasta} -bed -'
-	response = functions.run_command(bedtools_call, bedtools_input)
+	# We can't parse the standard output for the sequences because warnings will be included in some lines
+	# in a non-deterministic pattern 
+	bp_seqs = functions.getfasta(genome_fasta, bedtools_input, log=None)
+	bp_seqs.columns = ['align_num', 'genomic_bp_context']
 
-	bp_seqs = pd.DataFrame([l.split('\t') for l in response.split('\n')], columns=['align_num', 'genomic_bp_context'])
-	bp_seqs.align_num = bp_seqs.align_num.str.slice(0,-3)
 	bp_seqs.genomic_bp_context = bp_seqs.genomic_bp_context.transform(lambda genomic_bp_context: genomic_bp_context.upper())
 	
 	alignments = pd.merge(alignments, bp_seqs, on='align_num')
@@ -240,7 +242,7 @@ def get_bp_seqs(alignments:pd.DataFrame, genome_fasta:str):
 
 
 def is_template_switch(row):
-	bp_adj_seq = row['genomic_bp_context'][5:]
+	bp_adj_seq = row['genomic_bp_context'][BP_CONTEXT_LENGTH+1:]
 	base_matches = sum([bp_adj_seq[i]==row['fivep_seq'][i] for i in range(5)])
 	return base_matches == 5
 
