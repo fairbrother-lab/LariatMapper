@@ -119,7 +119,14 @@ if __name__ == '__main__':
 		log_level = 'INFO'
 	log = functions.get_logger(log_level)
 
-	# Print arguments
+	# Report version
+	with open(f'{pipeline_dir}/pyproject.toml') as toml:
+		for line in toml:
+			if line.startswith('version = "'):
+				version = line.lstrip('version = "').rstrip('"\n')
+				log.info(f'LariatMapper {version}')
+
+	# Report arguments
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
 	arg_message = '\n\t'.join(arg_message)
 	log.info(f'Arguments: \n\t{arg_message}')
