@@ -1,0 +1,11 @@
+bedtools
+bowtie2
+hisat2
+intervaltree
+numpy
+pandas
+pyarrow
+pyfaidx
+pysam
+python>=3.9, <=3.11
+samtools
