@@ -135,3 +135,25 @@ def getfasta(genome_fasta:str, bedtools_input:str, log:logging.Logger=None) -> p
 	seqs.name = seqs.name.str.slice(0,-3)
 	
 	return seqs
+
+
+def version() -> str:
+	'''
+	Return the current version of LariatMapper (format Major.Minor.Patch)
+	'''
+	toml_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../pyproject.toml')
+	with open(toml_file) as file_in:
+		for line in file_in:
+			if line.startswith('version = "'):
+				v = line.lstrip('version = "').rstrip('"\n')
+				return v
+
+
+def linecount(file:str) -> int:
+	'''
+	Return the number of lines in the input file
+	'''
+	with open(file) as file_in:
+		count = sum(1 for line in file_in)
+	
+	return count
