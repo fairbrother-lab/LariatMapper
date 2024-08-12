@@ -72,7 +72,6 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 	fivep_upstream_seqs = functions.getfasta(genome_fasta, bedtools_input, log)
 	# Make it a dict
 	fivep_upstream_seqs = fivep_upstream_seqs.set_index('name', drop=True)['seq'].to_dict()
-	print(fivep_upstream_seqs)
 
 	return fivep_upstream_seqs
 
