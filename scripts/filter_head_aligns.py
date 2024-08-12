@@ -28,7 +28,7 @@ CIGAR_OPERATORS = ('M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X')
 MAX_MISMATCHES = 5
 MAX_MISMATCH_PERCENT = 0.1
 MAX_GAP_LENGTH = 3
-ALIGN_CHUNKSIZE = 1_000_000
+ALIGN_CHUNKSIZE = 100_000
 BP_CONTEXT_LENGTH = 8
 
 TEMPLATE_SWITCHING_COLS = ['read_id',
@@ -81,9 +81,6 @@ def parse_intron_info(ref_introns):
 		introns[chrom]['+'] = IntervalTree.from_tuples([row for i, row in pos_subset.iterrows()])
 		neg_subset = introns_df.loc[(introns_df.chrom==chrom) & (introns_df.strand=='-'), ['start', 'end', 'gene_id_dict']]
 		introns[chrom]['-'] = IntervalTree.from_tuples([row for i, row in neg_subset.iterrows()])
-
-	# Convert introns dict into a defaultdict to avoid a later KeyError if a head maps to a chromosome with 0 annotated introns
-	introns = collections.defaultdict(lambda: {'+': IntervalTree(), '-': IntervalTree()}, introns)
 
 	fivep_genes = introns_df.copy()
 	fivep_genes['fivep_site'] = fivep_genes.apply(lambda row: f"{row['chrom']};{row['start']};{row['strand']}" if row['strand']=='+' else f"{row['chrom']};{row['end']-1};{row['strand']}", axis=1)
@@ -230,6 +227,16 @@ def is_template_switch(row):
 	return base_matches == 5
 
 
+def	enveloping_introns(row, introns) -> list:
+	if row['chrom'] not in introns:
+		return []
+	
+	overlaps = introns[row['chrom']][row['strand']].overlap(row['align_start'], row['align_end'])
+	envelops = [intron for intron in overlaps if intron.begin<=row['align_start'] and intron.end>=row['align_end']]
+
+	return envelops
+
+
 def filter_introns(row):
 	matched_introns = []
 	for intron in row['overlap_introns']:
@@ -293,7 +300,7 @@ def drop_failed_alignments(alignments:pd.DataFrame, output_base:str) -> pd.DataF
 		return alignments
 
 
-def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_shared, output_base, log_level) -> None:
+def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level) -> None:
 	# We have to set the log level in each process because the children don't inherit the log level from their parent,
 	# even if you pass the log object itself
 	log = functions.get_logger(log_level)
@@ -346,8 +353,9 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 		return 
 	
 	# Identify introns that envelop the alignment
-	alignments['overlap_introns'] = alignments.apply(lambda row: introns_shared[row['chrom']][row['strand']].overlap(row['align_start'], row['align_end']), axis=1)
-	alignments['overlap_introns'] = alignments.apply(lambda row: [intron for intron in row['overlap_introns'] if intron.begin<=row['align_start'] and intron.end>=row['align_end']], axis=1)
+	# alignments['overlap_introns'] = alignments.apply(lambda row: introns[row['chrom']][row['strand']].overlap(row['align_start'], row['align_end']), axis=1)
+	# alignments['overlap_introns'] = alignments.apply(lambda row: [intron for intron in row['overlap_introns'] if intron.begin<=row['align_start'] and intron.end>=row['align_end']], axis=1)
+	alignments['overlap_introns'] = alignments.apply(enveloping_introns, introns=introns, axis=1)
 	
 	# Filter out alignments that don't overlap any introns
 	alignments.loc[alignments.overlap_introns.transform(len)==0, 'filter_failed'] = 'overlap_introns'
@@ -411,7 +419,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns_sha
 	with filtered_out_lock:
 		alignments.to_csv(PUTATITVE_LARIATS_FILE.format(output_base), mode='a', sep='\t', index=False, header=False)
 
-	log.debug(f'Process {os.getpid()}: Chunk finished')
+	log.debug(f'Process {os.getpid()}: Finished')
 
 
 # If any processes hit an error, raise an error
