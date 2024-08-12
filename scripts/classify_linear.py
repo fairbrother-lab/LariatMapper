@@ -289,23 +289,25 @@ if __name__ == '__main__':
 
 	# For each segment, filter out exons and introns whose genes (yes, unfortunately they can have multiple) don't cover all segments of the read
 	linear_reads['common_genes'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(infer_common_genes, include_groups=False))
-	linear_reads['exons'] = linear_reads.apply(lambda row: IntervalTree(exon for exon in row['exons'] if len(exon.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
-	linear_reads['introns'] = linear_reads.apply(lambda row: IntervalTree(intron for intron in row['introns'] if len(intron.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
+	# linear_reads['exons'] = linear_reads.apply(lambda row: IntervalTree(exon for exon in row['exons'] if len(exon.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
+	# linear_reads['introns'] = linear_reads.apply(lambda row: IntervalTree(intron for intron in row['introns'] if len(intron.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
 
-	# Classify segments
-	linear_reads['seg_class'] = linear_reads.apply(classify_seg, axis=1)
-	log.debug(f'segment class counts: {linear_reads.seg_class.value_counts().sort_index().to_dict()}')
-	linear_reads.seg_class = linear_reads.seg_class.transform(lambda sc: 'Ambiguous' if sc in ('Ambiguous I', 'Ambiguous EI') else sc)
+	# # Classify segments
+	# linear_reads['seg_class'] = linear_reads.apply(classify_seg, axis=1)
+	# log.debug(f'segment class counts: {linear_reads.seg_class.value_counts().sort_index().to_dict()}')
+	# linear_reads.seg_class = linear_reads.seg_class.transform(lambda sc: 'Ambiguous' if sc in ('Ambiguous I', 'Ambiguous EI') else sc)
 
-	# Classify reads based on their segment(s) class(es)
-	# linear_reads['align_class'] = linear_reads.align_id.map(linear_reads.groupby('align_id').apply(classify_alignment, include_groups=False))
-	linear_reads['read_class'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(classify_read, include_groups=False))
-	log.debug(f'read class counts: {linear_reads.read_class.astype("str").value_counts().sort_index().to_dict()}')
-	if log_level=='DEBUG':
-		linear_reads.to_csv(f'{output_base}linear_classes_raw.tsv', sep='\t', index=False)
+	# # Classify reads based on their segment(s) class(es)
+	# # linear_reads['align_class'] = linear_reads.align_id.map(linear_reads.groupby('align_id').apply(classify_alignment, include_groups=False))
+	# linear_reads['read_class'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(classify_read, include_groups=False))
+	# log.debug(f'read class counts: {linear_reads.read_class.astype("str").value_counts().sort_index().to_dict()}')
+	# if log_level=='DEBUG':
+	# 	linear_reads.to_csv(f'{output_base}linear_classes_raw.tsv', sep='\t', index=False)
  
-	# Designate any unclassifiable combo of seg classes as 'Ambiguous'
-	linear_reads.read_class = linear_reads.read_class.transform(lambda rc: 'Ambiguous' if rc in ('Ambiguous IS',) or isinstance(rc, tuple) else rc)
+	# # Designate any unclassifiable combo of seg classes as 'Ambiguous'
+	# linear_reads.read_class = linear_reads.read_class.transform(lambda rc: 'Ambiguous' if rc in ('Ambiguous IS',) or isinstance(rc, tuple) else rc)
+
+	linear_reads['read_class'] = 'linear'
 
 	# Collapse segments back into one row per read and prepare to write to file 
 	linear_reads['gene_id'] = linear_reads.common_genes.transform(lambda cg: functions.str_join(tuple(cg)))
