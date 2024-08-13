@@ -75,40 +75,22 @@ if [ "$SEQ_TYPE" == "single" ]; then
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 	       --threads $THREADS -x $GENOME_INDEX -U $READ_FILE \
 		| samtools view --bam --with-header --add-flags PAIRED,READ1 \
+		| samtools sort --threads $THREADS --verbosity 0 \
 		> $output_bam \
 		|| exit 1
 elif [ "$SEQ_TYPE" == "paired" ]; then
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 		   --threads $THREADS -x $GENOME_INDEX -1 $READ_ONE -2 $READ_TWO \
 		| samtools view --bam --with-header \
+		| samtools sort --threads $THREADS --verbosity 0 \
 		> $output_bam \
 		|| exit 1
 fi
-printf "$(date +'%d/%b/%y %H:%M:%S') | Extracting unmapped reads...\n"
-samtools view --bam --with-header --exclude-flags 4 $output_bam > $mapped_bam
-samtools view --bam --with-header --require-flags 4 $output_bam > $unmapped_bam
-mapped_read_count=$(samtools view --count $mapped_bam)
-unmapped_read_count=$(samtools view --count $unmapped_bam)
-if [ "$SEQ_TYPE" == "paired" ]; then
-	mapped_read_count=$((mapped_read_count/2))
-	unmapped_read_count=$((unmapped_read_count/2))
-fi
-echo -e "linear_mapped\t$mapped_read_count" > $run_data
-echo -e "linear_unmapped\t$unmapped_read_count" >> $run_data
-
-### Check if 0 reads were left unmapped
-if [ $unmapped_read_count == 0 ];then
-	printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining"
-	python -u $PIPELINE_DIR/scripts/classify_linear.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
-		|| exit 1
-	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
-		|| exit 1
-	exit
-fi
+samtools index $output_bam
 
 ### Create fasta file of unmapped reads 
 printf "$(date +'%d/%b/%y %H:%M:%S') | Creating fasta file of unmapped reads...\n"
-samtools fasta -N -o $unmapped_fasta $unmapped_bam >/dev/null 2>&1 || exit 1
+samtools fasta -N --require-flags 4 -o $unmapped_fasta $output_bam >/dev/null 2>&1 || exit 1
 printf "$(date +'%d/%b/%y %H:%M:%S') | Indexing unmapped reads fasta file...\n"
 samtools faidx $unmapped_fasta || exit 1
 
