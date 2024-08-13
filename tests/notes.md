@@ -16,4 +16,5 @@
 | head_fail_fivep_intron_match | derived from true_lariat_1, move head to 700-750 |
 | circular | derived from true_lariat_1, replace head with seq at end of intron #3 |
 | repeat | chr2, FOXN2, intron #1, head 200-250 and tail 133-183 |
+| head_fail_5p_bp_order | derived from true_lariat_1, move head to starting upstream of the 5'ss at 688 |
 Positions are 0-based inclusive start, exclusive end
