@@ -1,6 +1,7 @@
 chrom	strand	start	end	gene_id
 chr1	+	48	169	DDX11L1
 chr1	+	218	603	DDX11L1
+chr1	+	680	965	DDX11L1
 chr1	+	688	965	DDX11L1
 chr1	+	1043	1211	DDX11L1
 chr1	+	1365	1443	DDX11L1
