@@ -151,16 +151,16 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 	
 	# Same chunk start check as in filter_fivep_aligns.py, just implemented with pandas
 	if chunk_start != 1:
-		previous_line_rid = alignments.iloc[0]['read_id'][:-6]
-		start_line_rid = alignments.iloc[1]['read_id'][:-6]
+		previous_line_rid = alignments.iloc[0]['read_id']
+		start_line_rid = alignments.iloc[1]['read_id']
 		if start_line_rid == previous_line_rid:
 			alignments = alignments.loc[alignments.read_id.str.slice(0,-6)!=previous_line_rid].reset_index()
 
 	# The chunk end check is also functionally the same
 	# Well, it SHOUlD be
 	if chunk_end != n_aligns:
-		last_rid = alignments.iloc[-2]['read_id'][:-6]
-		next_rid = alignments.iloc[-2]['read_id'][:-6]
+		last_rid = alignments.iloc[-2]['read_id']
+		next_rid = alignments.iloc[-1]['read_id']
 		while last_rid == next_rid:
 			next_line = pd.read_csv(alignments_sam, 
 									sep='\t',
