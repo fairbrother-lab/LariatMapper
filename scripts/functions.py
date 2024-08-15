@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 
 import pandas as pd
+import pyfaidx
 
 
 
@@ -135,6 +136,19 @@ def getfasta(genome_fasta:str, bedtools_input:str, log:logging.Logger=None) -> p
 	seqs.name = seqs.name.str.slice(0,-3)
 	
 	return seqs
+
+
+def get_seq(genome_fasta:str, chrom:str, start:int, end:int, rev_comp:bool) -> str:
+	"""
+	Retrieves a sequence from a genome FASTA file.
+	Args:
+		genome_fasta (str): The path to the genome FASTA file.
+		chrom (str): The chromosome or sequence identifier.
+		start (int): The start position of the sequence (0-based inclusive)
+		end (int): The end position of the sequence (0-based exclusive)
+		rev_comp (bool): Flag indicating whether to retrieve the reverse complement of the sequence.
+	"""
+	return pyfaidx.Fasta(genome_fasta, sequence_always_upper=True, as_raw=True).get_seq(chrom, start+1, end+1, rev_comp)
 
 
 def version() -> str:

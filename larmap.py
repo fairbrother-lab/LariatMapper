@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -135,15 +136,15 @@ if __name__ == '__main__':
 	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, output_base = process_args(args, parser, log)
 	log.debug(f'seq_type: {repr(seq_type)}, output_base: {repr(output_base)}')
 
-	# Set start method for multiprocessing in filter_fivep_aligns.py and filter_head_aligns.py
-	# Using the default "fork" method causes memory errors when processing bigger RNA-seq inputs
-	# This has to be defined in the first python script and only once, or else we get "RuntimeError: context has already been set" 
-	multiprocessing.set_start_method('spawn')	
-
 	# Make output dir
 	log.info('Preparing directories...')
 	if not os.path.isdir(args.output_dir):
 		os.mkdir(args.output_dir)
+
+	# Set start method for multiprocessing in filter_fivep_aligns.py and filter_head_aligns.py
+	# Using the default "fork" method causes memory errors when processing bigger RNA-seq inputs
+	# This has to be defined in the first python script and only once, or else we get "RuntimeError: context has already been set" 
+	multiprocessing.set_start_method('spawn')	
 
 	# Prepare call to map_lariats.sh
 	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level, seq_type]
@@ -153,18 +154,12 @@ if __name__ == '__main__':
 	elif seq_type == 'paired':
 		log.debug('Processing paired-end read files...')
 		map_lariats_args += [args.read_one, args.read_two]
-	# map_lariats_args = [output_base, str(args.output_prefix), str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp), str(args.ucsc_track), pipeline_dir, log_level, seq_type]
-	# if seq_type == 'single':
-	# 	# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing single-end read file...'), flush=True)
-	# 	log.debug('Processing single-end read file...')
-	# 	map_lariats_args += [args.read_file]
-	# elif seq_type == 'paired':
-	# 	# print(time.strftime('%m/%d/%y - %H:%M:%S | Processing paired-end read files...'), flush=True)
-	# 	log.debug('Processing paired-end read files...')
-	# 	map_lariats_args += [','.join([args.read_one, args.read_two])]
 	log.debug(f'map_lariats args: {map_lariats_args}')
+
+	# Dump arguments to a JSON file so summarize.py can report them
+	with open(f'{args.output_dir}/args.json', 'w') as json_file:
+		json.dump(map_lariats_args, json_file)
 
 	# Run it
 	map_call = f'{os.path.join(pipeline_dir, "scripts", "map_lariats.sh")} {" ".join(map_lariats_args)}'
-	# map_call = f'python -u {os.path.join(pipeline_dir, "scripts", "map_lariats.py")} {" ".join(map_lariats_args)}'
 	subprocess.run(map_call.split(' '))

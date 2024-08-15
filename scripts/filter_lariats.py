@@ -225,11 +225,4 @@ if __name__ == '__main__':
 	failed_aligns.to_csv(FAILED_LARIATS_FILE.format(output_base), sep='\t', index=False)
 	filtered_lariats.to_csv(LARIATS_FILE.format(output_base), sep='\t', index=False)
 
-	# Record read count
-	with open(RUN_DATA_FILE.format(output_base), 'a') as a:
-		a.write(f'head_filter_passed\t{lariat_reads.read_id.nunique()}\n')	
-		a.write(f'lariat\t{filtered_lariats.read_id.nunique()}\n')
-		a.write(f'template-switch\t{len(temp_switch_rids)}\n')
-		a.write(f'circularized_intron\t{len(circular_rids)}\n')
-
 	log.debug('End of script')

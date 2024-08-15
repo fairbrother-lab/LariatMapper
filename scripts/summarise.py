@@ -1,8 +1,8 @@
 import os
 import sys
+import json
 
 import pandas as pd
-import pyfaidx
 import pysam
 
 import functions
@@ -14,52 +14,78 @@ import functions
 #=============================================================================#
 OUT_TEMPLATE = (
 				"----------------------------------------\n"
-				"Run\n"
+				"                Metadata                \n"
 				"----------------------------------------\n"
-				"Version: {version}\n"
+				"Version:\t{version}\n"
+				"Threads:\t{threads}\n"
 				#TODO: Time and resources
-				#TODO: Settings
-
-				"\n----------------------------------------\n"
-				"Read class counts\n"
+				"\n"
 				"----------------------------------------\n"
-				"mRNA: {mRNA}\n" 
-				"pre-mRNA: {pre_mRNA}\n"
-				"Unmapped: {unmapped}\n"
-				"Unmapped with 5'ss alignment: {unmapped_5p}\n"
-				"Template-switching: {temp_switch}\n"
-				"Circularized intron: {circ_intron}\n"
-				"In repetitive region: {repetitive}\n"
-				"Lariat: {lariat}\n"
-
-				"\n----------------------------------------\n"
-				"Pipeline read counts\n"
+				"                Settings                \n"
 				"----------------------------------------\n"
-				"Input: {input}\n"
-				"Linear mapping: {linear_map}\n"
-				"5'ss mapping: {fivep_map}\n"
-				"5'ss alignment filtering: {fivep_filter}\n"
-				"Head mapping: {head_map}\n"
-				"Head alignment filtering: {head_filter}\n"
-				"Lariat filtering: {lariat_filter}\n"
+				"Input data type:\t{seq_type}\n"
+				"Input reads:\t{input_reads}\n"
+				"Reference HISAT2 index:\t{hisat2_index}\n"
+				"Reference genome FASTA:\t{genome_fasta}\n"
+				"Reference 5'ss FASTA:\t{fivep_fasta}\n"
+				"Reference exons:\t{exons_tsv}\n"
+				"Reference introns:\t{introns_tsv}\n"
+				"Reference RepeatMasker:\t{repeats_bed}\n"
+				"Output:\t{output_base}\n"
+				"Log level:\t{log_level}\n"
+				"Keep temporary files:\t{keep_temp}\n"
+				"Make UCSC track:\t{ucsc_track}\n"
+				"\n"
+				"----------------------------------------\n"
+				"              Read classes              \n"
+				"----------------------------------------\n"
+				"Linear total:\t{Linear}\n"
+				"Linear spliced:\t{spliced}\n"
+				"Unmapped:\t{Unmapped}\n"
+				"Unmapped with 5'ss alignment:\t{Unmapped_with_5ss_alignment}\n"
+				"Template-switching:\t{Template_switching}\n"
+				"Circularized intron:\t{Circularized_intron}\n"
+				"In repetitive region:\t{In_repetitive_region}\n"
+				"Lariat:\t{Lariat}\n"
+				"\n"
+				"----------------------------------------\n"
+				"      Read count after each stage       \n"
+				"----------------------------------------\n"
+				"Start:\t{input_count}\n"
+				"Linear mapping:\t{Linear_mapping}\n"
+				"5'ss mapping:\t{5ss_mapping}\n"
+				"5'ss alignment filtering:\t{5ss_alignment_filtering}\n"
+				"Head mapping:\t{Head_mapping}\n"
+				"Head alignment filtering:\t{Head_alignment_filtering}\n"
+				"Lariat filtering:\t{Lariat_filtering}\n"
 )
 
+SETTINGS_VARS = ('output_base', 'threads', 'hisat2_index', 'genome_fasta', 'fivep_fasta', 
+				 'exons_tsv', 'introns_tsv', 'repeats_bed', 'keep_temp', 'ucsc_track', 
+				 'pipeline_dir', 'log_level', 'seq_type')
+READ_CLASSES = ("Linear", "Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
+				'Template_switching', 'Circularized_intron', 'Lariat')
+STAGES = ('Linear_mapping', "5ss_mapping", "5ss_alignment_filtering", 
+		  'Head_mapping', 'Head_alignment_filtering', 'Lariat_filtering', 'To_the_end')
 
+	
 
 #=============================================================================#
 #                                  Functions                                  #
 #=============================================================================#
-# def (:) -> :
+def run_settings(output_base:str) -> dict:
+	with open(f'{output_base}args.json', 'r') as json_file:
+		settings = json.load(json_file)
+	
+	# Get input reads and convert settings to dict
+	input_reads = ','.join(settings[13:])
+	settings = {key: val for key, val in zip(SETTINGS_VARS, settings[:13])}
+	settings['input_reads'] = input_reads
 
-	# return
+	# Remove args file, as it is no longer needed
+	os.remove(f'{output_base}args.json')
 
-
-
-# def (:) -> :
-
-	# return
-
-
+	return settings
 
 
 
@@ -79,41 +105,46 @@ if __name__ == '__main__':
 
 	# Run information
 	stats['version'] = functions.version()
+	settings = run_settings(output_base)
+	stats.update(settings)
 
-	# Read classification stats
-	read_classes = pd.read_csv(f'{output_base}read_classes.tsv', sep='\t')
-	stats.update(read_classes.read_class.value_counts().to_dict())
-	stats['spliced'] = read_classes.spliced.sum()
+	# Add input read count
+	r1 = pysam.FastxFile(settings['input_reads'].split(',')[0])
+	stats['input_count'] = sum(1 for read in r1)
 
-	# Pipline stats
-	stats['linear_map'] = pysam.AlignmentFile(f'{output_base}output.bam').mapped
-	stats['linear_unmap'] = pysam.AlignmentFile(f'{output_base}output.bam').unmapped
+	# Add read class counts
+	read_classes = pd.read_csv(f'{output_base}read_classes.tsv.gz', sep='\t')
+	read_classes.read_class = (read_classes.read_class
+								.str.replace(' ', '_')
+								.str.replace('-', '_')
+								.str.replace("'", ''))
+	classes = (pd.Categorical(read_classes.read_class, categories=READ_CLASSES, ordered=True)
+				.value_counts()
+				.to_dict())
+	log.debug(f'Read classes: {classes}')
+	stats.update(classes)
 
-	fivep_map_rids = set()
-	with open(f'{output_base}fivep_to_reads.sam') as r:
-		for line in r:
-			rid = line.split('\t')[2]
-			rid = rid[:-2]
-			fivep_map_rids.add(rid)
-	stats['fivep_map'] = len(fivep_map_rids)
-	fivep_filter_rids = pd.read_csv(f'{output_base}tails.tsv', sep='\t', usecols=['read_id'])['read_id']
-	stats['fivep_filter'] = fivep_filter_rids.str.slice(0, -6).nunique()
+	# Add counts after each stage reached
+	read_classes.stage_reached = (read_classes.stage_reached
+									.str.replace(' ', '_')
+									.str.replace('-', '_')
+									.str.replace("'", ''))
+	stages = (pd.Categorical(read_classes.stage_reached, categories=STAGES, ordered=True)
+				.value_counts()
+				.to_dict())
+	log.debug(f'Stages reached: {stages}')
+	reads_left = stats['input_count']
+	for stage in STAGES:
+		reads_left += -stages[stage]
+		stats[stage] = reads_left
 
-	head_map_rids = set()
-	with open(f'{output_base}heads_to_genome.sam') as r:
-		for line in r:
-			rid = line.split('\t')[0]
-			rid = rid[:-6]
-			head_map_rids.add(rid)
-	stats['head_map'] = len(head_map_rids)
-	head_filter_rids = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t', usecols=['read_id'])['read_id']
-	stats['head_filter'] = head_filter_rids.str.slice(0, -6).nunique()
+	# Add spliced count
+	stats['spliced'] = int(read_classes.spliced.eq('True').sum())
 
-	lariat_filter_rids = pd.read_csv(f'{output_base}lariats.tsv', sep='\t', usecols=['read_id'])['read_id']
-	stats['lariat_filter'] = lariat_filter_rids.nunique()
+	log.debug(f'Summary stats: {stats}')
 
 	# Write stats to file
-	with open(f'{output_base}summary_stats.tsv', 'w') as w:
+	with open(f'{output_base}summary.txt', 'w') as w:
 		w.write(OUT_TEMPLATE.format(**stats))
 
 	log.debug('End of script')
