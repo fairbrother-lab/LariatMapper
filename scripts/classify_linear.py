@@ -106,10 +106,18 @@ def tree_covers_interval(tree:IntervalTree, interval:Interval) -> bool:
 	return total_coverage
 
 
-def parse_linear_alignments(output_base:str) -> pd.DataFrame:
+def parse_linear_alignments(output_base:str, log) -> pd.DataFrame:
 	# Run through mapped reads file, loading read alignments
+	count = pysam.AlignmentFile(f'{output_base}output.bam', 'rb').mapped
+	if count == 0:
+		log.warning('0 linear read alignments')
+		exit()
+
+	i = 0
 	linear_reads = []
-	for align in pysam.AlignmentFile(f'{output_base}mapped_reads.bam', 'rb'):
+	for align in pysam.AlignmentFile(f'{output_base}output.bam', 'rb'):
+		if align.is_unmapped:
+			continue
 		linear_reads.append([
 						align.query_name, 
 						align.is_read1,
@@ -121,21 +129,33 @@ def parse_linear_alignments(output_base:str) -> pd.DataFrame:
 						# align.get_tag('NH'),
 						align.get_tag('YT'),
 						])
+		i += 1
+		if i % 100_000 == 0:
+			log.debug(f'{i:,} linear read alignments')
 
-	linear_reads = pd.DataFrame(linear_reads, columns=INITIAL_COLS)
+			linear_reads = pd.DataFrame(linear_reads, columns=INITIAL_COLS)
 
-	if len(linear_reads) == 0:
-		log.warning('0 linear read alignments')
-		exit()
+			# Fix starting columns
+			linear_reads.read_id = linear_reads.read_id.astype('string')
+			linear_reads.mate = linear_reads.mate.map({True: '1', False: '2'}).astype('category')
+			linear_reads.chrom = linear_reads.chrom.astype('category')
+			linear_reads.cigar = linear_reads.cigar.transform(lambda cigar: tuple((CIGARTUPLE_CODES[op],length) for op, length in cigar))
+			linear_reads.mixed = linear_reads.mixed.transform(lambda m: True if m=='UP' else False)
 
-	# Fix starting columns
-	linear_reads.read_id = linear_reads.read_id.astype('string')
-	linear_reads.mate = linear_reads.mate.map({True: '1', False: '2'}).astype('category')
-	linear_reads.chrom = linear_reads.chrom.astype('category')
-	linear_reads.cigar = linear_reads.cigar.transform(lambda cigar: tuple((CIGARTUPLE_CODES[op],length) for op, length in cigar))
-	linear_reads.mixed = linear_reads.mixed.transform(lambda m: True if m=='UP' else False)
+			yield linear_reads
+			linear_reads = []
 
-	return linear_reads
+	if i % 100_000 != 0:
+		linear_reads = pd.DataFrame(linear_reads, columns=INITIAL_COLS)
+
+		# Fix starting columns
+		linear_reads.read_id = linear_reads.read_id.astype('string')
+		linear_reads.mate = linear_reads.mate.map({True: '1', False: '2'}).astype('category')
+		linear_reads.chrom = linear_reads.chrom.astype('category')
+		linear_reads.cigar = linear_reads.cigar.transform(lambda cigar: tuple((CIGARTUPLE_CODES[op],length) for op, length in cigar))
+		linear_reads.mixed = linear_reads.mixed.transform(lambda m: True if m=='UP' else False)
+
+		yield linear_reads
 
 
 def classify_seg(row):
@@ -254,78 +274,81 @@ if __name__ == '__main__':
 	introns['interval'] = introns.apply(lambda row: Interval(row['start'], row['end'], {'gene_id': row['gene_id'], 'strand': row['strand']}), axis=1)
 	introns = introns.groupby('chrom').interval.agg(IntervalTree).to_dict()
 
+	with open(f'{output_base}linear_classes.tsv', 'w') as w:
+		w.write('\t'.join(OUT_COLS)+'\n')
+
 	# Load linear read alignments
-	linear_reads = parse_linear_alignments(output_base)
-	log.debug(f"{linear_reads.read_id.nunique():,} reads with linear alignments. {linear_reads.loc[linear_reads.mixed==True, 'read_id'].nunique():,} have mixed mate alignments")
+	for linear_reads in parse_linear_alignments(output_base, log):
+		# log.debug(f"{linear_reads.read_id.nunique():,} reads with linear alignments. {linear_reads.loc[linear_reads.mixed==True, 'read_id'].nunique():,} have mixed mate alignments")
 
-	# Infer spliced/unspliced and explode read alignments into alignment segments
-	# linear_reads['align_identifier'] = linear_reads.apply(lambda row: row['read_id'] if row['mixed'] is True else row['read_id']+row['mate'], axis=1)
-	# linear_reads['align_id'] = linear_reads['read_id'] + linear_reads.groupby(['align_identifier']).cumcount().astype('str')
-	linear_reads.loc[linear_reads.mixed, 'read_id'] = linear_reads.loc[linear_reads.mixed].apply(lambda row: f"{row['read_id']}/{row['mate']}", axis=1)
-	linear_reads['segs'] = linear_reads.apply(infer_segments, axis=1, result_type='reduce')
-	linear_reads['spliced'] = linear_reads.segs.transform(lambda segs: len(segs)>1)
-	linear_reads = linear_reads.explode('segs', ignore_index=True)
-	linear_reads['seg'] = linear_reads.segs.transform(lambda segs: Interval(*segs))
+		# Infer spliced/unspliced and explode read alignments into alignment segments
+		# linear_reads['align_identifier'] = linear_reads.apply(lambda row: row['read_id'] if row['mixed'] is True else row['read_id']+row['mate'], axis=1)
+		# linear_reads['align_id'] = linear_reads['read_id'] + linear_reads.groupby(['align_identifier']).cumcount().astype('str')
+		linear_reads.loc[linear_reads.mixed, 'read_id'] = linear_reads.loc[linear_reads.mixed].apply(lambda row: f"{row['read_id']}/{row['mate']}", axis=1)
+		linear_reads['segs'] = linear_reads.apply(infer_segments, axis=1, result_type='reduce')
+		linear_reads['spliced'] = linear_reads.segs.transform(lambda segs: len(segs)>1)
+		linear_reads = linear_reads.explode('segs', ignore_index=True)
+		linear_reads['seg'] = linear_reads.segs.transform(lambda segs: Interval(*segs))
 
-	# Chromosome by chromosome, add all exons and introns 
-	for chrom in linear_reads.chrom.unique():
-		if chrom not in exons.keys():
-			log.warning(f'No exons in {chrom}')
-			continue
-		chrom_exons = exons[chrom]
-		linear_reads.loc[linear_reads.chrom==chrom, 'exons'] = linear_reads.loc[linear_reads.chrom==chrom, 'seg'].transform(chrom_exons.overlap)
-		
-		if chrom not in introns.keys():
-			log.warning(f'No introns in {chrom}')
-			continue
-		chrom_introns = introns[chrom]
-		linear_reads.loc[linear_reads.chrom==chrom, 'introns'] = linear_reads.loc[linear_reads.chrom==chrom, 'seg'].transform(chrom_introns.overlap)
+		# Chromosome by chromosome, add all exons and introns 
+		for chrom in linear_reads.chrom.unique():
+			if chrom not in exons.keys():
+				log.warning(f'No exons in {chrom}')
+				continue
+			chrom_exons = exons[chrom]
+			linear_reads.loc[linear_reads.chrom==chrom, 'exons'] = linear_reads.loc[linear_reads.chrom==chrom, 'seg'].transform(chrom_exons.overlap)
+			
+			if chrom not in introns.keys():
+				log.warning(f'No introns in {chrom}')
+				continue
+			chrom_introns = introns[chrom]
+			linear_reads.loc[linear_reads.chrom==chrom, 'introns'] = linear_reads.loc[linear_reads.chrom==chrom, 'seg'].transform(chrom_introns.overlap)
 
-	linear_reads.exons = linear_reads.exons.fillna('').transform(set)
-	linear_reads.introns = linear_reads.introns.fillna('').transform(set)
+		linear_reads.exons = linear_reads.exons.fillna('').transform(set)
+		linear_reads.introns = linear_reads.introns.fillna('').transform(set)
 
-	# Infer intergenic
-	linear_reads['Intergenic'] = (linear_reads.exons.transform(len)==0) & (linear_reads.introns.transform(len)==0)
+		# Infer intergenic
+		linear_reads['Intergenic'] = (linear_reads.exons.transform(len)==0) & (linear_reads.introns.transform(len)==0)
 
-	# For each segment, filter out exons and introns whose genes (yes, unfortunately they can have multiple) don't cover all segments of the read
-	linear_reads['common_genes'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(infer_common_genes, include_groups=False))
-	# linear_reads['exons'] = linear_reads.apply(lambda row: IntervalTree(exon for exon in row['exons'] if len(exon.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
-	# linear_reads['introns'] = linear_reads.apply(lambda row: IntervalTree(intron for intron in row['introns'] if len(intron.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
+		# For each segment, filter out exons and introns whose genes (yes, unfortunately they can have multiple) don't cover all segments of the read
+		linear_reads['common_genes'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(infer_common_genes, include_groups=False))
+		# linear_reads['exons'] = linear_reads.apply(lambda row: IntervalTree(exon for exon in row['exons'] if len(exon.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
+		# linear_reads['introns'] = linear_reads.apply(lambda row: IntervalTree(intron for intron in row['introns'] if len(intron.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
 
-	# # Classify segments
-	# linear_reads['seg_class'] = linear_reads.apply(classify_seg, axis=1)
-	# log.debug(f'segment class counts: {linear_reads.seg_class.value_counts().sort_index().to_dict()}')
-	# linear_reads.seg_class = linear_reads.seg_class.transform(lambda sc: 'Ambiguous' if sc in ('Ambiguous I', 'Ambiguous EI') else sc)
+		# # Classify segments
+		# linear_reads['seg_class'] = linear_reads.apply(classify_seg, axis=1)
+		# log.debug(f'segment class counts: {linear_reads.seg_class.value_counts().sort_index().to_dict()}')
+		# linear_reads.seg_class = linear_reads.seg_class.transform(lambda sc: 'Ambiguous' if sc in ('Ambiguous I', 'Ambiguous EI') else sc)
 
-	# # Classify reads based on their segment(s) class(es)
-	# # linear_reads['align_class'] = linear_reads.align_id.map(linear_reads.groupby('align_id').apply(classify_alignment, include_groups=False))
-	# linear_reads['read_class'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(classify_read, include_groups=False))
-	# log.debug(f'read class counts: {linear_reads.read_class.astype("str").value_counts().sort_index().to_dict()}')
-	# if log_level=='DEBUG':
-	# 	linear_reads.to_csv(f'{output_base}linear_classes_raw.tsv', sep='\t', index=False)
- 
-	# # Designate any unclassifiable combo of seg classes as 'Ambiguous'
-	# linear_reads.read_class = linear_reads.read_class.transform(lambda rc: 'Ambiguous' if rc in ('Ambiguous IS',) or isinstance(rc, tuple) else rc)
+		# # Classify reads based on their segment(s) class(es)
+		# # linear_reads['align_class'] = linear_reads.align_id.map(linear_reads.groupby('align_id').apply(classify_alignment, include_groups=False))
+		# linear_reads['read_class'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(classify_read, include_groups=False))
+		# log.debug(f'read class counts: {linear_reads.read_class.astype("str").value_counts().sort_index().to_dict()}')
+		# if log_level=='DEBUG':
+		# 	linear_reads.to_csv(f'{output_base}linear_classes_raw.tsv', sep='\t', index=False)
+	
+		# # Designate any unclassifiable combo of seg classes as 'Ambiguous'
+		# linear_reads.read_class = linear_reads.read_class.transform(lambda rc: 'Ambiguous' if rc in ('Ambiguous IS',) or isinstance(rc, tuple) else rc)
 
-	linear_reads['read_class'] = 'linear'
+		linear_reads['read_class'] = 'Linear'
 
-	# Collapse segments back into one row per read and prepare to write to file 
-	linear_reads['gene_id'] = linear_reads.common_genes.transform(lambda cg: functions.str_join(tuple(cg)))
-	linear_reads = (linear_reads
-						.groupby(['read_id', 'read_class', 'gene_id', 'mixed'], as_index=False, observed=True)
-						.agg({'spliced': any, 'mate': lambda mate: functions.str_join(mate.values, unique=True)})
-	)
-	if seq_type == 'paired':
-		linear_reads.loc[linear_reads.mixed, 'read_id'] = linear_reads.loc[linear_reads.mixed, 'read_id'].str.slice(0,-2)
+		# Collapse segments back into one row per read and prepare to write to file 
+		linear_reads['gene_id'] = linear_reads.common_genes.transform(lambda cg: functions.str_join(tuple(cg)))
 		linear_reads = (linear_reads
-							.groupby(['read_id'], as_index=False, observed=True)
-							.agg({col: functions.str_join for col in linear_reads.columns if col!='read_id'})
+							.groupby(['read_id', 'read_class', 'gene_id', 'mixed'], as_index=False, observed=True)
+							.agg({'spliced': any, 'mate': lambda mate: functions.str_join(mate.values, unique=True)})
 		)
-	linear_reads['stage_reached'] = 'Linear mapping'
-	linear_reads['filter_failed'] = ''
-	linear_reads = linear_reads[OUT_COLS]
+		if seq_type == 'paired':
+			linear_reads.loc[linear_reads.mixed, 'read_id'] = linear_reads.loc[linear_reads.mixed, 'read_id'].str.slice(0,-2)
+			linear_reads = (linear_reads
+								.groupby(['read_id'], as_index=False, observed=True)
+								.agg({col: functions.str_join for col in linear_reads.columns if col!='read_id'})
+			)
+		linear_reads['stage_reached'] = 'Linear mapping'
+		linear_reads['filter_failed'] = ''
+		linear_reads = linear_reads[OUT_COLS]
 
-	# Write to file
-	linear_reads.to_csv(f'{output_base}linear_classes.tsv', sep='\t', index=False)
+		# Write to file
+		linear_reads.to_csv(f'{output_base}linear_classes.tsv', mode='a', sep='\t', index=False, header=False)
 
 	log.debug('End of script')

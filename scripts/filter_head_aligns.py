@@ -22,7 +22,6 @@ FAILED_HEADS_FILE = "{}failed_head_alignments.tsv"
 TEMP_SWITCH_FILE = "{}template_switching_reads.tsv"
 CIRCULARS_FILE = "{}circularized_intron_reads.tsv"
 PUTATITVE_LARIATS_FILE = "{}putative_lariats.tsv"
-RUN_DATA_FILE = "{}read_counts.tsv"
 
 CIGAR_OPERATORS = ('M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X')
 MAX_MISMATCHES = 5
@@ -456,20 +455,15 @@ if __name__ == '__main__':
 	introns, fivep_genes = parse_intron_info(ref_introns)
 	tails = parse_tails(output_base, fivep_genes)
 
-	# Record # of reads that passed fivep_filtering
-	count = tails.read_id.str.rstrip('/1').str.rstrip('/2').nunique()
-	with open(RUN_DATA_FILE.format(output_base), 'a') as a:
-		a.write(f'fivep_filter_passed\t{count}\n')
-
 	# Write headers for the outfiles
 	# The rows will get appended in chunks during filter_alignments_chunk()
-	with open(PUTATITVE_LARIATS_FILE.format(output_base), 'w') as w:
-		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
 	with open(FAILED_HEADS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\tfilter_failed' + '\n')
 	with open(TEMP_SWITCH_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
 	with open(CIRCULARS_FILE.format(output_base), 'w') as w:
+		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
+	with open(PUTATITVE_LARIATS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
 
 	# multiprocessing won't run correctly with just 1 chunk for some reason

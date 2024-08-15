@@ -11,16 +11,17 @@ import functions
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
-CLASS_AND_STEP = (
-				('Lariat', 'To the end'),
-				('In repetitive region', 'Lariat filtering'),
-				('Circularized intron', 'Head alignment filtering'),
-				('Template-switching', 'Head alignment filtering'),
-				("Unmapped with 5'ss alignment", 'Head alignment filtering'),
-				("Unmapped with 5'ss alignment", 'Head mapping'),
-				("Unmapped with 5'ss alignment", "5'ss alignment filtering"),
-				("Unmapped", "5'ss mapping")
-)
+STAGES = ('Linear mapping', "5'ss mapping", "5'ss alignment filtering", 
+		  'Head mapping', 'Head alignment filtering', 'Lariat filtering', 'To the end')
+
+MIXED_READ_CLASS_CONVERSION = {	
+								'Linear,Unmapped': 'Linear',
+								"Linear,Unmapped with 5'ss alignment": "Linear",
+								'Linear,Template-switching': 'Template-switching',
+								'Linear,Circularized intron': 'Circularized intron',
+								'Linear,In repetitive region': 'In repetitive region',
+								'Linear,Lariat': 'Lariat',
+							   }
 
 OUT_COLS = ['read_id',
 			'read_class',
@@ -65,6 +66,18 @@ def add_reads(file:str, class_:str, stage:str, read_classes:list, read_id_proces
 	read_classes.extend(reads)
 
 	return read_classes
+
+
+def correct_stage_reached(stage) -> str:
+	if ',' not in stage:
+		return stage
+	
+	stage_a, stage_b = stage.split(',')
+	# Return latest stage
+	if STAGES.index(stage_a) < STAGES.index(stage_b):
+		return stage_b
+	else:
+		return stage_a
 
 
 
@@ -158,9 +171,11 @@ if __name__ == '__main__':
 	# Collapse paired-end reads where one mate got linearly aligned and one mate didn't
 	if seq_type == 'paired':
 		read_classes = read_classes.groupby('read_id', as_index=False).agg({col: functions.str_join for col in read_classes.columns if col != 'read_id'})
+		read_classes.read_class = read_classes.read_class.transform(lambda rc: MIXED_READ_CLASS_CONVERSION[rc] if rc in MIXED_READ_CLASS_CONVERSION else rc)
+		read_classes.stage_reached = read_classes.stage_reached.transform(correct_stage_reached)
 
 	# Write to file
-	read_classes.to_csv(f'{output_base}read_classes.tsv', sep='\t', index=False, na_rep='N/A')
+	read_classes.to_csv(f'{output_base}read_classes.tsv.gz', sep='\t', index=False, na_rep='N/A')
 
 	# Delete the linear classes file
 	if os.path.isfile(f'{output_base}linear_classes.tsv'):
