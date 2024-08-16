@@ -131,7 +131,7 @@ def parse_linear_alignments(output_base:str, log) -> pd.DataFrame:
 						])
 		i += 1
 		if i % 100_000 == 0:
-			log.debug(f'{i:,} linear read alignments')
+			# log.debug(f'{i:,} linear read alignments')
 
 			linear_reads = pd.DataFrame(linear_reads, columns=INITIAL_COLS)
 
