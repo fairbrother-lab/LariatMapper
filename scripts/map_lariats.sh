@@ -46,9 +46,6 @@ fi
 #                                  Variables                                  #
 #=============================================================================#
 output_bam="$OUTPUT_BASE"output.bam
-mapped_bam="$OUTPUT_BASE"mapped_reads.bam
-unmapped_bam="$OUTPUT_BASE"unmapped_reads.bam
-run_data="$OUTPUT_BASE"read_counts.tsv
 unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
 fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
 heads_fasta="$OUTPUT_BASE"heads.fa
@@ -87,6 +84,17 @@ elif [ "$SEQ_TYPE" == "paired" ]; then
 		|| exit 1
 fi
 samtools index $output_bam
+
+unmapped_read_count=$(samtools view --count --require-flags 4 $output_bam)
+if [ $unmapped_read_count == 0 ];then
+	printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining\n"
+	python -u $PIPELINE_DIR/scripts/classify_linear.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
+		|| exit 1
+	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
+		|| exit 1
+	python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL \
+		|| exit 1
+fi
 
 ### Create fasta file of unmapped reads 
 printf "$(date +'%d/%b/%y %H:%M:%S') | Creating fasta file of unmapped reads...\n"
@@ -159,8 +167,7 @@ wait
 if ! $KEEP_TEMP; then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting temporary files...\n"
 	rm $output_bam
-	rm $mapped_bam
-	rm $unmapped_bam
+	rm $output_bam.bai
 	rm $unmapped_fasta 
 	rm $unmapped_fasta.fai
 	# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
