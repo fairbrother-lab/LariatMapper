@@ -51,7 +51,7 @@ OUT_TEMPLATE = (
 				"----------------------------------------\n"
 				"      Read count after each stage       \n"
 				"----------------------------------------\n"
-				"Start:\t{input_count}\n"
+				"Input:\t{input_count}\n"
 				"Linear mapping:\t{Linear_mapping}\n"
 				"5'ss mapping:\t{5ss_mapping}\n"
 				"5'ss alignment filtering:\t{5ss_alignment_filtering}\n"
