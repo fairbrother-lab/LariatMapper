@@ -53,7 +53,6 @@ CIRCULARS_COLS = ['read_id',
 				'genomic_bp_context',
 				]
 FINAL_INFO_TABLE_COLS = ['read_id', 
-						'gene_id', 
 						'chrom', 
 						'strand', 
 						'fivep_pos', 
@@ -70,6 +69,7 @@ FINAL_INFO_TABLE_COLS = ['read_id',
 						'align_end', 
 						'align_is_reverse',
 					  	'quality',
+						'gene_id', 
 						]
 
 filtered_out_lock = mp.Lock()
