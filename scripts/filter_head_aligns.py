@@ -37,25 +37,39 @@ TEMPLATE_SWITCHING_COLS = ['read_id',
 						'fivep_seq',
 						'genomic_bp_context',
 						'read_bp_pos',]
-
+CIRCULARS_COLS = ['read_id',
+				'gene_id',
+				'chrom',
+				'strand',
+				'fivep_pos',
+				'bp_pos',
+				'threep_pos',
+				'bp_dist_to_threep',
+				'read_alignment',
+				'read_bp_pos',
+				'read_seq',
+				'read_bp_nt',
+				'genomic_bp_nt',
+				'genomic_bp_context',
+				]
 FINAL_INFO_TABLE_COLS = ['read_id', 
-						'read_is_reverse', 
-						'read_seq', 
+						'gene_id', 
 						'chrom', 
 						'strand', 
+						'fivep_pos', 
+						'bp_pos', 
+						'threep_pos', 
+						'bp_dist_to_threep',
+						'read_is_reverse', 
+						'read_bp_pos',
+						'read_seq', 
+						'read_bp_nt', 
+						'genomic_bp_nt', 
+						'genomic_bp_context', 
 						'align_start',
 						'align_end', 
 						'align_is_reverse',
 					  	'quality',
-						'fivep_pos', 
-						'bp_pos', 
-						'read_bp_pos',
-						'read_bp_nt', 
-						'genomic_bp_context', 
-						'genomic_bp_nt', 
-						'threep_pos', 
-						'bp_dist_to_threep',
-						'gene_id', 
 						]
 
 filtered_out_lock = mp.Lock()
@@ -340,6 +354,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		temp_switches.read_id = temp_switches.read_id.str.slice(0,-6)
 		temp_switches['fivep_sites'] = temp_switches[['fivep_chrom', 'strand', 'fivep_pos']].agg(';'.join, axis=1)
 		temp_switches['temp_switch_sites'] = temp_switches[['chrom', 'bp_pos']].agg(';'.join, axis=1)
+		temp_switches['read_alignment'] = temp_switches.read_is_reverse.map({True: 'reverse', False: 'forward'})
 		temp_switches = temp_switches[TEMPLATE_SWITCHING_COLS]
 		temp_switches = temp_switches.groupby('read_id', as_index=False).agg({col: functions.str_join for col in temp_switches.columns if col != 'read_id'})
 		with temp_switch_lock:
@@ -393,8 +408,9 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	if not circulars.empty:
 		circulars = circulars.astype(str)
 		circulars.read_id = circulars.read_id.str.slice(0,-6)
-		circulars['fivep_sites'] = circulars[['fivep_chrom', 'strand', 'fivep_pos']].agg(functions.str_join, axis=1)
-		circulars = circulars[FINAL_INFO_TABLE_COLS]
+		circulars['fivep_sites'] = circulars[['fivep_chrom', 'fivep_pos', 'strand']].agg(functions.str_join, axis=1)
+		circulars['read_alignment'] = circulars.read_is_reverse.map({True: 'reverse', False: 'forward'})
+		circulars = circulars[CIRCULARS_COLS]
 		circulars = circulars.groupby('read_id', as_index=False).agg({col: functions.str_join for col in circulars.columns if col != 'read_id'})
 		with circulars_lock:
 			circulars.to_csv(CIRCULARS_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
