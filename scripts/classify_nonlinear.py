@@ -165,11 +165,13 @@ if __name__ == '__main__':
 	
 	# Concat the linearly-aligned reads
 	if os.path.isfile(f'{output_base}linear_classes.tsv'):
+		log.debug('Adding linearly-aligned reads...')
 		linear_classes = pd.read_csv(f'{output_base}linear_classes.tsv', sep='\t', na_filter=False)
 		read_classes = pd.concat([linear_classes.drop(columns=['mate']), read_classes])
 
 	# Collapse paired-end reads where one mate got linearly aligned and one mate didn't
 	if seq_type == 'paired':
+		log.debug('Collapsing paired reads...')
 		read_classes = read_classes.groupby('read_id', as_index=False).agg({col: functions.str_join for col in read_classes.columns if col != 'read_id'})
 		read_classes.read_class = read_classes.read_class.transform(lambda rc: MIXED_READ_CLASS_CONVERSION[rc] if rc in MIXED_READ_CLASS_CONVERSION else rc)
 		read_classes.stage_reached = read_classes.stage_reached.transform(correct_stage_reached)
