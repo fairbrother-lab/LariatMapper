@@ -34,9 +34,11 @@ SEQ_TYPE="${13}"
 # RNA-seq fastq read file(s)
 if [ "$SEQ_TYPE" == "single" ]; then
 	READ_FILE="${14}"
+	r_seq_type="singleEnd"
 elif [ "$SEQ_TYPE" == "paired" ]; then
 	READ_ONE="${14}"
 	READ_TWO="${15}"
+	r_seq_type="pairEnd"
 else
 	echo "SEQ_TYPE '$SEQ_TYPE' not recognized"
 	exit 1
@@ -146,12 +148,14 @@ python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_T
 	|| exit 1 
 
 ### Classify reads
-python -u $PIPELINE_DIR/scripts/classify_linear.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
+# python -u $PIPELINE_DIR/scripts/classify_linear.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
+# 	|| exit 1
+r_anno_dir=/home/tmooney/Lariat_mapping/linear_map_wrap/GTF
+Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -g $r_anno_dir -r $r_seq_type -o $OUTPUT_BASE \
 	|| exit 1
 python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
 	|| exit 1
-
-python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE \
 	|| exit 1
 
 ### Make a custom track BED file of identified lariats 
