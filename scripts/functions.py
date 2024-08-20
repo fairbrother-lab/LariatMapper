@@ -93,7 +93,7 @@ def get_logger(level:str) -> logging.Logger:
 	return log
 
 
-def run_command(command:str, input:str=None, log:logging.Logger=None) -> str:
+def run_command(command:str, log:logging.Logger=None, input:str=None) -> str:
 	'''
 	Wrapper for subprocess.run(call.split(' '), input=input, capture_output=True, text=True) for handling errors and extracting stdout, when appropriate
 	'''
@@ -130,7 +130,7 @@ def getfasta(genome_fasta:str, bedtools_input:str, log:logging.Logger=None) -> p
 			bedtools_output = bedtools_output.split('\n')
 			for warning in bedtools_output:
 				log.warning(warning)
-		seqs = pd.read_csv(tmp, sep='\t', header=None, names=['name', 'seq'])
+		seqs = pd.read_csv(tmp, sep='\t', header=None, names=['name', 'seq'], na_filter=False)
 	
 	# Remove the strand suffix from the names
 	seqs.name = seqs.name.str.slice(0,-3)
