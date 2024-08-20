@@ -3,9 +3,7 @@
 import argparse
 import json
 import os
-import sys
 import time
-from subprocess import run
 import multiprocessing
 import logging
 import subprocess
@@ -26,7 +24,7 @@ FORBIDDEN_CHARS = ('/', '\\', '>', '<', '&', '~', '*', '?', '[', ']', ';', '|', 
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
-def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
+def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log:logging.Logger):
 	# Determine whether input is single-end or paired-end and confirm that the read file(s) exit
 	if args.read_file is not None:
 		seq_type = 'single'
@@ -70,8 +68,28 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 		parser.error(f'-t/--threads must be a positive integer. Input was "{repr(args.threads)}"')
 
 	return args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, output_base
-		
 
+
+def check_up_to_date(pipeline_dir, log):
+	# Get repo status, ignoring file mode changes with -c core.fileMode=false
+	check_command = f'git --git-dir {pipeline_dir}/.git --work-tree {pipeline_dir} -c core.fileMode=false status'
+	status = functions.run_command(check_command, log=log)
+	log.debug(f'Git status: {status}')
+	status = [line for line in status.split('\n') if line!='']
+
+	branch = status[0].split(' ')[-1]
+	if branch != 'main':
+		log.warning(f'Git: LariatMapper is currently on branch {branch}, NOT the main branch!')
+		time.sleep(10)	# Give the user a chance to see the warning
+
+	if not status[1].startswith('Your branch is up-to-date with '):
+		log.warning('Git: LariatMapper is not up-to-date!\n\t' + '\n\t'.join(status))
+		time.sleep(10)	# Give the user a chance to see the warning
+	elif not any(line.startswith('nothing to commit, working tree clean') for line in status):
+		log.warning("Git: Working directory is not clean!\n\t" + '\n\t'.join(status))
+		time.sleep(10)	# Give the user a chance to see the warning
+	
+	
 
 # =============================================================================#
 #                                    Main                                      #
@@ -93,6 +111,8 @@ if __name__ == '__main__':
 	parser.add_argument('-e', '--ref_exons', help='TSV file of all annotated exons')
 	parser.add_argument('-n', '--ref_introns', help='TSV file of all annotated introns')
 	# Optional arguments
+	parser.add_argument('-v', '--version', action='store_true', help='Print the version id and exit')
+	parser.add_argument('-x', '--ignore_version', action='store_true', help='Don\'t check if LariatMapper is up-to-date with the main branch on GitHub (default=check and warn if not up-to-date)')
 	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Optional)')
 	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
 	parser.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
@@ -109,6 +129,16 @@ if __name__ == '__main__':
 	# Get path to the pipeline's directory so we can call scripts in the "scripts" folder
 	pipeline_dir = os.path.dirname(os.path.realpath(__file__))
 
+	# Get the current version
+	with open(f'{pipeline_dir}/pyproject.toml') as toml:
+		for line in toml:
+			if line.startswith('version = "'):
+				version = line[12:].rstrip('"\n')
+	# If just the version is requested, print it and exit
+	if version is True:
+		print(f'LariatMapper {version}')
+		exit()
+
 	# Setup logging
 	if args.quiet is True:
 		log_level = 'ERROR'
@@ -121,11 +151,11 @@ if __name__ == '__main__':
 	log = functions.get_logger(log_level)
 
 	# Report version
-	with open(f'{pipeline_dir}/pyproject.toml') as toml:
-		for line in toml:
-			if line.startswith('version = "'):
-				version = line.lstrip('version = "').rstrip('"\n')
-				log.info(f'LariatMapper {version}')
+	log.info(f'LariatMapper {version}')
+
+	# Check if up-to-date
+	if args.ignore_version is False:
+		check_up_to_date(pipeline_dir, log)
 
 	# Report arguments
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
