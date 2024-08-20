@@ -34,13 +34,13 @@ if __name__ == '__main__':
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Load lariat reads table
-	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t')
+	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t', na_filter=False)
 	if lariat_reads.empty:
 		with open(f'{output_base}lariat_reads.bed', 'w') as w:
 			pass
 		exit()
 
-	lariat_reads['head_len'] = lariat_reads.apply(lambda row: row['read_bp_pos']+1 if row['read_alignment']=='forward' else len(row['read_seq']) - (row['read_bp_pos']+1), axis=1)
+	lariat_reads['head_len'] = lariat_reads.apply(lambda row: row['read_bp_pos']+1 if row['read_is_reverse'] is False else len(row['read_seq']) - (row['read_bp_pos']+1), axis=1)
 	lariat_reads['head_start'] = lariat_reads.apply(lambda row: row['bp_pos']-row['head_len'] if row['strand']=='+' else row['bp_pos'], axis=1)
 	lariat_reads['head_end'] = lariat_reads.apply(lambda row: row['bp_pos']+1 if row['strand']=='+' else row['bp_pos']+row['head_len']+1, axis=1)
 

@@ -50,7 +50,7 @@ def add_reads(file:str, class_:str, stage:str, read_classes:list, read_id_proces
 		log.warning(f'{file} not found')
 		return read_classes
 	
-	df = pd.read_csv(file, sep='\t', low_memory=False)
+	df = pd.read_csv(file, sep='\t', low_memory=False, na_filter=False)
 
 	if read_id_process is not None:
 		df.read_id = df.read_id.transform(read_id_process)
@@ -112,7 +112,7 @@ if __name__ == '__main__':
 						  read_classes)
 
 	if os.path.isfile(f'{output_base}failed_lariat_alignments.tsv'):
-		lariat_failed = pd.read_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t')
+		lariat_failed = pd.read_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', na_filter=False)
 		lariat_failed = lariat_failed.loc[lariat_failed.filter_failed=='in_repeat']
 		lariat_failed = lariat_failed.groupby('read_id', as_index=False).agg({'gene_id': lambda gids: functions.str_join(gids, unique=True)})
 		lariat_failed = exclude_classed_reads(lariat_failed, read_classes)

@@ -31,7 +31,7 @@ FINAL_RESULTS_COLS = ['read_id',
                         'bp_pos',
                         'threep_pos',
                         'bp_dist_to_threep',
-						'read_alignment',
+						'read_is_reverse',
 						'read_bp_pos',
                         'read_seq',
                         'read_bp_nt',
@@ -50,7 +50,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	For a given lariat-mapping of a fastq file, retrieve all the lariat reads from the XXX_lariat_info_table.tsv and put them in a dict, which
 	can then be added to the experiment-wide superset dict
 	'''
-	lariat_reads = pd.read_csv(PUTATITVE_LARIATS_FILE.format(output_base), sep='\t', dtype={'filter_failed': 'object'})
+	lariat_reads = pd.read_csv(PUTATITVE_LARIATS_FILE.format(output_base), sep='\t', dtype={'filter_failed': 'object'}, na_filter=False)
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
 	if lariat_reads.empty:
@@ -66,7 +66,6 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	lariat_reads[['read_id', 'read_num']] = lariat_reads.read_id.str.split('/', expand=True)
 	lariat_reads.read_num = lariat_reads.read_num.astype(int)
 	lariat_reads['align_mismatch'] = lariat_reads.read_bp_nt != lariat_reads.genomic_bp_nt
-	lariat_reads['read_alignment'] = lariat_reads.read_is_reverse.map({True: 'reverse', False: 'forward'})
 	lariat_reads['max_quality'] = lariat_reads.groupby('read_id').quality.agg('max')
 	
 	return lariat_reads
@@ -205,8 +204,8 @@ if __name__ == '__main__':
 	# Check for reads which were probably created from the reverse-transcriptase switching RNA templates at the branchpoint
 	# Check for circularized intron reads
 	log.debug('Getting template-switching and circularized intron reads')
-	temp_switch_rids = set(pd.read_csv(TEMP_SWITCH_FILE.format(output_base), sep='\t', usecols=['read_id']).read_id)
-	circular_rids = set(pd.read_csv(CIRCULARS_FILE.format(output_base), sep='\t', usecols=['read_id']).read_id)
+	temp_switch_rids = set(pd.read_csv(TEMP_SWITCH_FILE.format(output_base), sep='\t', usecols=['read_id'], na_filter=False).read_id)
+	circular_rids = set(pd.read_csv(CIRCULARS_FILE.format(output_base), sep='\t', usecols=['read_id'], na_filter=False).read_id)
 
 	# Filter lariat reads
 	log.debug('Filtering lariat reads')
