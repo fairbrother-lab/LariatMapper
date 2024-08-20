@@ -9,4 +9,6 @@ pyarrow
 pyfaidx
 pysam
 python>=3.9, <=3.11
+r-optparse
+bioconductor-genomicalignments
 samtools
