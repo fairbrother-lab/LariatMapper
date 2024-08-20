@@ -2,6 +2,7 @@ bedtools
 bowtie2
 hisat2
 intervaltree
+git
 numpy
 pandas
 pyarrow
