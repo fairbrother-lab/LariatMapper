@@ -38,21 +38,21 @@ TEMPLATE_SWITCHING_COLS = ['read_id',
 						'genomic_bp_context',
 						'read_bp_pos',]
 CIRCULARS_COLS = ['read_id',
-				'gene_id',
 				'chrom',
 				'strand',
 				'fivep_pos',
 				'bp_pos',
 				'threep_pos',
 				'bp_dist_to_threep',
-				'read_alignment',
+				'read_is_reverse',
 				'read_bp_pos',
 				'read_seq',
 				'read_bp_nt',
 				'genomic_bp_nt',
 				'genomic_bp_context',
+				'gene_id',
 				]
-FINAL_INFO_TABLE_COLS = ['read_id', 
+PUTATITVE_LARIATS_COLS = ['read_id', 
 						'chrom', 
 						'strand', 
 						'fivep_pos', 
@@ -83,7 +83,7 @@ circulars_lock = mp.Lock()
 #                                  Functions                                   #
 # =============================================================================#
 def parse_intron_info(ref_introns):
-	introns_df = pd.read_csv(ref_introns, sep='\t')
+	introns_df = pd.read_csv(ref_introns, sep='\t', na_filter=False)
 	introns_df['gene_id_dict'] = introns_df.gene_id.transform(lambda gene_id: {'gene_id': set(gene_id.split(','))})
 	
 	introns = {}
@@ -103,7 +103,7 @@ def parse_intron_info(ref_introns):
 
 
 def parse_tails(output_base:str, fivep_genes:dict):
-	tails = pd.read_csv(TAILS_FILE.format(output_base), sep='\t', dtype={'fivep_chrom': 'category', 'strand': 'category'})
+	tails = pd.read_csv(TAILS_FILE.format(output_base), sep='\t', dtype={'fivep_chrom': 'category', 'strand': 'category'}, na_filter=False)
 	tails = tails.drop(columns=['read_is_reverse'])
 
 	# Unpack fivep_sites
@@ -160,7 +160,8 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 								names=['read_id', 'flag', 'chrom', 'align_start', 'quality', 'cigar', 'head_seq', 'tag1', 'tag2', 'tag3'],
 								dtype={'read_id': 'string', 'chrom': 'category', 'align_start': 'UInt64', 'quality': 'UInt16'},
 								skiprows=chunk_start-2,
-								nrows=chunk_end-chunk_start+2,)
+								nrows=chunk_end-chunk_start+2,
+								na_filter=False)
 	
 	# Same chunk start check as in filter_fivep_aligns.py, just implemented with pandas
 	if chunk_start != 1:
@@ -183,7 +184,8 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 									names=['read_id', 'flag', 'chrom', 'align_start', 'quality', 'cigar', 'head_seq', 'tag1', 'tag2', 'tag3'],
 									dtype={'read_id': 'string', 'chrom': 'category', 'align_start': 'UInt64', 'quality': 'UInt16'},
 									skiprows=chunk_end-chunk_start+2,
-									nrows=1)
+									nrows=1,
+									na_filter=False)
 			next_rid = next_line.iloc[0]['read_id'][:-6]
 			alignments = pd.concat([alignments, next_line])
 			chunk_end += 1
@@ -297,14 +299,14 @@ def drop_failed_alignments(alignments:pd.DataFrame, output_base:str) -> pd.DataF
 		failed_aligns = alignments.loc[alignments.filter_failed.notna()].copy()
 
 		# Add in any missing cols as needed
-		for col in FINAL_INFO_TABLE_COLS:
+		for col in PUTATITVE_LARIATS_COLS:
 			if col not in failed_aligns.columns:
 				failed_aligns[col] = ''
 		
 		failed_aligns.gene_id = failed_aligns.gene_id.transform(lambda gids: gids if isinstance(gids, str) else functions.str_join(gids))
 
 		# Arrange cols and a write to file
-		failed_aligns = failed_aligns[[*FINAL_INFO_TABLE_COLS, 'filter_failed']].drop_duplicates()
+		failed_aligns = failed_aligns[[*PUTATITVE_LARIATS_COLS, 'filter_failed']].drop_duplicates()
 		with failed_out_lock:
 			failed_aligns.to_csv(FAILED_HEADS_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
 
@@ -354,7 +356,6 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		temp_switches.read_id = temp_switches.read_id.str.slice(0,-6)
 		temp_switches['fivep_sites'] = temp_switches[['fivep_chrom', 'strand', 'fivep_pos']].agg(';'.join, axis=1)
 		temp_switches['temp_switch_sites'] = temp_switches[['chrom', 'bp_pos']].agg(';'.join, axis=1)
-		temp_switches['read_alignment'] = temp_switches.read_is_reverse.map({True: 'reverse', False: 'forward'})
 		temp_switches = temp_switches[TEMPLATE_SWITCHING_COLS]
 		temp_switches = temp_switches.groupby('read_id', as_index=False).agg({col: functions.str_join for col in temp_switches.columns if col != 'read_id'})
 		with temp_switch_lock:
@@ -367,8 +368,6 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		return 
 	
 	# Identify introns that envelop the alignment
-	# alignments['overlap_introns'] = alignments.apply(lambda row: introns[row['chrom']][row['strand']].overlap(row['align_start'], row['align_end']), axis=1)
-	# alignments['overlap_introns'] = alignments.apply(lambda row: [intron for intron in row['overlap_introns'] if intron.begin<=row['align_start'] and intron.end>=row['align_end']], axis=1)
 	alignments['overlap_introns'] = alignments.apply(enveloping_introns, introns=introns, axis=1)
 	
 	# Filter out alignments that don't overlap any introns
@@ -385,6 +384,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	alignments.gene_id = alignments.gene_id.transform(functions.str_join)
 	alignments.loc[alignments.overlap_introns.transform(len).eq(0), 'filter_failed'] = 'fivep_intron_match'
 	alignments = drop_failed_alignments(alignments, output_base)
+	alignments = sddsdsd
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after fivep_intron_match filter')
 		return 
@@ -409,20 +409,19 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		circulars = circulars.astype(str)
 		circulars.read_id = circulars.read_id.str.slice(0,-6)
 		circulars['fivep_sites'] = circulars[['fivep_chrom', 'fivep_pos', 'strand']].agg(functions.str_join, axis=1)
-		circulars['read_alignment'] = circulars.read_is_reverse.map({True: 'reverse', False: 'forward'})
 		circulars = circulars[CIRCULARS_COLS]
 		circulars = circulars.groupby('read_id', as_index=False).agg({col: functions.str_join for col in circulars.columns if col != 'read_id'})
 		with circulars_lock:
 			circulars.to_csv(CIRCULARS_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
 
 	# Filter out circularized intron reads
-	alignments = alignments.loc[~alignments.circular]
+	alignments = alignments.loc[~alignments.circular].drop(columns='circular')
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after circularized intron filter')
 		return 
 
 	# Drop all the uneeded columns
-	alignments = alignments[FINAL_INFO_TABLE_COLS]
+	alignments = alignments[PUTATITVE_LARIATS_COLS]
 	
 	# Some reads get mapped to coordinates with multiple overlapping gene annotations
 	# We resolve this by collapsing the duplicated rows and concatenating the gene_id column
@@ -435,11 +434,6 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		alignments.to_csv(PUTATITVE_LARIATS_FILE.format(output_base), mode='a', sep='\t', index=False, header=False)
 
 	log.debug(f'Process {os.getpid()}: Finished')
-
-
-# If any processes hit an error, raise an error
-def error_callback(exception):
-	raise exception
 
 
 
@@ -474,13 +468,14 @@ if __name__ == '__main__':
 	# Write headers for the outfiles
 	# The rows will get appended in chunks during filter_alignments_chunk()
 	with open(FAILED_HEADS_FILE.format(output_base), 'w') as w:
-		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\tfilter_failed' + '\n')
+		w.write('\t'.join(PUTATITVE_LARIATS_COLS + ['filter_failed']) + '\n')
 	with open(TEMP_SWITCH_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
 	with open(CIRCULARS_FILE.format(output_base), 'w') as w:
-		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
+		print('\t'.join(CIRCULARS_COLS) + '\n')
+		w.write('\t'.join(CIRCULARS_COLS) + '\n')
 	with open(PUTATITVE_LARIATS_FILE.format(output_base), 'w') as w:
-		w.write('\t'.join(FINAL_INFO_TABLE_COLS) + '\n')
+		w.write('\t'.join(PUTATITVE_LARIATS_COLS) + '\n')
 
 	# multiprocessing won't run correctly with just 1 chunk for some reason
 	if len(chunk_ranges) == 1:
@@ -489,14 +484,21 @@ if __name__ == '__main__':
 	else:
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 		pool = mp.Pool(processes=threads)
+		async_results = []
 		for chunk_start, chunk_end in chunk_ranges:
-			pool.apply_async(filter_alignments_chunk, 
-							args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level,), 
-							error_callback=error_callback)
+			result = pool.apply_async(filter_alignments_chunk, 
+							args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level,))
+			async_results.append(result)
 		
 		# Don't create any more processes
 		pool.close()
 		# Wait until all processes are finished
 		pool.join()
+
+		# Check each process for errors
+		for result in async_results:
+			# If an error was thrown in the process, raise it with .get()
+			if not result.successful():
+				result.get()
 
 	log.debug('End of script')
