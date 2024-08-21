@@ -154,7 +154,10 @@ if __name__ == '__main__':
 
 	# Check if up-to-date
 	if args.ignore_version is False:
-		check_up_to_date(pipeline_dir, log)
+		try:
+			check_up_to_date(pipeline_dir, log)
+		except:
+			log.warning('Could not check if LariatMapper is up-to-date with the main branch on GitHub. Continuing anyway...')
 
 	# Report arguments
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
