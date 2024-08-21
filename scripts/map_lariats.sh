@@ -157,7 +157,7 @@ python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL \
 ### Make a custom track BED file of identified lariats 
 if $UCSC_TRACK; then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | Making UCSC Genome Browser track...\n"
-	python -u $PIPELINE_DIR/scripts/make_track.py $OUTPUT_BASE $LOG_LEVEL \
+	python -u $PIPELINE_DIR/scripts/make_track.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE \
 		|| exit 1
 fi
 
