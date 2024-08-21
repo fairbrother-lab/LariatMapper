@@ -49,7 +49,7 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"              Read classes              \n"
 					"----------------------------------------\n"
-					"Linear total:\t{linear_map}\n"
+					"Linear:\t{Linear}\n"
 					"Unmapped:\t{Unmapped}\n"
 					"Unmapped with 5'ss alignment:\t{Unmapped_with_5ss_alignment}\n"
 					"Template-switching:\t{Template_switching}\n"
@@ -71,8 +71,7 @@ SUMMARY_TEMPLATE = (
 READ_COUNTS_TEMPLATE = (
 						"Category\tSubcategory\Reads\n"
 						"Input\tTotal\t{input_count}\n"
-						"Linear\tTotal\t{linear_map}\n"
-						"Linear\tGenic\t{gene}\n"
+						"Linear\tTotal\t{Linear}\n"
 						"Not linear\tTotal\t{not_linear}\n"
 						"Not linear\tUnmapped\t{Unmapped}\n"
 						"Not linear\tUnmapped with 5'ss alignment\t{Unmapped_with_5ss_alignment}\n"
@@ -136,23 +135,6 @@ if __name__ == '__main__':
 	r1 = pysam.FastxFile(settings['input_reads'].split(',')[0])
 	stats['input_count'] = sum(1 for read in r1)
 
-	# Add linear mapping count
-	command = f'samtools view --count --exclude-flags 4 {OUTPUT_BAM_FILE.format(output_base)}'
-	count = int(functions.run_command(command, log=log))
-	if seq_type == 'paired':
-		count = count//2
-	stats['linear_map'] = count
-
-	# Add linear category counts
-	bam_counts = pd.read_csv(BAM_COUNTS_FILE.format(output_base), sep='\t', na_filter=False)
-	for cat in ('gene', 'exon_intron_junc', 'exon_only', 'exon_exon_junc', 'intron_only'):
-		stats[cat] = bam_counts[cat].sum()
-	
-	# TODO: We're not accounting for paired-end reads for which one mate mapped linearly 
-	# and the other did not, so we'll usually get linear_map+not_linear != input_count which
-	# is bad
-	stats['not_linear'] = stats['input_count'] - stats['linear_map']
-
 	# Add read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
 	read_classes.read_class = (read_classes.read_class
@@ -164,6 +146,7 @@ if __name__ == '__main__':
 				.to_dict())
 	log.debug(f'Read classes: {classes}')
 	stats.update(classes)
+	stats['not_linear'] = stats['input_count'] - stats['Linear']
 
 	# Add counts after each stage reached
 	read_classes.stage_reached = (read_classes.stage_reached
@@ -174,11 +157,10 @@ if __name__ == '__main__':
 				.value_counts()
 				.to_dict())
 	log.debug(f'Stages reached: {stages}')
-	reads_left = stats['not_linear']
-	for stage in STAGES[1:]:
+	reads_left = stats['input_count']
+	for stage in STAGES:
 		reads_left += -stages[stage]
 		stats[stage] = reads_left
-
 
 	# Write summary info to file
 	log.debug(f'Summary stats: {stats}')
