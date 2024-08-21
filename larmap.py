@@ -72,6 +72,8 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log:lo
 
 def check_up_to_date(pipeline_dir, log):
 	# Get repo status, ignoring file mode changes with -c core.fileMode=false
+	fetch_command = f'git --git-dir {pipeline_dir}/.git --work-tree {pipeline_dir} -c core.fileMode=false fetch --all'
+	functions.run_command(fetch_command, log=log)
 	check_command = f'git --git-dir {pipeline_dir}/.git --work-tree {pipeline_dir} -c core.fileMode=false status'
 	status = functions.run_command(check_command, log=log)
 	log.debug(f'Git status: {status}')
