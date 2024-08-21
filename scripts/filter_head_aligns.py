@@ -384,7 +384,6 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	alignments.gene_id = alignments.gene_id.transform(functions.str_join)
 	alignments.loc[alignments.overlap_introns.transform(len).eq(0), 'filter_failed'] = 'fivep_intron_match'
 	alignments = drop_failed_alignments(alignments, output_base)
-	alignments = sddsdsd
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after fivep_intron_match filter')
 		return 
