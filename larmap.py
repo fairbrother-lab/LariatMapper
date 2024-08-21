@@ -97,8 +97,19 @@ def check_up_to_date(pipeline_dir, log):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
+	# Get path to the pipeline's directory 
+	pipeline_dir = os.path.dirname(os.path.realpath(__file__))
+
+	# Get the current version
+	with open(f'{pipeline_dir}/pyproject.toml') as toml:
+		for line in toml:
+			if line.startswith('version = "'):
+				version = line[11:].rstrip('"\n')
+
+	# Argument parser
 	parser = argparse.ArgumentParser(prog='Lariat mapping', description='Performs annotation-based mapping of lariat-derived RNA-seq reads')
-	
+	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {version}', help='Print the version id and exit')
+
 	# Required arguments
 	read_group = parser.add_mutually_exclusive_group(required=True)
 	read_group.add_argument('-f', '--read_file', help='Input FASTQ file when processing single-end RNA-seq data. Can be uncompressed or gzip-compressed. Requires either this argument or both -1 and -2')
@@ -113,7 +124,6 @@ if __name__ == '__main__':
 	parser.add_argument('-e', '--ref_exons', help='TSV file of all annotated exons')
 	parser.add_argument('-n', '--ref_introns', help='TSV file of all annotated introns')
 	# Optional arguments
-	parser.add_argument('-v', '--version', action='store_true', help='Print the version id and exit')
 	parser.add_argument('-x', '--ignore_version', action='store_true', help='Don\'t check if LariatMapper is up-to-date with the main branch on GitHub (default=check and warn if not up-to-date)')
 	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Optional)')
 	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
@@ -125,22 +135,9 @@ if __name__ == '__main__':
 	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING)")
 	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages (sets logging level to DEBUG)")
 
-	# Parse
+	# Parse arguments
 	args = parser.parse_args()
-
-	# Get path to the pipeline's directory so we can call scripts in the "scripts" folder
-	pipeline_dir = os.path.dirname(os.path.realpath(__file__))
-
-	# Get the current version
-	with open(f'{pipeline_dir}/pyproject.toml') as toml:
-		for line in toml:
-			if line.startswith('version = "'):
-				version = line[12:].rstrip('"\n')
-	# If just the version is requested, print it and exit
-	if version is True:
-		print(f'LariatMapper {version}')
-		exit()
-
+	
 	# Setup logging
 	if args.quiet is True:
 		log_level = 'ERROR'
