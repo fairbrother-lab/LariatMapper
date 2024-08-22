@@ -93,7 +93,7 @@ def get_logger(level:str) -> logging.Logger:
 	return log
 
 
-def run_command(command:str, log:logging.Logger=None, input:str=None) -> str:
+def run_command(command:str, log:logging.Logger=None, input:str=None, timeout:int=None) -> str:
 	'''
 	Wrapper for subprocess.run(call.split(' '), input=input, capture_output=True, text=True) for handling errors and extracting stdout, when appropriate
 	'''
@@ -105,7 +105,11 @@ def run_command(command:str, log:logging.Logger=None, input:str=None) -> str:
 			else:
 				log.debug(f'Input (TRUNCATED): \n{input[:1_000]}')
 
-	response = subprocess.run(command.split(' '), input=input, capture_output=True, text=True)
+	response = subprocess.run(command.split(' '), 
+						   capture_output=True, 
+						   text=True, 
+						   input=input, 
+						   timeout=timeout)
 	if response.returncode != 0:
 		raise RunCommandError(process=response)
 	
