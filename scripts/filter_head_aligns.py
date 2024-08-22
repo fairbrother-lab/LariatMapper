@@ -471,7 +471,6 @@ if __name__ == '__main__':
 	with open(TEMP_SWITCH_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
 	with open(CIRCULARS_FILE.format(output_base), 'w') as w:
-		print('\t'.join(CIRCULARS_COLS) + '\n')
 		w.write('\t'.join(CIRCULARS_COLS) + '\n')
 	with open(PUTATITVE_LARIATS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(PUTATITVE_LARIATS_COLS) + '\n')
