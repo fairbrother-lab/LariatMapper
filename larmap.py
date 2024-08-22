@@ -154,9 +154,11 @@ if __name__ == '__main__':
 
 	# Check if up-to-date
 	if args.ignore_version is False:
+		log.debug('Checking if LariatMapper is up-to-date with the main branch on GitHub...')
 		try:
 			check_up_to_date(pipeline_dir, log)
-		except:
+		except functions.RunCommandError as e:
+			log.debug(e)
 			log.warning('Could not check if LariatMapper is up-to-date with the main branch on GitHub. Continuing anyway...')
 
 	# Report arguments
