@@ -61,7 +61,7 @@ SUMMARY_TEMPLATE = (
 					"      Read count after each stage       \n"
 					"----------------------------------------\n"
 					"Input:\t{input_count}\n"
-					"Linear mapping:\t{not_linear}\n"
+					"Linear mapping:\t{Linear_mapping}\n"
 					"5'ss mapping:\t{5ss_mapping}\n"
 					"5'ss alignment filtering:\t{5ss_alignment_filtering}\n"
 					"Head mapping:\t{Head_mapping}\n"
@@ -87,8 +87,6 @@ SETTINGS_VARS = ('output_base', 'threads', 'hisat2_index', 'genome_fasta', 'five
 				 'pipeline_dir', 'log_level', 'seq_type')
 READ_CLASSES = ("Linear", "Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
 				'Template_switching', 'Circularized_intron', 'Lariat')
-STAGES = ('Linear_mapping', "5ss_mapping", "5ss_alignment_filtering", 
-		  'Head_mapping', 'Head_alignment_filtering', 'Lariat_filtering', 'To_the_end')
 
 
 	
@@ -148,19 +146,35 @@ if __name__ == '__main__':
 	stats.update(classes)
 	stats['not_linear'] = stats['input_count'] - stats['Linear']
 
-	# Add counts after each stage reached
-	read_classes.stage_reached = (read_classes.stage_reached
-									.str.replace(' ', '_')
-									.str.replace('-', '_')
-									.str.replace("'", ''))
-	stages = (pd.Categorical(read_classes.stage_reached, categories=STAGES, ordered=True)
-				.value_counts()
-				.to_dict())
-	log.debug(f'Stages reached: {stages}')
-	reads_left = stats['input_count']
-	for stage in STAGES:
-		reads_left += -stages[stage]
-		stats[stage] = reads_left
+
+	# Add read counts after each stage
+	unmapped = set()
+	for rid in pyfaidx.Fasta(f'{output_base}unmapped_reads.fa', as_raw=True):
+		unmapped.add(rid.name[:-2])
+	stats['Linear_mapping'] = len(unmapped)
+
+	fivep_maps = set()
+	with open(f'{output_base}fivep_to_reads.sam', 'r') as r:
+		for line in r:
+			rid = line.split('\t')[2][:-2]
+			fivep_maps.add(rid)
+	stats['5ss_mapping'] = len(fivep_maps)
+
+	tails = pd.read_csv(f'{output_base}tails.tsv', sep='\t', usecols=['read_id']).read_id
+	stats['5ss_alignment_filtering'] = tails.str.slice(0,-6).nunique()
+
+	head_maps = set()
+	with open(f'{output_base}heads_to_genome.sam', 'r') as r:
+		for line in r:
+			rid = line.split('\t')[0][:-6]
+			head_maps.add(rid)
+	stats['Head_mapping'] = len(head_maps)
+
+	putative_lariats = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t', usecols=['read_id']).read_id
+	stats['Head_alignment_filtering'] = putative_lariats.str.slice(0,-6).nunique()
+
+	filtered_lariats = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t', usecols=['read_id']).read_id
+	stats['Lariat_filtering'] = filtered_lariats.nunique()
 
 	# Write summary info to file
 	log.debug(f'Summary stats: {stats}')
