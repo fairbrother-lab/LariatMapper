@@ -69,7 +69,7 @@ SUMMARY_TEMPLATE = (
 					"Lariat filtering:\t{Lariat_filtering}\n"
 )
 READ_COUNTS_TEMPLATE = (
-						"Category\tSubcategory\Reads\n"
+						"Category\tSubcategory\tReads\n"
 						"Input\tTotal\t{input_count}\n"
 						"Linear\tTotal\t{Linear}\n"
 						"Not linear\tTotal\t{not_linear}\n"
