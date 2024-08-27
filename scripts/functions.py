@@ -40,6 +40,7 @@ def reverse_complement(seq:str):
 	<seq> must be a string with only the characters "A", "C", "G", "T", and "N" 
 	reverse_complement("ACGTN") = "NACGT"
 	'''
+	seq = seq.upper()
 	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
 
 
