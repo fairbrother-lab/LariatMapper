@@ -174,6 +174,8 @@ if __name__ == '__main__':
 	log.info('Preparing directories...')
 	if not os.path.isdir(args.output_dir):
 		os.mkdir(args.output_dir)
+	# Move to output dir
+	os.chdir(args.output_dir)
 
 	# Set start method for multiprocessing in filter_fivep_aligns.py and filter_head_aligns.py
 	# Using the default "fork" method causes memory errors when processing bigger RNA-seq inputs
