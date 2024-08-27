@@ -122,18 +122,19 @@ if __name__ == '__main__':
 	parser.add_argument('-g', '--ref_fasta', help='FASTA file of the reference genome')
 	parser.add_argument('-5', '--ref_5p_fasta', help='FASTA file with sequences of first 20nt of annotated introns')
 	parser.add_argument('-e', '--ref_exons', help='TSV file of all annotated exons')
-	parser.add_argument('-n', '--ref_introns', help='TSV file of all annotated introns')
+	parser.add_argument('-n', '--ref_introns', help='TSV file of all annotated introns', )
 	# Optional arguments
-	parser.add_argument('-x', '--ignore_version', action='store_true', help='Don\'t check if LariatMapper is up-to-date with the main branch on GitHub (default=check and warn if not up-to-date)')
-	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Optional)')
-	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
+	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (default=no filter)')
 	parser.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	parser.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
-	parser.add_argument('-k', '--keep_temp', action='store_true', help='Don\'t delete the temporary files created while running the pipeline (default=delete)')
+	parser.add_argument('-c', '--keep_classes', action='store_true', help='Keep a file with per-read classification named "read_classes.tsv.gz" in the output (default=delete)')
+	parser.add_argument('-k', '--keep_temp', action='store_true', help='Keep all temporary files created while running the pipeline. Forces -c/--keep_classes (default=delete)')
+	parser.add_argument('-x', '--ignore_version', action='store_true', help='Don\'t check if LariatMapper is up-to-date with the main branch on GitHub (default=check and warn if not up-to-date)')
+	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
 	log_levels = parser.add_mutually_exclusive_group()
-	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR)")
-	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING)")
-	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages (sets logging level to DEBUG)")
+	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR, default=INFO)")
+	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING, default=INFO)")
+	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages (sets logging level to DEBUG, default=INFO)")
 
 	# Parse arguments
 	args = parser.parse_args()
@@ -167,7 +168,8 @@ if __name__ == '__main__':
 	log.info(f'Arguments: \n\t{arg_message}')
 
 	# Validate the args and determine additional variables
-	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, output_base = process_args(args, parser, log)
+	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, \
+		ref_repeatmasker, output_base = process_args(args, parser, log)
 	log.debug(f'seq_type: {repr(seq_type)}, output_base: {repr(output_base)}')
 
 	# Make output dir
@@ -183,12 +185,12 @@ if __name__ == '__main__':
 	multiprocessing.set_start_method('spawn')	
 
 	# Prepare call to map_lariats.sh
-	map_lariats_args = [output_base, str(args.threads), ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.keep_temp).lower(), str(args.ucsc_track).lower(), pipeline_dir, log_level, seq_type]
+	map_lariats_args = [output_base, pipeline_dir, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.threads), log_level, str(args.ucsc_track).lower(), str(args.keep_classes).lower(), str(args.keep_temp).lower()]
 	if seq_type == 'single':
-		log.debug('Processing single-end read file...')
+		log.info('Processing single-end read file...')
 		map_lariats_args += [args.read_file]
 	elif seq_type == 'paired':
-		log.debug('Processing paired-end read files...')
+		log.info('Processing paired-end read files...')
 		map_lariats_args += [args.read_one, args.read_two]
 	log.debug(f'map_lariats args: {map_lariats_args}')
 
