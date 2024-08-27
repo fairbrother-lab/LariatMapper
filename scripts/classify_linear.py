@@ -304,8 +304,8 @@ if __name__ == '__main__':
 			chrom_introns = introns[chrom]
 			linear_reads.loc[linear_reads.chrom==chrom, 'introns'] = linear_reads.loc[linear_reads.chrom==chrom, 'seg'].transform(chrom_introns.overlap)
 
-		linear_reads.exons = linear_reads.exons.fillna('').transform(set)
-		linear_reads.introns = linear_reads.introns.fillna('').transform(set)
+		linear_reads['exons'] = linear_reads['exons'].fillna('').transform(set)
+		linear_reads['introns'] = linear_reads['introns'].fillna('').transform(set)
 
 		# Infer intergenic
 		linear_reads['Intergenic'] = (linear_reads.exons.transform(len)==0) & (linear_reads.introns.transform(len)==0)
