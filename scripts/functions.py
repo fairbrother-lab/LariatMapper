@@ -139,6 +139,7 @@ def getfasta(genome_fasta:str, bedtools_input:str, log:logging.Logger=None) -> p
 	
 	# Remove the strand suffix from the names
 	seqs.name = seqs.name.str.slice(0,-3)
+	seqs.seq = seqs.seq.str.upper()
 	
 	return seqs
 
