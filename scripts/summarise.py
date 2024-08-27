@@ -43,6 +43,7 @@ SUMMARY_TEMPLATE = (
 					"Reference RepeatMasker:\t{repeats_bed}\n"
 					"Output:\t{output_base}\n"
 					"Log level:\t{log_level}\n"
+					"Keep read classes file:\t{keep_classes}\n"
 					"Keep temporary files:\t{keep_temp}\n"
 					"Make UCSC track:\t{ucsc_track}\n"
 					"\n"
@@ -82,9 +83,9 @@ READ_COUNTS_TEMPLATE = (
 						
 )
 
-SETTINGS_VARS = ('output_base', 'threads', 'hisat2_index', 'genome_fasta', 'fivep_fasta', 
-				 'exons_tsv', 'introns_tsv', 'repeats_bed', 'keep_temp', 'ucsc_track', 
-				 'pipeline_dir', 'log_level', 'seq_type')
+SETTINGS_VARS = ('output_base', 'pipeline_dir', 'seq_type', 'hisat2_index', 'genome_fasta', 'fivep_fasta', 
+				 'exons_tsv', 'introns_tsv', 'repeats_bed', 'threads', 'log_level', 
+				 'ucsc_track', 'keep_classes', 'keep_temp', )
 READ_CLASSES = ("Linear", "Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
 				'Template_switching', 'Circularized_intron', 'Lariat')
 
@@ -99,10 +100,11 @@ def run_settings(output_base:str) -> dict:
 		settings = json.load(json_file)
 	
 	# Get input reads and convert settings to dict
-	input_reads = ','.join(settings[13:])
-	settings = {key: val for key, val in zip(SETTINGS_VARS, settings[:13])}
+	input_reads = ','.join(settings[14:])
+	settings = {key: val for key, val in zip(SETTINGS_VARS, settings[:14])}
 	settings['input_reads'] = input_reads
-
+	log.debug(f'Settings: {settings}')
+	
 	# Remove args file, as it is no longer needed
 	os.remove(f'{output_base}args.json')
 
