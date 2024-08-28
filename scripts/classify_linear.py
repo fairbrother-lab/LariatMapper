@@ -1,5 +1,6 @@
 import sys
 import itertools as it
+import numpy as np
 
 import pysam
 import pandas as pd
@@ -291,6 +292,8 @@ if __name__ == '__main__':
 		linear_reads['seg'] = linear_reads.segs.transform(lambda segs: Interval(*segs))
 
 		# Chromosome by chromosome, add all exons and introns 
+		linear_reads['introns'] = np.nan
+		linear_reads['exons'] = np.nan
 		for chrom in linear_reads.chrom.unique():
 			if chrom not in exons.keys():
 				log.warning(f'No exons in {chrom}')
