@@ -13,15 +13,8 @@ import functions
 # =============================================================================#
 STAGES = ('Linear mapping', "5'ss mapping", "5'ss alignment filtering", 
 		  'Head mapping', 'Head alignment filtering', 'Lariat filtering', 'To the end')
-
-MIXED_READ_CLASS_CONVERSION = {	
-								'Linear,Unmapped': 'Linear',
-								"Linear,Unmapped with 5'ss alignment": "Linear",
-								'Linear,Template-switching': 'Template-switching',
-								'Linear,Circularized intron': 'Circularized intron',
-								'Linear,In repetitive region': 'In repetitive region',
-								'Linear,Lariat': 'Lariat',
-							   }
+READ_CLASSES = ("Linear", "Unmapped", "Unmapped with 5'ss alignment", 'In repetitive region', 
+				'Template-switching', 'Circularized intron', 'Lariat',)
 
 OUT_COLS = ['read_id',
 			'read_class',
@@ -68,6 +61,18 @@ def add_reads(file:str, class_:str, stage:str, read_classes:list, read_id_proces
 	return read_classes
 
 
+def correct_read_class(stage) -> str:
+	if ',' not in stage:
+		return stage
+	
+	class_a, class_b = stage.split(',')
+	# Return latest class
+	if STAGES.index(class_a) < STAGES.index(class_b):
+		return class_b
+	else:
+		return class_a
+
+
 def correct_stage_reached(stage) -> str:
 	if ',' not in stage:
 		return stage
@@ -78,6 +83,7 @@ def correct_stage_reached(stage) -> str:
 		return stage_b
 	else:
 		return stage_a
+	
 
 
 
@@ -173,7 +179,7 @@ if __name__ == '__main__':
 	if seq_type == 'paired':
 		log.debug('Collapsing paired reads...')
 		read_classes = read_classes.groupby('read_id', as_index=False).agg({col: functions.str_join for col in read_classes.columns if col != 'read_id'})
-		read_classes.read_class = read_classes.read_class.transform(lambda rc: MIXED_READ_CLASS_CONVERSION[rc] if rc in MIXED_READ_CLASS_CONVERSION else rc)
+		read_classes.read_class = read_classes.read_class.transform(correct_read_class)
 		read_classes.stage_reached = read_classes.stage_reached.transform(correct_stage_reached)
 
 	# Write to file
