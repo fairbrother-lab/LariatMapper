@@ -33,27 +33,28 @@ class Settings:
 	read_file: pathlib.Path
 	read_one: pathlib.Path
 	read_two: pathlib.Path
-	output_dir: pathlib.Path
 	ref_dir: pathlib.Path
 	ref_h2index: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/hisat2_index
 	ref_fasta: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/genome.fa
 	ref_5p_fasta: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/fivep_sites.fa
 	ref_exons: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/exons.tsv.gz
 	ref_introns: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/introns.tsv.gz
+	output_dir: pathlib.Path
+	strand: str
 	ref_repeatmasker: pathlib.Path	# If ref_dir is supplied and this is not, will be set to {ref_dir}/repeatmasker.bed
 	output_prefix: str
 	ucsc_track: bool
 	keep_classes: bool
 	keep_temp: bool
-	ignore_version: bool
 	threads: str
+	skip_version_check: bool
 	quiet: bool
 	warning: bool
 	debug: bool
 	# Extrapolated attributes
-	output_base: pathlib.Path = dataclasses.field(init=False)
-	seq_type: str = dataclasses.field(init=False)
 	input_reads: str = dataclasses.field(init=False)
+	seq_type: str = dataclasses.field(init=False)
+	output_base: pathlib.Path = dataclasses.field(init=False)
 	log_level: str = dataclasses.field(init=False)
 	# Automatically determined attributes
 	pipeline_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
@@ -71,20 +72,16 @@ class Settings:
 					setattr(self, ref, pathlib.Path(os.path.join(self.ref_dir, ref_dir_name)))
 			setattr(self, 'ref_repeatmasker', pathlib.Path(os.path.join(self.ref_dir, 'repeatmasker.bed')))
 
-		# seq_type
+		# input_reads and seq_type
 		if self.read_file is not None and self.read_one is None and self.read_two is None:
+			self.input_reads = self.read_file
 			self.seq_type = 'single'
 		elif self.read_file is None and self.read_one is not None and self.read_two is not None:
+			self.input_reads = f'{self.read_one},{self.read_two}'
 			self.seq_type = 'paired'
 		else:
 			raise ValueError('Provide either -f/--read_file (for single-end read) OR -1/--read_one and -2/--read_two (for paired-end reads)')
 		
-		# input_reads
-		if self.seq_type == 'single':
-			self.input_reads = self.read_file
-		elif self.seq_type == 'paired':
-			self.input_reads = f'{self.read_one},{self.read_two}'
-
 		# log_level
 		if self.quiet is True:
 			self.log_level = 'ERROR'
@@ -108,16 +105,16 @@ class Settings:
 		# Confirm that the reference files exist and don't have forbidden characters
 		for file in (self.ref_fasta, self.ref_5p_fasta, self.ref_exons, self.ref_introns):
 			if file.is_file() is False:
-				raise FileNotFoundError(f'"{file}" is not an existing file')
+				raise ValueError(f'"{file}" is not an existing file')
 			for char in FORBIDDEN_CHARS:
 				if char in str(file):
 					raise ValueError(f'Illegal character in {file}: {char}')
 		if (not os.path.isfile(f'{self.ref_h2index}.1.ht2')) and (not os.path.isfile(f'{self.ref_h2index}.1.ht2l')):
-			raise FileNotFoundError(f'"{self.ref_h2index}" is not an existing hisat2 index')
+			raise ValueError(f'"{self.ref_h2index}" is not an existing hisat2 index')
 		
 		# Confirm that the output directory parent exists and it doesn't have forbidden characters
 		if self.output_dir.parent.is_dir() is False:
-			raise FileNotFoundError(f'"{self.output_dir.parent}" is not an existing directory')
+			raise ValueError(f'"{self.output_dir.parent}" is not an existing directory')
 		for char in FORBIDDEN_CHARS:
 			if char in str(self.output_dir):
 				raise ValueError(f'Illegal character in output directory: {char}')
@@ -140,9 +137,10 @@ class Settings:
 	@property
 	def map_lariats_args(self):
 		args = []
-		for attr in ('output_base', 'pipeline_dir', 'seq_type', 'ref_h2index', 'ref_fasta', 
-					'ref_5p_fasta', 'ref_exons', 'ref_introns', 'ref_repeatmasker', 'threads', 
-					'log_level', 'ucsc_track', 'keep_classes', 'keep_temp', 'input_reads'):
+		for attr in ('input_reads', 'seq_type', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 
+			   		'ref_exons', 'ref_introns','output_base', 'strand', 'ref_repeatmasker', 
+					'ucsc_track', 'keep_classes', 'keep_temp', 'threads', 'log_level', 
+					'pipeline_dir'):
 			arg_val = str(getattr(self, attr))
 			if attr in ('ucsc_track', 'keep_classes', 'keep_temp'):
 				arg_val = arg_val.lower()
@@ -218,13 +216,17 @@ if __name__ == '__main__':
 	out_group.add_argument('-o', '--output_dir', required=True, type=pathlib.Path, help='Directory for output files. Will be created if it does not exist')
 	# Optional arguments
 	optional_args = parser.add_argument_group(title='Optional arguments')
-	optional_args.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (Default = 1)')
+		# Experimentally-revelant options 
+	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'Forward', 'Reverse'), default='Unstranded', help="Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; Forward = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Reverse = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)")
 	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = No filter, unless a RepeatMasker BED file is found in REF_DIR).')
+		# Output options
 	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	optional_args.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
 	optional_args.add_argument('-c', '--keep_classes', action='store_true', help='Keep a file with per-read classification named "read_classes.tsv.gz" in the output (Default = delete)')
 	optional_args.add_argument('-k', '--keep_temp', action='store_true', help='Keep all temporary files created while running the pipeline. Forces -c/--keep_classes (Default = delete)')
-	optional_args.add_argument('-x', '--ignore_version', action='store_true', help='Don\'t check if LariatMapper is up-to-date with the main branch on GitHub (Default = check and warn if not up-to-date)')
+		# Technical options
+	optional_args.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (Default = 1)')
+	optional_args.add_argument('-x', '--skip_version_check', action='store_true', help='Don\'t check if LariatMapper is up-to-date with the main branch on GitHub (Default = check and warn if not up-to-date)')
 	log_levels = optional_args.add_mutually_exclusive_group()
 	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR, Default = INFO). Mutually exclusive with -w and -d")
 	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING, Default = INFO). Mutually exclusive with -q and -d")
@@ -247,7 +249,7 @@ if __name__ == '__main__':
 	log.info(f'Arguments: \n\t{arg_message}')
 
 	# Check if up-to-date
-	if settings.ignore_version is False:
+	if settings.skip_version_check is False:
 		log.debug('Checking if LariatMapper is up-to-date with the main branch on GitHub...')
 		try:
 			check_up_to_date(settings.pipeline_dir, log)
