@@ -32,8 +32,9 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"                Settings                \n"
 					"----------------------------------------\n"
-					"Input data type:\t{seq_type}\n"
 					"Input reads:\t{input_reads}\n"
+					"Input type:\t{seq_type}\n"
+					"Input strandedness:\t{strand}\n"
 					"Reference HISAT2 index:\t{ref_h2index}\n"
 					"Reference genome FASTA:\t{ref_fasta}\n"
 					"Reference 5'ss FASTA:\t{ref_5p_fasta}\n"
@@ -42,11 +43,11 @@ SUMMARY_TEMPLATE = (
 					"Reference RepeatMasker:\t{ref_repeatmasker}\n"
 					"Output path:\t{output_base}\n"
 					"Threads:\t{threads}\n"
-					"Log level:\t{log_level}\n"
-					"Skip version check:\t{ignore_version}\n"
 					"Make UCSC track:\t{ucsc_track}\n"
 					"Keep read classes file:\t{keep_classes}\n"
 					"Keep temporary files:\t{keep_temp}\n"
+					"Skip version check:\t{skip_version_check}\n"
+					"Log level:\t{log_level}\n"
 					"\n"
 					"----------------------------------------\n"
 					"              Read classes              \n"
@@ -81,6 +82,7 @@ READ_COUNTS_TEMPLATE = (
 						"Not linearly mapped\tCircularized intron\t{Circularized_intron}\n"
 						"Not linearly mapped\tIn repetitive region\t{In_repetitive_region}\n"
 						"Not linearly mapped\tLariat\t{Lariat}\n"
+						"Only one mate linearly mapped\tTotal\t{mixed_pairs}\n"
 						"Read count after stage\tLinear mapping:\t{Linear_mapping}\n"
 						"Read count after stage\t5'ss mapping:\t{5ss_mapping}\n"
 						"Read count after stage\t5'ss alignment filtering:\t{5ss_alignment_filtering}\n"
@@ -131,7 +133,6 @@ if __name__ == '__main__':
 	stats.update(classes)
 	stats['not_linear'] = stats['input_count'] - stats['Linear']
 
-
 	# Add read counts after each stage
 	unmapped = set()
 	for rid in pyfaidx.Fasta(f'{output_base}unmapped_reads.fa', as_raw=True):
@@ -161,6 +162,17 @@ if __name__ == '__main__':
 	filtered_lariats = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t', usecols=['read_id']).read_id
 	stats['Lariat_filtering'] = filtered_lariats.nunique()
 
+	# For paired-end data, add count of reads where one mate mapped linearly in the 
+	# initial mapping and the other didn't
+	if seq_type == 'single':
+		stats['mixed_pairs'] = 'N/A'
+	elif seq_type == 'paired':
+		mp = 0
+		for align in pysam.AlignmentFile(OUTPUT_BAM_FILE.format(output_base), 'rb'):
+			if align.is_mapped and align.mate_is_unmapped:
+				mp += 1
+		stats['mixed_pairs'] = mp
+	
 	# Write summary info to file
 	log.debug(f'Summary stats: {stats}')
 	with open(SUMMARY_FILE.format(output_base), 'w') as w:
