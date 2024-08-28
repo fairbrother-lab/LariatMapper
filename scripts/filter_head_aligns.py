@@ -1,8 +1,6 @@
 import sys
 import os
 import multiprocessing as mp
-import collections
-import tempfile
 
 from intervaltree import Interval, IntervalTree
 import pandas as pd
@@ -487,7 +485,8 @@ if __name__ == '__main__':
 		# Assign the first chunk to the main process and the rest of the chunks worker process 
 		for chunk_start, chunk_end in chunk_ranges[1:]:
 			result = pool.apply_async(filter_alignments_chunk, 
-							args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level,))
+									args=(chunk_start, chunk_end, n_aligns, 
+			   							tails, introns, output_base, log_level,))
 			async_results.append(result)
 		
 		# Don't create any more processes
