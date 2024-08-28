@@ -478,20 +478,28 @@ if __name__ == '__main__':
 	# multiprocessing won't run correctly with just 1 chunk for some reason
 	if len(chunk_ranges) == 1:
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
-		filter_alignments_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, tails, introns, output_base, log_level)
+		filter_alignments_chunk(1, n_aligns, n_aligns, tails, introns, output_base, log_level)
 	else:
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
-		pool = mp.Pool(processes=threads)
+		# Create a pool of worker processes, leaving one core for the main process
+		pool = mp.Pool(processes=threads-1)
 		async_results = []
-		for chunk_start, chunk_end in chunk_ranges:
+		# Assign the first chunk to the main process and the rest of the chunks worker process 
+		for chunk_start, chunk_end in chunk_ranges[1:]:
 			result = pool.apply_async(filter_alignments_chunk, 
 							args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level,))
 			async_results.append(result)
 		
 		# Don't create any more processes
 		pool.close()
-		# Wait until all processes are finished
+		
+		# Process the first chunk in the main process
+		filter_alignments_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, tails, introns, output_base, log_level)
+
+		# Now wait until all the other processes are finished
 		pool.join()
+		# Terminate the pool
+		pool.terminate()
 
 		# Check each process for errors
 		for result in async_results:
