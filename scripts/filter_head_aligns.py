@@ -218,7 +218,6 @@ def check_gaps(cigar:tuple) -> tuple:
 
 def get_bp_seqs(alignments:pd.DataFrame, genome_fasta:str):
 	alignments = alignments.copy()
-	alignments['window_start'] = pd.Series(alignments.bp_pos - BP_CONTEXT_LENGTH, dtype='str')
 	alignments['window_end'] = pd.Series(alignments.bp_pos + BP_CONTEXT_LENGTH+1, dtype='str')
 	alignments['align_num'] = alignments.index.to_series().astype(str)
 	alignments['zero'] = '0'
@@ -339,10 +338,20 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	alignments = pd.merge(alignments, tails, 'left', on=['read_id'])
 	if alignments.fivep_pos.isna().any():
 		raise RuntimeError(f"{alignments.fivep_pos.isna().sum()} alignments didn't match any tails read IDs, this shouldn't be possible")
+	alignments.fivep_pos = alignments.fivep_pos.astype('UInt64')
 	
 	# Infer info
-	alignments.fivep_pos = alignments.fivep_pos.astype('UInt64')
 	alignments['bp_pos'] = alignments.apply(lambda row: row['align_end']-1 if row['strand']=='+' else row['align_start'], axis=1)
+	
+	# Check if the bp window is out of the chromosome bounds
+	# This can happen with small chromosomes or contigs, and will cause bedtools getfasta to fail
+	alignments['window_start'] = pd.Series(alignments.bp_pos - BP_CONTEXT_LENGTH, dtype='str')
+	alignments.loc[alignments.window_start.astype('int')<0, 'filter_failed'] = 'bp_window_less_than_0'
+	alignments = drop_failed_alignments(alignments, output_base)
+	if alignments.empty:
+		return 
+
+	# Get the BP sequence from the genome
 	alignments = get_bp_seqs(alignments, genome_fasta)
 	alignments['genomic_bp_nt'] = alignments.genomic_bp_context.str.get(8)
 	
