@@ -5,10 +5,11 @@ import json
 import os
 import time
 import multiprocessing
-import logging
 import subprocess
+import dataclasses
+import pathlib
 
-
+# This line is where our third-party imports go, if we had any
 
 from scripts import functions
 
@@ -17,59 +18,147 @@ from scripts import functions
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
-FORBIDDEN_CHARS = ('/', '\\', '>', '<', '&', '~', '*', '?', '[', ']', ';', '|', '!', '$', "'", '"')
+FORBIDDEN_CHARS = ('\\', '>', '<', '&', '~', '*', '?', '[', ']', ',', ';', '|', '!', '$', "'", '"')
+
+@dataclasses.dataclass
+class Settings:
+	REQ_REFS = (('ref_h2index', 'hisat2_index'), 
+				('ref_fasta', 'genome.fa'), 
+				('ref_5p_fasta', 'fivep_sites.fa'),
+				('ref_exons', 'exons.tsv.gz'),
+				('ref_introns', 'introns.tsv.gz'))
+
+	# Supplied argument attributes
+	# If an argument is not supplied, it will be None
+	read_file: pathlib.Path
+	read_one: pathlib.Path
+	read_two: pathlib.Path
+	ref_dir: pathlib.Path
+	ref_h2index: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/hisat2_index
+	ref_fasta: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/genome.fa
+	ref_5p_fasta: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/fivep_sites.fa
+	ref_exons: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/exons.tsv.gz
+	ref_introns: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/introns.tsv.gz
+	output_dir: pathlib.Path
+	strand: str
+	ref_repeatmasker: pathlib.Path	# If ref_dir is supplied and this is not, will be set to {ref_dir}/repeatmasker.bed
+	output_prefix: str
+	ucsc_track: bool
+	keep_classes: bool
+	keep_temp: bool
+	threads: str
+	skip_version_check: bool
+	quiet: bool
+	warning: bool
+	debug: bool
+	# Extrapolated attributes
+	input_reads: str = dataclasses.field(init=False)
+	seq_type: str = dataclasses.field(init=False)
+	output_base: pathlib.Path = dataclasses.field(init=False)
+	log_level: str = dataclasses.field(init=False)
+	# Automatically determined attributes
+	pipeline_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
+
+
+	def __post_init__(self):
+		# Reference files
+		if self.ref_dir is None:
+			for ref, ref_dir_name in self.REQ_REFS:
+				if getattr(self, ref) is None:
+					raise ValueError(f"--ref_dir not supplied so all individual reference file arguments are required. Missing --{ref}")
+		else:
+			for ref, ref_dir_name in self.REQ_REFS:
+				if getattr(self, ref) is None:
+					setattr(self, ref, pathlib.Path(os.path.join(self.ref_dir, ref_dir_name)))
+			setattr(self, 'ref_repeatmasker', pathlib.Path(os.path.join(self.ref_dir, 'repeatmasker.bed')))
+
+		# input_reads and seq_type
+		if self.read_file is not None and self.read_one is None and self.read_two is None:
+			self.input_reads = self.read_file
+			self.seq_type = 'single'
+		elif self.read_file is None and self.read_one is not None and self.read_two is not None:
+			self.input_reads = f'{self.read_one},{self.read_two}'
+			self.seq_type = 'paired'
+		else:
+			raise ValueError('Provide either -f/--read_file (for single-end read) OR -1/--read_one and -2/--read_two (for paired-end reads)')
+		
+		# log_level
+		if self.quiet is True:
+			self.log_level = 'ERROR'
+		elif self.warning is True:
+			self.log_level = 'WARNING'
+		elif self.debug is True:
+			self.log_level = 'DEBUG'
+		else:
+			self.log_level = 'INFO'
+
+
+	def validate_args(self):
+		# Confirm that the read file(s) exit
+		if self.seq_type=='single' and self.read_file.is_file() is False:
+			raise ValueError(f'"{self.read_file}" is not an existing file')
+		elif self.seq_type=='paired' and self.read_one.is_file() is False:
+			raise ValueError(f'"{self.read_one}" is not an existing file')
+		elif self.seq_type=='paired' and self.read_two.is_file() is False:
+			raise ValueError(f'"{self.read_two}" is not an existing file')
+
+		# Confirm that the reference files exist and don't have forbidden characters
+		for file in (self.ref_fasta, self.ref_5p_fasta, self.ref_exons, self.ref_introns):
+			if file.is_file() is False:
+				raise ValueError(f'"{file}" is not an existing file')
+			for char in FORBIDDEN_CHARS:
+				if char in str(file):
+					raise ValueError(f'Illegal character in {file}: {char}')
+		if (not os.path.isfile(f'{self.ref_h2index}.1.ht2')) and (not os.path.isfile(f'{self.ref_h2index}.1.ht2l')):
+			raise ValueError(f'"{self.ref_h2index}" is not an existing hisat2 index')
+		
+		# Confirm that the output directory parent exists and it doesn't have forbidden characters
+		if self.output_dir.parent.is_dir() is False:
+			raise ValueError(f'"{self.output_dir.parent}" is not an existing directory')
+		for char in FORBIDDEN_CHARS:
+			if char in str(self.output_dir):
+				raise ValueError(f'Illegal character in output directory: {char}')
+		
+		# Determine the output_base
+		# All output files will be formatted like f"{output_base}file.ext"
+		if self.output_prefix is None:
+			self.output_base = f'{self.output_dir}/'
+		else:
+			for char in FORBIDDEN_CHARS:
+				if char in str(self.output_prefix):
+					parser.error(f'Illegal character in output prefix: {char}')
+			self.output_base = f'{self.output_dir/self.output_prefix}'
+
+		# Validate threads arg
+		if not self.threads>0:
+			raise ValueError(f'-t/--threads must be a positive integer. Input was "{repr(self.threads)}"')
+		
+
+	@property
+	def map_lariats_args(self):
+		args = []
+		for attr in ('input_reads', 'seq_type', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 
+			   		'ref_exons', 'ref_introns','output_base', 'strand', 'ref_repeatmasker', 
+					'ucsc_track', 'keep_classes', 'keep_temp', 'threads', 'log_level', 
+					'pipeline_dir'):
+			arg_val = str(getattr(self, attr))
+			if attr in ('ucsc_track', 'keep_classes', 'keep_temp'):
+				arg_val = arg_val.lower()
+			args.append(arg_val)
+			
+		return args
+	
+
+	def json_dump(self, file):
+		dict_ = {key: str(val) for key,val in dataclasses.asdict(settings).items()}
+		with open(file, 'w') as json_file:
+			json.dump(dict_, json_file)
 
 
 
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
-def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log:logging.Logger):
-	# Determine whether input is single-end or paired-end and confirm that the read file(s) exit
-	if args.read_file is not None:
-		seq_type = 'single'
-		if not os.path.isfile(args.read_file):
-			parser.error(f'"{args.read_file}" is not an existing file')
-	elif args.read_one is not None and args.read_two is not None:
-		seq_type = 'paired'
-		if not os.path.isfile(args.read_one):
-			parser.error(f'"{args.read_one}" is not an existing file')
-		if not os.path.isfile(args.read_two):
-			parser.error(f'"{args.read_two}" is not an existing file')
-	else:
-		parser.error('Provide either -f/--read_file (for single-end read) OR -1/--read_one and -2/--read_two (for paired-end reads)')
-
-	# Get reference files from reference dir OR from direct input, and confirm that they exist
-	if args.ref_dir is not None:
-		ref_files = ['hisat2_index', 'genome.fa', 'fivep_sites.fa', 'exons.tsv.gz', 'introns.tsv.gz', 'repeatmasker.bed']
-		ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker = [os.path.join(args.ref_dir, f) for f in ref_files]
-	else:
-		ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker = args.ref_h2index, args.ref_fasta, args.ref_5p_fasta, args.ref_exons, args.ref_introns, args.ref_repeatmasker
-
-	for file in (ref_fasta, ref_5p_fasta, ref_exons, ref_introns):
-		if not os.path.isfile(file):
-			parser.error(f'"{file}" is not an existing file')
-	if (not os.path.isfile(ref_h2index + '.1.ht2')) and (not os.path.isfile(ref_h2index + '.1.ht2l')):
-		parser.error(f'"{ref_h2index}" is not an existing hisat2 index')
-	
-	# Determine the output_base
-	# All output files will be formatted like f"{output_base}file.ext"
-	if args.output_prefix is None:
-		output_prefix = ''
-	else:
-		for char in FORBIDDEN_CHARS:
-			if char in args.output_prefix:
-				parser.error(f'Illegal character in output prefix: {char}')
-		output_prefix = args.output_prefix + '_'
-	output_base = os.path.join(args.output_dir, output_prefix)
-
-	# Validate threads arg
-	if not args.threads>0:
-		parser.error(f'-t/--threads must be a positive integer. Input was "{repr(args.threads)}"')
-
-	return args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, output_base
-
-
 def check_up_to_date(pipeline_dir, log):
 	# Get repo status, ignoring file mode changes with -c core.fileMode=false
 	fetch_command = f'git --git-dir {pipeline_dir}/.git --work-tree {pipeline_dir} -c core.fileMode=false fetch --all'
@@ -97,11 +186,8 @@ def check_up_to_date(pipeline_dir, log):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	# Get path to the pipeline's directory 
-	pipeline_dir = os.path.dirname(os.path.realpath(__file__))
-
 	# Get the current version
-	with open(f'{pipeline_dir}/pyproject.toml') as toml:
+	with open(f'{Settings.pipeline_dir}/pyproject.toml') as toml:
 		for line in toml:
 			if line.startswith('version = "'):
 				version = line[11:].rstrip('"\n')
@@ -111,93 +197,85 @@ if __name__ == '__main__':
 	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {version}', help='Print the version id and exit')
 
 	# Required arguments
-	read_group = parser.add_mutually_exclusive_group(required=True)
-	read_group.add_argument('-f', '--read_file', help='Input FASTQ file when processing single-end RNA-seq data. Can be uncompressed or gzip-compressed. Requires either this argument or both -1 and -2')
-	read_group.add_argument('-1', '--read_one', help='Read 1 input FASTQ file when processing paired-end RNA-seq data. Can be uncompressed or gzip-compressed. ')
-	parser.add_argument('-2', '--read_two', help='Read 2 input FASTQ file when processing paired-end RNA-seq data. Can be uncompressed or gzip-compressed. ')
-	parser.add_argument('-o', '--output_dir', required=True, help='Directory for output files (will be created if it does not exist)')
-	reference_group = parser.add_mutually_exclusive_group(required=True)
-	reference_group.add_argument('-r', '--ref_dir', help='Directory with reference files for lariat mapping. Create by running build_references.py. Requires either this argument or all of -i, -g, -a, -5, -n, and -m')
-	reference_group.add_argument('-i', '--ref_h2index', help='hisat2 index of the reference genome')
-	parser.add_argument('-g', '--ref_fasta', help='FASTA file of the reference genome')
-	parser.add_argument('-5', '--ref_5p_fasta', help='FASTA file with sequences of first 20nt of annotated introns')
-	parser.add_argument('-e', '--ref_exons', help='TSV file of all annotated exons')
-	parser.add_argument('-n', '--ref_introns', help='TSV file of all annotated introns', )
+	# We use argument groups to make the help message more readable, but we have to enforce 
+	# mutually exclusive arguments later because argparse doesn't support mutually exclusive groups
+	read_group = parser.add_argument_group(title='Input read files', 
+										description='Provide either two paired-end read files or one single-end read file. Files can be uncompressed or gzip-compressed')
+	read_group.add_argument('-1', '--read_one', type=pathlib.Path, help='Read 1 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f')
+	read_group.add_argument('-2', '--read_two', type=pathlib.Path, help='Read 2 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f')
+	read_group.add_argument('-f', '--read_file', type=pathlib.Path, help='Input FASTQ file when processing single-end RNA-seq data. Mutually exclusive with -1 and -2')
+	reference_group = parser.add_argument_group(title='Reference files', 
+											 description='Provide either a reference files directory (REF_DIR) or an argument for each reference file. If both REF_DIR and individual reference files are supplied, the individually specified files will be used.')
+	reference_group.add_argument('-r', '--ref_dir', type=pathlib.Path, help='Directory with reference files created by build_references.py.')
+	reference_group.add_argument('-i', '--ref_h2index', type=pathlib.Path, help='hisat2 index of the reference genome')
+	reference_group.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome')
+	reference_group.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help='FASTA file with sequences of first 20nt of annotated introns')
+	reference_group.add_argument('-e', '--ref_exons', type=pathlib.Path, help='TSV file of all annotated exons')
+	reference_group.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns')
+	out_group = parser.add_argument_group(title='Output')
+	out_group.add_argument('-o', '--output_dir', required=True, type=pathlib.Path, help='Directory for output files. Will be created if it does not exist')
 	# Optional arguments
-	parser.add_argument('-m', '--ref_repeatmasker', help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (default=no filter)')
-	parser.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
-	parser.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
-	parser.add_argument('-c', '--keep_classes', action='store_true', help='Keep a file with per-read classification named "read_classes.tsv.gz" in the output (default=delete)')
-	parser.add_argument('-k', '--keep_temp', action='store_true', help='Keep all temporary files created while running the pipeline. Forces -c/--keep_classes (default=delete)')
-	parser.add_argument('-x', '--ignore_version', action='store_true', help='Don\'t check if LariatMapper is up-to-date with the main branch on GitHub (default=check and warn if not up-to-date)')
-	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default=1)')
-	log_levels = parser.add_mutually_exclusive_group()
-	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR, default=INFO)")
-	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING, default=INFO)")
-	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages (sets logging level to DEBUG, default=INFO)")
+	optional_args = parser.add_argument_group(title='Optional arguments')
+		# Experimentally-revelant options 
+	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'Forward', 'Reverse'), default='Unstranded', help="Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; Forward = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Reverse = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)")
+	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = No filter, unless a RepeatMasker BED file is found in REF_DIR).')
+		# Output options
+	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
+	optional_args.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
+	optional_args.add_argument('-c', '--keep_classes', action='store_true', help='Keep a file with per-read classification named "read_classes.tsv.gz" in the output (Default = delete)')
+	optional_args.add_argument('-k', '--keep_temp', action='store_true', help='Keep all temporary files created while running the pipeline. Forces -c/--keep_classes (Default = delete)')
+		# Technical options
+	optional_args.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (Default = 1)')
+	optional_args.add_argument('-x', '--skip_version_check', action='store_true', help='Don\'t check if LariatMapper is up-to-date with the main branch on GitHub (Default = check and warn if not up-to-date)')
+	log_levels = optional_args.add_mutually_exclusive_group()
+	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR, Default = INFO). Mutually exclusive with -w and -d")
+	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING, Default = INFO). Mutually exclusive with -q and -d")
+	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages (sets logging level to DEBUG, Default = INFO). Mutually exclusive with -q and -w")
 
-	# Parse arguments
-	args = parser.parse_args()
-	
-	# Setup logging
-	if args.quiet is True:
-		log_level = 'ERROR'
-	if args.warning is True:
-		log_level = 'WARNING'
-	elif args.debug is True:
-		log_level = 'DEBUG'
-	else:
-		log_level = 'INFO'
-	log = functions.get_logger(log_level)
+	# Parse args into a dict
+	args = vars(parser.parse_args())
+	# Convert to a Settings object
+	settings = Settings(**args)
+
+	# Set up logging
+	log = functions.get_logger(settings.log_level)
 
 	# Report version
 	log.info(f'LariatMapper {version}')
 
+	# Report arguments
+	arg_message = [f'{key}={val}' for key, val in args.items() if val is not None and val is not False]
+	arg_message = '\n\t'.join(arg_message)
+	log.info(f'Arguments: \n\t{arg_message}')
+
 	# Check if up-to-date
-	if args.ignore_version is False:
+	if settings.skip_version_check is False:
 		log.debug('Checking if LariatMapper is up-to-date with the main branch on GitHub...')
 		try:
-			check_up_to_date(pipeline_dir, log)
+			check_up_to_date(settings.pipeline_dir, log)
 		except Exception as e:
 			log.debug(e)
 			log.warning('Could not check if LariatMapper is up-to-date with the main branch on GitHub. Continuing anyway...')
 
-	# Report arguments
-	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
-	arg_message = '\n\t'.join(arg_message)
-	log.info(f'Arguments: \n\t{arg_message}')
-
-	# Validate the args and determine additional variables
-	args, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, \
-		ref_repeatmasker, output_base = process_args(args, parser, log)
-	log.debug(f'seq_type: {repr(seq_type)}, output_base: {repr(output_base)}')
+	# Validate arguments
+	settings.validate_args()
 
 	# Make output dir
 	log.info('Preparing directories...')
-	if not os.path.isdir(args.output_dir):
-		os.mkdir(args.output_dir)
+	if not os.path.isdir(settings.output_dir):
+		os.mkdir(settings.output_dir)
 	# Move to output dir
-	os.chdir(args.output_dir)
+	os.chdir(settings.output_dir)
+
+	# Dump arguments to a JSON file so summarize.py can report them
+	settings.json_dump(f'{settings.output_base}settings.json')
 
 	# Set start method for multiprocessing in filter_fivep_aligns.py and filter_head_aligns.py
 	# Using the default "fork" method causes memory errors when processing bigger RNA-seq inputs
 	# This has to be defined in the first python script and only once, or else we get "RuntimeError: context has already been set" 
 	multiprocessing.set_start_method('spawn')	
 
-	# Prepare call to map_lariats.sh
-	map_lariats_args = [output_base, pipeline_dir, seq_type, ref_h2index, ref_fasta, ref_5p_fasta, ref_exons, ref_introns, ref_repeatmasker, str(args.threads), log_level, str(args.ucsc_track).lower(), str(args.keep_classes).lower(), str(args.keep_temp).lower()]
-	if seq_type == 'single':
-		log.info('Processing single-end read file...')
-		map_lariats_args += [args.read_file]
-	elif seq_type == 'paired':
-		log.info('Processing paired-end read files...')
-		map_lariats_args += [args.read_one, args.read_two]
-	log.debug(f'map_lariats args: {map_lariats_args}')
-
-	# Dump arguments to a JSON file so summarize.py can report them
-	with open(f'{args.output_dir}/args.json', 'w') as json_file:
-		json.dump(map_lariats_args, json_file)
-
-	# Run it
-	map_call = f'{os.path.join(pipeline_dir, "scripts", "map_lariats.sh")} {" ".join(map_lariats_args)}'
+	# Call map_lariats.sh
+	log.debug(f'map_lariats args: {settings.map_lariats_args}')
+	map_call = f"{settings.pipeline_dir/'scripts'/'map_lariats.sh'} {' '.join(settings.map_lariats_args)}"
 	subprocess.run(map_call.split(' '))
