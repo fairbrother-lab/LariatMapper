@@ -79,7 +79,7 @@ def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
 	count = int(functions.run_command(command, log=log))
 	
 	if seq_type == 'paired':
-		count == count//2
+		count = count//2
 
 	return count
 
