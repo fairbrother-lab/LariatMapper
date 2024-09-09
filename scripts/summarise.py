@@ -14,7 +14,7 @@ import functions
 #                                   Globals                                   #
 #=============================================================================#
 # In files
-ARGS_FILE = "{}args.json"
+ARGS_FILE = "{}settings.json"
 OUTPUT_BAM_FILE = "{}output.bam"
 BAM_COUNTS_FILE = "{}output.bam_count.tsv"
 READ_CLASSES_FILE = "{}read_classes.tsv.gz"
@@ -27,29 +27,32 @@ SUMMARY_TEMPLATE = (
 					"                Metadata                \n"
 					"----------------------------------------\n"
 					"Version:\t{version}\n"
-					"Threads:\t{threads}\n"
 					#TODO: Time and resources
 					"\n"
 					"----------------------------------------\n"
 					"                Settings                \n"
 					"----------------------------------------\n"
-					"Input data type:\t{seq_type}\n"
 					"Input reads:\t{input_reads}\n"
-					"Reference HISAT2 index:\t{hisat2_index}\n"
-					"Reference genome FASTA:\t{genome_fasta}\n"
-					"Reference 5'ss FASTA:\t{fivep_fasta}\n"
-					"Reference exons:\t{exons_tsv}\n"
-					"Reference introns:\t{introns_tsv}\n"
-					"Reference RepeatMasker:\t{repeats_bed}\n"
-					"Output:\t{output_base}\n"
-					"Log level:\t{log_level}\n"
-					"Keep temporary files:\t{keep_temp}\n"
+					"Input type:\t{seq_type}\n"
+					"Input strandedness:\t{strand}\n"
+					"Reference HISAT2 index:\t{ref_h2index}\n"
+					"Reference genome FASTA:\t{ref_fasta}\n"
+					"Reference 5'ss FASTA:\t{ref_5p_fasta}\n"
+					"Reference exons:\t{ref_exons}\n"
+					"Reference introns:\t{ref_introns}\n"
+					"Reference RepeatMasker:\t{ref_repeatmasker}\n"
+					"Output path:\t{output_base}\n"
+					"Threads:\t{threads}\n"
 					"Make UCSC track:\t{ucsc_track}\n"
+					"Keep read classes file:\t{keep_classes}\n"
+					"Keep temporary files:\t{keep_temp}\n"
+					"Skip version check:\t{skip_version_check}\n"
+					"Log level:\t{log_level}\n"
 					"\n"
 					"----------------------------------------\n"
 					"              Read classes              \n"
 					"----------------------------------------\n"
-					"Linear total:\t{linear_map}\n"
+					"Linear:\t{Linear}\n"
 					"Unmapped:\t{Unmapped}\n"
 					"Unmapped with 5'ss alignment:\t{Unmapped_with_5ss_alignment}\n"
 					"Template-switching:\t{Template_switching}\n"
@@ -61,7 +64,7 @@ SUMMARY_TEMPLATE = (
 					"      Read count after each stage       \n"
 					"----------------------------------------\n"
 					"Input:\t{input_count}\n"
-					"Linear mapping:\t{not_linear}\n"
+					"Linear mapping:\t{Linear_mapping}\n"
 					"5'ss mapping:\t{5ss_mapping}\n"
 					"5'ss alignment filtering:\t{5ss_alignment_filtering}\n"
 					"Head mapping:\t{Head_mapping}\n"
@@ -69,47 +72,27 @@ SUMMARY_TEMPLATE = (
 					"Lariat filtering:\t{Lariat_filtering}\n"
 )
 READ_COUNTS_TEMPLATE = (
-						"Category\tSubcategory\Reads\n"
+						"Category\tSubcategory\tReads\n"
 						"Input\tTotal\t{input_count}\n"
-						"Linear\tTotal\t{linear_map}\n"
-						"Linear\tGenic\t{gene}\n"
-						"Not linear\tTotal\t{not_linear}\n"
-						"Not linear\tUnmapped\t{Unmapped}\n"
-						"Not linear\tUnmapped with 5'ss alignment\t{Unmapped_with_5ss_alignment}\n"
-						"Not linear\tTemplate-switching\t{Template_switching}\n"
-						"Not linear\tCircularized intron\t{Circularized_intron}\n"
-						"Not linear\tIn repetitive region\t{In_repetitive_region}\n"
-						"Not linear\tLariat\t{Lariat}"
-						
+						"Linearly mapped\tTotal\t{Linear}\n"
+						"Not linearly mapped\tTotal\t{not_linear}\n"
+						"Not linearly mapped\tUnmapped\t{Unmapped}\n"
+						"Not linearly mapped\tUnmapped with 5'ss alignment\t{Unmapped_with_5ss_alignment}\n"
+						"Not linearly mapped\tTemplate-switching\t{Template_switching}\n"
+						"Not linearly mapped\tCircularized intron\t{Circularized_intron}\n"
+						"Not linearly mapped\tIn repetitive region\t{In_repetitive_region}\n"
+						"Not linearly mapped\tLariat\t{Lariat}\n"
+						"Only one mate linearly mapped\tTotal\t{mixed_pairs}\n"
+						"Read count after stage\tLinear mapping:\t{Linear_mapping}\n"
+						"Read count after stage\t5'ss mapping:\t{5ss_mapping}\n"
+						"Read count after stage\t5'ss alignment filtering:\t{5ss_alignment_filtering}\n"
+						"Read count after stage\tHead mapping:\t{Head_mapping}\n"
+						"Read count after stage\tHead alignment filtering:\t{Head_alignment_filtering}\n"
+						"Read count after stage\tLariat filtering:\t{Lariat_filtering}\n"
 )
 
-SETTINGS_VARS = ('output_base', 'threads', 'hisat2_index', 'genome_fasta', 'fivep_fasta', 
-				 'exons_tsv', 'introns_tsv', 'repeats_bed', 'keep_temp', 'ucsc_track', 
-				 'pipeline_dir', 'log_level', 'seq_type')
 READ_CLASSES = ("Linear", "Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
 				'Template_switching', 'Circularized_intron', 'Lariat')
-STAGES = ('Linear_mapping', "5ss_mapping", "5ss_alignment_filtering", 
-		  'Head_mapping', 'Head_alignment_filtering', 'Lariat_filtering', 'To_the_end')
-
-
-	
-
-#=============================================================================#
-#                                  Functions                                  #
-#=============================================================================#
-def run_settings(output_base:str) -> dict:
-	with open(ARGS_FILE.format(output_base), 'r') as json_file:
-		settings = json.load(json_file)
-	
-	# Get input reads and convert settings to dict
-	input_reads = ','.join(settings[13:])
-	settings = {key: val for key, val in zip(SETTINGS_VARS, settings[:13])}
-	settings['input_reads'] = input_reads
-
-	# Remove args file, as it is no longer needed
-	os.remove(f'{output_base}args.json')
-
-	return settings
 
 
 
@@ -129,29 +112,13 @@ if __name__ == '__main__':
 
 	# Run information
 	stats['version'] = functions.version()
-	settings = run_settings(output_base)
+	with open(ARGS_FILE.format(output_base), 'r') as json_file:
+		settings = json.load(json_file)
 	stats.update(settings)
 
 	# Add input read count
 	r1 = pysam.FastxFile(settings['input_reads'].split(',')[0])
 	stats['input_count'] = sum(1 for read in r1)
-
-	# Add linear mapping count
-	command = f'samtools view --count --exclude-flags 4 {OUTPUT_BAM_FILE.format(output_base)}'
-	count = int(functions.run_command(command, log=log))
-	if seq_type == 'paired':
-		count = count//2
-	stats['linear_map'] = count
-
-	# Add linear category counts
-	bam_counts = pd.read_csv(BAM_COUNTS_FILE.format(output_base), sep='\t', na_filter=False)
-	for cat in ('gene', 'exon_intron_junc', 'exon_only', 'exon_exon_junc', 'intron_only'):
-		stats[cat] = bam_counts[cat].sum()
-	
-	# TODO: We're not accounting for paired-end reads for which one mate mapped linearly 
-	# and the other did not, so we'll usually get linear_map+not_linear != input_count which
-	# is bad
-	stats['not_linear'] = stats['input_count'] - stats['linear_map']
 
 	# Add read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
@@ -164,22 +131,48 @@ if __name__ == '__main__':
 				.to_dict())
 	log.debug(f'Read classes: {classes}')
 	stats.update(classes)
+	stats['not_linear'] = stats['input_count'] - stats['Linear']
 
-	# Add counts after each stage reached
-	read_classes.stage_reached = (read_classes.stage_reached
-									.str.replace(' ', '_')
-									.str.replace('-', '_')
-									.str.replace("'", ''))
-	stages = (pd.Categorical(read_classes.stage_reached, categories=STAGES, ordered=True)
-				.value_counts()
-				.to_dict())
-	log.debug(f'Stages reached: {stages}')
-	reads_left = stats['not_linear']
-	for stage in STAGES[1:]:
-		reads_left += -stages[stage]
-		stats[stage] = reads_left
+	# Add read counts after each stage
+	unmapped = set()
+	for rid in pyfaidx.Fasta(f'{output_base}unmapped_reads.fa', as_raw=True):
+		unmapped.add(rid.name[:-2])
+	stats['Linear_mapping'] = len(unmapped)
 
+	fivep_maps = set()
+	with open(f'{output_base}fivep_to_reads.sam', 'r') as r:
+		for line in r:
+			rid = line.split('\t')[2][:-2]
+			fivep_maps.add(rid)
+	stats['5ss_mapping'] = len(fivep_maps)
 
+	tails = pd.read_csv(f'{output_base}tails.tsv', sep='\t', usecols=['read_id']).read_id
+	stats['5ss_alignment_filtering'] = tails.str.slice(0,-6).nunique()
+
+	head_maps = set()
+	with open(f'{output_base}heads_to_genome.sam', 'r') as r:
+		for line in r:
+			rid = line.split('\t')[0][:-6]
+			head_maps.add(rid)
+	stats['Head_mapping'] = len(head_maps)
+
+	putative_lariats = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t', usecols=['read_id']).read_id
+	stats['Head_alignment_filtering'] = putative_lariats.str.slice(0,-6).nunique()
+
+	filtered_lariats = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t', usecols=['read_id']).read_id
+	stats['Lariat_filtering'] = filtered_lariats.nunique()
+
+	# For paired-end data, add count of reads where one mate mapped linearly in the 
+	# initial mapping and the other didn't
+	if seq_type == 'single':
+		stats['mixed_pairs'] = 'N/A'
+	elif seq_type == 'paired':
+		mp = 0
+		for align in pysam.AlignmentFile(OUTPUT_BAM_FILE.format(output_base), 'rb'):
+			if align.is_mapped and align.mate_is_unmapped:
+				mp += 1
+		stats['mixed_pairs'] = mp
+	
 	# Write summary info to file
 	log.debug(f'Summary stats: {stats}')
 	with open(SUMMARY_FILE.format(output_base), 'w') as w:

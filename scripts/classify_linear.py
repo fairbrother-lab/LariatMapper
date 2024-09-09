@@ -1,5 +1,6 @@
 import sys
 import itertools as it
+import numpy as np
 
 import pysam
 import pandas as pd
@@ -291,6 +292,8 @@ if __name__ == '__main__':
 		linear_reads['seg'] = linear_reads.segs.transform(lambda segs: Interval(*segs))
 
 		# Chromosome by chromosome, add all exons and introns 
+		linear_reads['introns'] = np.nan
+		linear_reads['exons'] = np.nan
 		for chrom in linear_reads.chrom.unique():
 			if chrom not in exons.keys():
 				log.warning(f'No exons in {chrom}')
@@ -304,16 +307,16 @@ if __name__ == '__main__':
 			chrom_introns = introns[chrom]
 			linear_reads.loc[linear_reads.chrom==chrom, 'introns'] = linear_reads.loc[linear_reads.chrom==chrom, 'seg'].transform(chrom_introns.overlap)
 
-		linear_reads.exons = linear_reads.exons.fillna('').transform(set)
-		linear_reads.introns = linear_reads.introns.fillna('').transform(set)
+		linear_reads['exons'] = linear_reads['exons'].fillna('').transform(set)
+		linear_reads['introns'] = linear_reads['introns'].fillna('').transform(set)
 
 		# Infer intergenic
 		linear_reads['Intergenic'] = (linear_reads.exons.transform(len)==0) & (linear_reads.introns.transform(len)==0)
 
 		# For each segment, filter out exons and introns whose genes (yes, unfortunately they can have multiple) don't cover all segments of the read
 		linear_reads['common_genes'] = linear_reads.read_id.map(linear_reads.groupby('read_id').apply(infer_common_genes, include_groups=False))
-		# linear_reads['exons'] = linear_reads.apply(lambda row: IntervalTree(exon for exon in row['exons'] if len(exon.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
-		# linear_reads['introns'] = linear_reads.apply(lambda row: IntervalTree(intron for intron in row['introns'] if len(intron.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
+		linear_reads['exons'] = linear_reads.apply(lambda row: IntervalTree(exon for exon in row['exons'] if len(exon.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
+		linear_reads['introns'] = linear_reads.apply(lambda row: IntervalTree(intron for intron in row['introns'] if len(intron.data['gene_id'].intersection(row['common_genes']))>0), axis=1)
 
 		# # Classify segments
 		# linear_reads['seg_class'] = linear_reads.apply(classify_seg, axis=1)
