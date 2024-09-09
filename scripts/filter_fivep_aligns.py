@@ -1,12 +1,9 @@
-from dataclasses import dataclass, field
 import sys
-import subprocess
-import multiprocessing
 import os
+import multiprocessing as mp
 
 from pyfaidx import Fasta
 import pandas as pd
-import numpy as np
 
 import functions
 
@@ -41,8 +38,8 @@ FAILED_FIVEPS_COLS = ['read_id',
 						'filter_failed',
 						]
 
-out_lock = multiprocessing.Lock()
-failed_out_lock = multiprocessing.Lock()
+out_lock = mp.Lock()
+failed_out_lock = mp.Lock()
 
 
 
@@ -159,7 +156,7 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 		yield current_read_id, False, fivep_sites[False]
 
 
-def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, output_base:str, log_level) -> None:
+def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, strand:str, output_base:str, log_level:str) -> None:
 	'''
 	Filter and trim the reads to which 5'ss sequences were mapped, the trimmed section being the read "head" and the trimmed-off section being the read "tail" 
 	Write read information and their aligned 5' splice site(s) to tails.tsv
@@ -178,9 +175,23 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 		if len(fivep_sites) == 0:
 			continue
 
+		read_num = read_id[-1]
 		read_seq = read_seqs[read_id]
 		fivep_pass = []
 		for fivep_site, read_fivep_start, read_fivep_end in fivep_sites:
+			# If the sequencing data is strand-specific, we can rule out alignments on 
+			# the wrong strand for the read mate
+			if strand == 'Forward':
+				if read_num=='1' and read_is_reverse:
+					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+				if read_num=='2' and not read_is_reverse:
+					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+			elif strand == 'Reverse':
+				if read_num=='1' and not read_is_reverse:
+					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+				if read_num=='2' and read_is_reverse:
+					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+
 			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 			# If it does NOT, add the read alignment to fivep_pass
 			if read_is_reverse:
@@ -262,7 +273,7 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 # =============================================================================#
 if __name__ == '__main__' :
 	# Get args
-	threads, genome_fasta, fivep_fasta, output_base, log_level = sys.argv[1:]
+	output_base, log_level, genome_fasta, fivep_fasta, strand, threads, = sys.argv[1:]
 
 	# Get logger
 	log = functions.get_logger(log_level)
@@ -297,7 +308,9 @@ if __name__ == '__main__' :
 	log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 	processes = []
 	for chunk_start, chunk_end in chunk_ranges:
-		process = multiprocessing.Process(target=filter_reads_chunk, args=(chunk_start, chunk_end, n_aligns, read_seqs, fivep_upstream_seqs, output_base, log_level, ))
+		process = mp.Process(target=filter_reads_chunk, 
+							args=(chunk_start, chunk_end, n_aligns, read_seqs, 
+			 					fivep_upstream_seqs, strand, output_base, log_level, ))
 		process.start()
 		processes.append(process)
 

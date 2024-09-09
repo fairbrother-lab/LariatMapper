@@ -5,44 +5,40 @@
 #=============================================================================#
 #                                  Arguments                                  #
 #=============================================================================#
-# Output directory 
-OUTPUT_BASE=$1
-# Number of threads to use
-THREADS=$2
-# hisat2 index of reference genome
-GENOME_INDEX=$3
-# Reference genome FASTA file
-GENOME_FASTA=$4
-# FASTA file of 5' splice sites (first 20nts of all introns)
-FIVEP_FASTA=$5
-# Annotated exons
-EXONS_TSV=$6
-# Annotated introns
-INTRONS_TSV=$7
-# Annotated repeat regions
-REPEATS_BED=$8
-# Keep the temp files created during the run ("True" or "False", default "False")
-KEEP_TEMP=$9
-# Run make_track.py after filter_lariats.py ("True" or "False", default "False")
-UCSC_TRACK="${10}"
-# Directory containing lariat mapping pipeline files
-PIPELINE_DIR="${11}"
-# Directory containing lariat mapping pipeline files
-LOG_LEVEL="${12}"
-# Type of sequencing run ("single" or "paired")
-SEQ_TYPE="${13}"
 # RNA-seq fastq read file(s)
-if [ "$SEQ_TYPE" == "single" ]; then
-	READ_FILE="${14}"
-	r_seq_type="singleEnd"
-elif [ "$SEQ_TYPE" == "paired" ]; then
-	READ_ONE="${14}"
-	READ_TWO="${15}"
-	r_seq_type="pairEnd"
-else
-	echo "SEQ_TYPE '$SEQ_TYPE' not recognized"
-	exit 1
-fi
+INPUT_FILES="${1}"
+# Type of sequencing data. "single" or "paired"
+SEQ_TYPE="${2}"
+# hisat2 index of reference genome
+GENOME_INDEX="${3}"
+# Reference genome FASTA file
+GENOME_FASTA="${4}"
+# FASTA file of 5' splice sites (first 20nts of all introns)
+FIVEP_FASTA="${5}"
+# Annotated exons
+EXONS_TSV="${6}"
+# Annotated introns
+INTRONS_TSV="${7}"
+# Output directory 
+OUTPUT_BASE="${8}"
+# Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
+STRAND="${9}"
+# Annotated repeat regions
+REPEATS_BED="${10}"
+# Run make_track.py after filter_lariats.py. true or false, default false
+UCSC_TRACK="${11}"
+# Keep read_classes.tsv.gz. true or false, default false
+KEEP_CLASSES="${12}"
+# Keep the temp files created during the run. true or false, default false
+KEEP_TEMP="${13}"
+# Number of threads to use
+THREADS="${14}"
+# Level for python logging. "DEBUG", "INFO", "WARNING", or "ERROR"
+LOG_LEVEL="${15}"
+# Directory containing lariat mapping pipeline files
+PIPELINE_DIR="${16}"
+
+
 
 #=============================================================================#
 #                                  Variables                                  #
@@ -53,15 +49,23 @@ fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
 heads_fasta="$OUTPUT_BASE"heads.fa
 heads_to_genome="$OUTPUT_BASE"heads_to_genome.sam
 # reads_to_fivep="$OUTPUT_BASE"reads_to_fivep.sam
-
 tails="$OUTPUT_BASE"tails.tsv
 putative_lariats="$OUTPUT_BASE"putative_lariats.tsv
 failed_fiveps="$OUTPUT_BASE"failed_fivep_alignments.tsv
 failed_heads="$OUTPUT_BASE"failed_head_alignments.tsv
 failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
 
-
-
+if [ "$STRAND" == "Unstranded" ]; then
+	hisat2_strand_arg=""
+elif [ "$STRAND" == "Forward" ] & [ "$SEQ_TYPE" == "single" ]; then
+	hisat2_strand_arg="--rna-strandness F"
+elif [ "$STRAND" == "Forward" ] & [ "$SEQ_TYPE" == "paired" ]; then
+	hisat2_strand_arg="--rna-strandness FR"
+elif [ "$STRAND" == "Reverse" ] & [ "$SEQ_TYPE" == "single" ]; then
+	hisat2_strand_arg="--rna-strandness R"
+elif [ "$STRAND" == "Reverse" ] & [ "$SEQ_TYPE" == "paired" ]; then
+	hisat2_strand_arg="--rna-strandness RF"
+fi
 
 
 
@@ -72,14 +76,17 @@ failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
 printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping reads to genome...\n"
 if [ "$SEQ_TYPE" == "single" ]; then
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
-	       --threads $THREADS -x $GENOME_INDEX -U $READ_FILE \
+	       $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -U $INPUT_FILES \
 		| samtools view --bam --with-header --add-flags PAIRED,READ1 \
 		| samtools sort --threads $THREADS --verbosity 0 \
 		> $output_bam \
 		|| exit 1
 elif [ "$SEQ_TYPE" == "paired" ]; then
+	# Get the two read files from the comma-separated list
+	IFS=',' read -r read_one read_two <<< "$INPUT_FILES"
+	# Map
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
-		   --threads $THREADS -x $GENOME_INDEX -1 $READ_ONE -2 $READ_TWO \
+		   $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -1 $read_one -2 $read_two \
 		| samtools view --bam --with-header \
 		| samtools sort --threads $THREADS --verbosity 0 \
 		> $output_bam \
@@ -90,11 +97,11 @@ samtools index $output_bam
 unmapped_read_count=$(samtools view --count --require-flags 4 $output_bam)
 if [ $unmapped_read_count == 0 ];then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining\n"
-	python -u $PIPELINE_DIR/scripts/classify_linear.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
+	python -W ignore $PIPELINE_DIR/scripts/classify_linear.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
 		|| exit 1
 	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
 		|| exit 1
-	python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL \
+	python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE \
 		|| exit 1
 fi
 
@@ -125,7 +132,7 @@ bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threa
 
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%d/%b/%y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
-python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $THREADS $GENOME_FASTA $FIVEP_FASTA $OUTPUT_BASE $LOG_LEVEL \
+python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS \
 	|| exit 1 
 
 ### Map read heads to genome
@@ -166,8 +173,12 @@ if $UCSC_TRACK; then
 fi
 
 
+
 wait
 ### Delete the temporary files 
+if ! $KEEP_CLASSES; then
+	rm $OUTPUT_BASE"read_classes.tsv.gz"
+fi
 if ! $KEEP_TEMP; then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting temporary files...\n"
 	rm $output_bam

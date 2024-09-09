@@ -129,14 +129,16 @@ def test_build_references(base, anno, repeatmasker_bed, threads, copy, tmp_path)
 						['1', '2', '3', '4', '5'])
 @pytest.mark.parametrize('prefix',
 						['', 'prefix_'])
-def test_filter_fivep_aligns(threads, prefix, tmp_path):
+@pytest.mark.parametrize('strand',
+						 ['Unstranded'])
+def test_filter_fivep_aligns(threads, prefix, strand, tmp_path):
 	# Link files needed in working dir
 	for file in ('unmapped_reads.fa', 'unmapped_reads.fa.fai', 'fivep_to_reads.sam', 'fivep_sites.fa'):
 		os.symlink(FILTER_FIVEP_ALIGNS_DIR/'inputs'/file, tmp_path/f'{prefix}{file}')
 
 	# Run script
-	command = f"python {PACKAGE_DIR/'scripts'/'filter_fivep_aligns.py'} {threads}" \
-			  f" {FILTER_FIVEP_ALIGNS_DIR/'inputs'/'genome.fa'} {FILTER_FIVEP_ALIGNS_DIR/'inputs'/'fivep_sites.fa'} {tmp_path}/{prefix} DEBUG"
+	command = f"python {PACKAGE_DIR/'scripts'/'filter_fivep_aligns.py'} {tmp_path}/{prefix} DEBUG" \
+			  f" {FILTER_FIVEP_ALIGNS_DIR/'inputs'/'genome.fa'} {FILTER_FIVEP_ALIGNS_DIR/'inputs'/'fivep_sites.fa'} {strand} {threads}"
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr
 	assert response.returncode == 0, response_text
@@ -201,7 +203,7 @@ def test_filter_lariats(prefix, seq_type, tmp_path):
 		os.symlink(FILTER_LARIATS_DIR/'inputs'/file, tmp_path/f'{prefix}{file}')
 
 	# Run script
-	command = f"python {PACKAGE_DIR/'scripts'/'filter_lariats.py'} {tmp_path}/{prefix} DEBUG " \
+	command = f"python {PACKAGE_DIR/'scripts'/'filter_lariats.py'} {tmp_path}/{prefix} DEBUG" \
 			  f" {seq_type} {FILTER_LARIATS_DIR/'inputs'/'genome.fa'} {FILTER_LARIATS_DIR/'inputs'/'repeatmasker.bed'}" 
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr
@@ -217,6 +219,7 @@ def test_filter_lariats(prefix, seq_type, tmp_path):
 		# File contents differ, decide how to report
 		if vscode_available():
 			vscode_compare(ref, out)
+			print(response_text)
 			pytest.fail(f'Output file differs from expected output: {out.name}')
 		else:
-			assert ref_lines == out_lines
+			assert ref_lines == out_lines, response_text

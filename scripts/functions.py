@@ -40,6 +40,7 @@ def reverse_complement(seq:str):
 	<seq> must be a string with only the characters "A", "C", "G", "T", and "N" 
 	reverse_complement("ACGTN") = "NACGT"
 	'''
+	seq = seq.upper()
 	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
 
 
@@ -93,7 +94,7 @@ def get_logger(level:str) -> logging.Logger:
 	return log
 
 
-def run_command(command:str, log:logging.Logger=None, input:str=None) -> str:
+def run_command(command:str, log:logging.Logger=None, input:str=None, timeout:int=None) -> str:
 	'''
 	Wrapper for subprocess.run(call.split(' '), input=input, capture_output=True, text=True) for handling errors and extracting stdout, when appropriate
 	'''
@@ -105,7 +106,11 @@ def run_command(command:str, log:logging.Logger=None, input:str=None) -> str:
 			else:
 				log.debug(f'Input (TRUNCATED): \n{input[:1_000]}')
 
-	response = subprocess.run(command.split(' '), input=input, capture_output=True, text=True)
+	response = subprocess.run(command.split(' '), 
+						   capture_output=True, 
+						   text=True, 
+						   input=input, 
+						   timeout=timeout)
 	if response.returncode != 0:
 		raise RunCommandError(process=response)
 	
@@ -134,6 +139,7 @@ def getfasta(genome_fasta:str, bedtools_input:str, log:logging.Logger=None) -> p
 	
 	# Remove the strand suffix from the names
 	seqs.name = seqs.name.str.slice(0,-3)
+	seqs.seq = seqs.seq.str.upper()
 	
 	return seqs
 

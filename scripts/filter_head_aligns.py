@@ -1,8 +1,6 @@
 import sys
 import os
 import multiprocessing as mp
-import collections
-import tempfile
 
 from intervaltree import Interval, IntervalTree
 import pandas as pd
@@ -218,7 +216,6 @@ def check_gaps(cigar:tuple) -> tuple:
 
 def get_bp_seqs(alignments:pd.DataFrame, genome_fasta:str):
 	alignments = alignments.copy()
-	alignments['window_start'] = pd.Series(alignments.bp_pos - BP_CONTEXT_LENGTH, dtype='str')
 	alignments['window_end'] = pd.Series(alignments.bp_pos + BP_CONTEXT_LENGTH+1, dtype='str')
 	alignments['align_num'] = alignments.index.to_series().astype(str)
 	alignments['zero'] = '0'
@@ -339,10 +336,20 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	alignments = pd.merge(alignments, tails, 'left', on=['read_id'])
 	if alignments.fivep_pos.isna().any():
 		raise RuntimeError(f"{alignments.fivep_pos.isna().sum()} alignments didn't match any tails read IDs, this shouldn't be possible")
+	alignments.fivep_pos = alignments.fivep_pos.astype('UInt64')
 	
 	# Infer info
-	alignments.fivep_pos = alignments.fivep_pos.astype('UInt64')
 	alignments['bp_pos'] = alignments.apply(lambda row: row['align_end']-1 if row['strand']=='+' else row['align_start'], axis=1)
+	
+	# Check if the bp window is out of the chromosome bounds
+	# This can happen with small chromosomes or contigs, and will cause bedtools getfasta to fail
+	alignments['window_start'] = pd.Series(alignments.bp_pos - BP_CONTEXT_LENGTH, dtype='str')
+	alignments.loc[alignments.window_start.astype('int')<0, 'filter_failed'] = 'bp_window_less_than_0'
+	alignments = drop_failed_alignments(alignments, output_base)
+	if alignments.empty:
+		return 
+
+	# Get the BP sequence from the genome
 	alignments = get_bp_seqs(alignments, genome_fasta)
 	alignments['genomic_bp_nt'] = alignments.genomic_bp_context.str.get(8)
 	
@@ -471,7 +478,6 @@ if __name__ == '__main__':
 	with open(TEMP_SWITCH_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
 	with open(CIRCULARS_FILE.format(output_base), 'w') as w:
-		print('\t'.join(CIRCULARS_COLS) + '\n')
 		w.write('\t'.join(CIRCULARS_COLS) + '\n')
 	with open(PUTATITVE_LARIATS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(PUTATITVE_LARIATS_COLS) + '\n')
@@ -479,20 +485,29 @@ if __name__ == '__main__':
 	# multiprocessing won't run correctly with just 1 chunk for some reason
 	if len(chunk_ranges) == 1:
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
-		filter_alignments_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, tails, introns, output_base, log_level)
+		filter_alignments_chunk(1, n_aligns, n_aligns, tails, introns, output_base, log_level)
 	else:
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
-		pool = mp.Pool(processes=threads)
+		# Create a pool of worker processes, leaving one core for the main process
+		pool = mp.Pool(processes=threads-1)
 		async_results = []
-		for chunk_start, chunk_end in chunk_ranges:
+		# Assign the first chunk to the main process and the rest of the chunks worker process 
+		for chunk_start, chunk_end in chunk_ranges[1:]:
 			result = pool.apply_async(filter_alignments_chunk, 
-							args=(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level,))
+									args=(chunk_start, chunk_end, n_aligns, 
+			   							tails, introns, output_base, log_level,))
 			async_results.append(result)
 		
 		# Don't create any more processes
 		pool.close()
-		# Wait until all processes are finished
+		
+		# Process the first chunk in the main process
+		filter_alignments_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, tails, introns, output_base, log_level)
+
+		# Now wait until all the other processes are finished
 		pool.join()
+		# Terminate the pool
+		pool.terminate()
 
 		# Check each process for errors
 		for result in async_results:
