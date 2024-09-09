@@ -93,6 +93,20 @@ READ_COUNTS_TEMPLATE = (
 
 READ_CLASSES = ("Linear", "Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
 				'Template_switching', 'Circularized_intron', 'Lariat')
+#=============================================================================#
+#                               Functions                                     #
+#=============================================================================#
+def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
+	'''
+	Get the number of reads that mapped to the reference genome
+	'''
+	command = f'samtools view --count --exclude-flags 12 {OUTPUT_BAM_FILE.format(output_base)}'
+	count = int(functions.run_command(command, log=log))
+	
+	if seq_type == 'paired':
+		count = count//2
+
+	return count
 
 
 
@@ -119,6 +133,9 @@ if __name__ == '__main__':
 	# Add input read count
 	r1 = pysam.FastxFile(settings['input_reads'].split(',')[0])
 	stats['input_count'] = sum(1 for read in r1)
+
+	# Add linear mapping count
+	stats['Linear'] = add_mapped_reads(output_base, seq_type, log)
 
 	# Add read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
