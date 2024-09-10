@@ -91,8 +91,8 @@ READ_COUNTS_TEMPLATE = (
 						"Read count after stage\tLariat filtering:\t{Lariat_filtering}\n"
 )
 
-READ_CLASSES = ("Linear", "Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
-				'Template_switching', 'Circularized_intron', 'Lariat')
+NOLINEAR_READ_CLASSES = ("Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
+						'Template_switching', 'Circularized_intron', 'Lariat')
 #=============================================================================#
 #                               Functions                                     #
 #=============================================================================#
@@ -102,7 +102,6 @@ def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
 	'''
 	command = f'samtools view --count --exclude-flags 12 {OUTPUT_BAM_FILE.format(output_base)}'
 	count = int(functions.run_command(command, log=log))
-	
 	if seq_type == 'paired':
 		count = count//2
 
@@ -143,7 +142,7 @@ if __name__ == '__main__':
 								.str.replace(' ', '_')
 								.str.replace('-', '_')
 								.str.replace("'", ''))
-	classes = (pd.Categorical(read_classes.read_class, categories=READ_CLASSES, ordered=True)
+	classes = (pd.Categorical(read_classes.read_class, categories=NOLINEAR_READ_CLASSES, ordered=True)
 				.value_counts()
 				.to_dict())
 	log.debug(f'Read classes: {classes}')
