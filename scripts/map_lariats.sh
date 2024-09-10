@@ -193,6 +193,7 @@ if ! $KEEP_TEMP; then
 	rm $failed_fiveps
 	rm $failed_heads
 	rm $failed_lariat
+	rm $OUTPUT_BASE"settings.json"
 fi 
 
 if [ "${OUTPUT_BASE: -1}" == "/" ];then
