@@ -39,9 +39,9 @@ CIRCULARS_COLS = ['read_id',
 				'chrom',
 				'strand',
 				'fivep_pos',
-				'bp_pos',
+				'head_end_pos',
 				'threep_pos',
-				'bp_dist_to_threep',
+				'head_dist_to_threep',
 				'read_is_reverse',
 				'read_bp_pos',
 				'read_seq',
@@ -415,7 +415,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		circulars = circulars.astype(str)
 		circulars.read_id = circulars.read_id.str.slice(0,-6)
 		circulars['fivep_sites'] = circulars[['fivep_chrom', 'fivep_pos', 'strand']].agg(functions.str_join, axis=1)
-		circulars = circulars[CIRCULARS_COLS]
+		circulars = circulars.rename(columns={'bp_pos': 'head_end_pos'})[CIRCULARS_COLS]
 		circulars = circulars.groupby('read_id', as_index=False).agg({col: functions.str_join for col in circulars.columns if col != 'read_id'})
 		with circulars_lock:
 			circulars.to_csv(CIRCULARS_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
