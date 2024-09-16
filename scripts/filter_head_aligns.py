@@ -415,7 +415,8 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		circulars = circulars.astype(str)
 		circulars.read_id = circulars.read_id.str.slice(0,-6)
 		circulars['fivep_sites'] = circulars[['fivep_chrom', 'fivep_pos', 'strand']].agg(functions.str_join, axis=1)
-		circulars = circulars.rename(columns={'bp_pos': 'head_end_pos'})[CIRCULARS_COLS]
+		circulars = circulars.rename(columns={'bp_pos': 'head_end_pos', 'bp_dist_to_threep':'head_dist_to_threep'})
+		circulars = circulars[CIRCULARS_COLS]
 		circulars = circulars.groupby('read_id', as_index=False).agg({col: functions.str_join for col in circulars.columns if col != 'read_id'})
 		with circulars_lock:
 			circulars.to_csv(CIRCULARS_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
@@ -514,5 +515,11 @@ if __name__ == '__main__':
 			# If an error was thrown in the process, raise it with .get()
 			if not result.successful():
 				result.get()
+
+	# Remove template-switching reads from circularized reads
+	circulars = pd.read_csv(CIRCULARS_FILE.format(output_base), sep='\t', na_filter=False)
+	temp_switches = pd.read_csv(TEMP_SWITCH_FILE.format(output_base), sep='\t', na_filter=False)
+	circulars = circulars.loc[~circulars.read_id.isin(temp_switches.read_id.values)]
+	circulars.to_csv(CIRCULARS_FILE.format(output_base), sep='\t', index=False)
 
 	log.debug('End of script')
