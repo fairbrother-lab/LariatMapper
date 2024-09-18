@@ -127,7 +127,7 @@ class Settings:
 			for char in FORBIDDEN_CHARS:
 				if char in str(self.output_prefix):
 					parser.error(f'Illegal character in output prefix: {char}')
-			self.output_base = f'{self.output_dir/self.output_prefix}'
+			self.output_base = f'{self.output_dir/self.output_prefix}_'
 
 		# Validate threads arg
 		if not self.threads>0:
