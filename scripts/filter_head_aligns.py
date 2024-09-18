@@ -43,11 +43,11 @@ CIRCULARS_COLS = ['read_id',
 				'threep_pos',
 				'head_dist_to_threep',
 				'read_is_reverse',
-				'read_bp_pos',
 				'read_seq',
-				'read_bp_nt',
-				'genomic_bp_nt',
-				'genomic_bp_context',
+				'read_head_end_pos',
+				'read_head_end_nt',
+				'head_end_nt',
+				'head_end_context',
 				'gene_id',
 				]
 PUTATITVE_LARIATS_COLS = ['read_id', 
@@ -58,8 +58,8 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'threep_pos', 
 						'bp_dist_to_threep',
 						'read_is_reverse', 
-						'read_bp_pos',
 						'read_seq', 
+						'read_bp_pos',
 						'read_bp_nt', 
 						'genomic_bp_nt', 
 						'genomic_bp_context', 
@@ -188,7 +188,7 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 			alignments = pd.concat([alignments, next_line])
 			chunk_end += 1
 		alignments = alignments.iloc[:-1]
-		
+
 	# Convert 1-based inclusive to 0-based inclusive
 	alignments.align_start = (alignments.align_start-1).astype('UInt64')
 	# Infer some more info
@@ -330,7 +330,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after alignment quality filter')
 		return 
-	
+
 	# Merge alignments with tails
 	# This expands each alignment row into alignment-5'ss-combination rows
 	alignments = pd.merge(alignments, tails, 'left', on=['read_id'])
@@ -352,6 +352,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	# Get the BP sequence from the genome
 	alignments = get_bp_seqs(alignments, genome_fasta)
 	alignments['genomic_bp_nt'] = alignments.genomic_bp_context.str.get(8)
+	print(alignments.loc[alignments.read_id.str.startswith('head_fail_5p_bp_order')].values)
 	
 	# Identify template-switching reads
 	alignments['template_switching'] = alignments.apply(is_template_switch, axis=1)
@@ -367,12 +368,14 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		temp_switches = temp_switches.groupby('read_id', as_index=False).agg({col: functions.str_join for col in temp_switches.columns if col != 'read_id'})
 		with temp_switch_lock:
 			temp_switches.to_csv(TEMP_SWITCH_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
-
+	print('t', alignments.read_id.values)
+	print(temp_switches.read_id.values)
 	# Filter out template-switching reads
 	alignments = alignments.loc[~alignments.template_switching].drop(columns='template_switching')
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after template-switching filter')
 		return 
+	print(alignments.read_id.values)
 	
 	# Identify introns that envelop the alignment
 	alignments['overlap_introns'] = alignments.apply(enveloping_introns, introns=introns, axis=1)
@@ -394,7 +397,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after fivep_intron_match filter')
 		return 
-	
+
 	# Infer more info
 	alignments['threep_pos'] = alignments.apply(add_nearest_threep, axis=1)
 	alignments['bp_dist_to_threep'] = alignments.apply(lambda row: -abs(row['bp_pos']-row['threep_pos']) if pd.notna(row['threep_pos']) else pd.NA, axis=1)
@@ -405,7 +408,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after final filters')
 		return 
-	
+
 	# Identify circularized intron reads
 	alignments['circular'] = alignments.bp_dist_to_threep.isin((0, -1, -2))
 
@@ -415,7 +418,13 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		circulars = circulars.astype(str)
 		circulars.read_id = circulars.read_id.str.slice(0,-6)
 		circulars['fivep_sites'] = circulars[['fivep_chrom', 'fivep_pos', 'strand']].agg(functions.str_join, axis=1)
-		circulars = circulars.rename(columns={'bp_pos': 'head_end_pos', 'bp_dist_to_threep':'head_dist_to_threep'})
+		circulars = circulars.rename(columns={'bp_pos': 'head_end_pos', 
+											'bp_dist_to_threep':'head_dist_to_threep',
+											'read_bp_pos': 'read_head_end_pos',
+											'read_bp_nt': 'read_head_end_nt',
+											'genomic_bp_nt': 'head_end_nt',
+											'genomic_bp_context': 'head_end_context',											
+											})
 		circulars = circulars[CIRCULARS_COLS]
 		circulars = circulars.groupby('read_id', as_index=False).agg({col: functions.str_join for col in circulars.columns if col != 'read_id'})
 		with circulars_lock:
