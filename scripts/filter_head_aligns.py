@@ -352,7 +352,6 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	# Get the BP sequence from the genome
 	alignments = get_bp_seqs(alignments, genome_fasta)
 	alignments['genomic_bp_nt'] = alignments.genomic_bp_context.str.get(8)
-	print(alignments.loc[alignments.read_id.str.startswith('head_fail_5p_bp_order')].values)
 	
 	# Identify template-switching reads
 	alignments['template_switching'] = alignments.apply(is_template_switch, axis=1)
@@ -368,14 +367,12 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		temp_switches = temp_switches.groupby('read_id', as_index=False).agg({col: functions.str_join for col in temp_switches.columns if col != 'read_id'})
 		with temp_switch_lock:
 			temp_switches.to_csv(TEMP_SWITCH_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
-	print('t', alignments.read_id.values)
-	print(temp_switches.read_id.values)
+
 	# Filter out template-switching reads
 	alignments = alignments.loc[~alignments.template_switching].drop(columns='template_switching')
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after template-switching filter')
 		return 
-	print(alignments.read_id.values)
 	
 	# Identify introns that envelop the alignment
 	alignments['overlap_introns'] = alignments.apply(enveloping_introns, introns=introns, axis=1)
