@@ -169,9 +169,6 @@ fi
 
 wait
 ### Delete the temporary files 
-if ! $KEEP_CLASSES; then
-	rm $OUTPUT_BASE"read_classes.tsv.gz"
-fi
 if ! $KEEP_TEMP; then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting temporary files...\n"
 	rm $output_bam
@@ -194,6 +191,10 @@ if ! $KEEP_TEMP; then
 	rm $failed_heads
 	rm $failed_lariat
 	rm $OUTPUT_BASE"settings.json"
+	if ! $KEEP_CLASSES; then
+		rm $OUTPUT_BASE"read_classes.tsv.gz"
+	fi
+fi
 fi 
 
 if [ "${OUTPUT_BASE: -1}" == "/" ];then
