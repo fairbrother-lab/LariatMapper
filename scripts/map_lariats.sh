@@ -194,7 +194,6 @@ if ! $KEEP_TEMP; then
 	if ! $KEEP_CLASSES; then
 		rm $OUTPUT_BASE"read_classes.tsv.gz"
 	fi
-fi
 fi 
 
 if [ "${OUTPUT_BASE: -1}" == "/" ];then
