@@ -11,51 +11,63 @@ Output: Lariats, circularized introns, and template-switching events
 ## Setup
 
 ### Dependencies
-The software dependencies are detailed in `environment.yaml`, which can be used to make a conda environment for the pipeline by running
+The software dependencies are detailed in `requirements.txt`. We recommend creating a dedicated [conda environment](https://docs.conda.io/projects/conda/en/latest/index.html) for LariatMapper to avoid dependency-related problems during use.
 
-	conda env create -f environment.yaml
+If you have conda installed, you can create a new environment named "lariat_mapper" by running
 
-The environment can then be activated by running 
+	conda create --name "lariat_mapper" --file requirements.txt --channel conda-forge --channel bioconda
 
-	conda activate larmap_env
+The environment can then be activated by running
+
+	conda activate lariat_mapper
  
-before running scripts in the pipeline (RECOMMENDED).
+before running scripts in the pipeline.
 
 For M1 mac users: please install packages `bowtie2`, `bedtools`, and `samtools` using the command `arch -arm64 brew install [package]` before running `conda`, if any of the above pacakges has not previously been installed.
 
 ### Reference files
-Create a directory with the reference genome data required by the pipeline. 
+LariatMapper needs a set of reference files to run. 
 
 You will need:
-- A FASTA file of the reference genome 
-- A GTF or GFF file of annotations for the reference genome
-- A hisat2 index of the reference genome
+- A FASTA file of the reference genome (`GENOME_FASTA`)
+- A GTF or GFF file of annotations for the reference genome (`GENOME_ANNO`)
+- A hisat2 index of the reference genome (`HISAT2_INDEX`)
 
-Run `build_references.py` with the path to each input file and the desired output path:
+Run `build_references.py` with the paths to each file and the desired output path:
 
-	python build_references.py -f <GENOME_FASTA> -a <GENOME_ANNO> -i <HISAT2_INDEX> -o <OUT_DIR>
+	python build_references.py -f GENOME_FASTA -a <GENOME_ANNO> -i <HISAT2_INDEX> -o <OUT_DIR>
 
-If you have a BED file of repetitive regions from RepeatMasker, you can include the argument `-r <REPEATMASKER_BED>` to copy it to the reference directory. You can find such a file for several reference genomes on the UCSC Genome Browser (https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker".
+You can then use `OUT_DIR` as the reference files directory when running the pipeline (argument `-r, --ref_dir`)
 
-You can then use `<OUT_DIR>` as the reference files directory when running the pipeline (argument `-r, --ref_dir`)
+If you have a BED file of repetitive regions from RepeatMasker, you can include the argument `-r REPEATMASKER_BED` to copy it to the reference directory. You can find RepeatMasker files for several reference genomes on the UCSC Genome Browser (https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker". 
 
-### Input
-LariatMapper accepts FASTQ-format RNA-sequencing data. 
-
-The data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers (UMIs). De-duplication is not required but *is* recommended.
+If a RepeatMasker file is included in a run, LariatMapper will check putative lariat alignments for false positives which arise from repetitive regions. If the 5' splice site and branchpoint are both located in a reptitive region, the alignment will be filtered out.
 
 
 ## Running the Pipeline
-Run `python larmap.py` with the following arguments:
+### Required arguments 
+For single-end sequencing data, run
+
+	python larmap.py -f READ_FILE -r REF_DIR -o OUTPUT_DIR
+
+For paired-end sequencing data, run
+
+	python larmap.py -1 READ_ONE -2 READ_TWO -r REF_DIR -o OUTPUT_DIR
+
+LariatMapper accepts FASTQ-format files uncompressed or gzip-compressed. The data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers (UMIs) for reliable results. 
+
+
+
+### Optional arguments
 
 
 ## Output
-All output will be written in the directory specified with `-o, --output_dir`. This includes:
+All output will be written in the directory `OUT_DIR`. This includes:
 	
 - `lariat_reads.tsv`: A table of lariat reads and their alignments
 - `circularized_intron_reads.tsv`: A table of circularized intron reads and their alignments
 - `template_switching_reads.tsv`: A table of 
-- `summary_statistics.tsv`: A collection of read counts for different categories of RNA, read counts for each step in the pipeline, and performance measures
+- `summary.txt`: A collection of read counts for different categories of RNA, read counts for each step in the pipeline, and performance measures
 
 `lariat_reads.tsv` and `circularized_intron_reads.tsv` columns:
 
@@ -92,7 +104,18 @@ All output will be written in the directory specified with `-o, --output_dir`. T
 
 *may be multiple comma-delimited values
 
-All position values (`fivep_pos`, `threep_pos`, `bp_pos`) are 0-based and inclusive. If a lariat's 5' splice site and branchpoint could be attributed to multiple gene annotations, the gene values will appear like so:
+All position values (`fivep_pos`, `threep_pos`, `bp_pos`) are 0-based and inclusive. 
+
+If a lariat's 5' splice site and branchpoint could be attributed to multiple gene annotations, the gene values will appear like so:
 
 	gene_name	gene_id	gene_type
 	PCBP2,ENSG00000257379	ENSG00000197111.16,ENSG00000257379.1	lncRNA,protein_coding
+
+
+## Demo
+
+
+## Design
+
+
+<img src="resources/images/LariatMapper.png" alt="" width="500"/>
