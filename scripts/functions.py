@@ -22,11 +22,21 @@ class RunCommandError(Exception):
 
 	def __init__(self, process:subprocess.CompletedProcess):
 		super().__init__()
-		self.process = process
-		self.response = process.stdout + process.stderr
+		self.returncode = process.returncode
+		self.stdout = process.stdout 
+		self.stderr = process.stderr
+		self.command = process.args
+		# Prep the command for printing
+		if isinstance(self.command, list):
+			self.command = ' '.join(self.command)
+		if len(self.command) > 1000:
+			self.command = self.command[:1000] + '... (TRUNCATED)'
 
 	def __str__(self):
-		return f'Command returned non-zero exit status {self.process.returncode}. \n{self.response}'
+		return f"Command returned non-zero exit status {self.returncode}.\n" +\
+			f"Command: {self.command}\n" +\
+			f"Standard out: {self.stdout}\n" +\
+			f"Standard error: {self.stderr}" 
 
 
 
