@@ -63,14 +63,18 @@ class Settings:
 	def __post_init__(self):
 		# Reference files
 		if self.ref_dir is None:
-			for ref, ref_dir_name in self.REQ_REFS:
-				if getattr(self, ref) is None:
-					raise ValueError(f"--ref_dir not supplied so all individual reference file arguments are required. Missing --{ref}")
+			for ref_attr_name, ref_file_name in self.REQ_REFS:
+				if getattr(self, ref_attr_name) is None:
+					raise ValueError(f"--ref_dir not supplied so all individual reference file arguments are required. Missing --{ref_attr_name}")
 		else:
-			for ref, ref_dir_name in self.REQ_REFS:
-				if getattr(self, ref) is None:
-					setattr(self, ref, pathlib.Path(os.path.join(self.ref_dir, ref_dir_name)))
-			setattr(self, 'ref_repeatmasker', pathlib.Path(os.path.join(self.ref_dir, 'repeatmasker.bed')))
+			for ref_attr_name, ref_file_name in self.REQ_REFS:
+				if getattr(self, ref_attr_name) is None:
+					setattr(self, ref_attr_name, pathlib.Path(os.path.join(self.ref_dir, ref_file_name)))
+			
+			# If ref_repeatmasker wasn't input, set it to {ref_dir}/repeatmasker.bed
+			# If it doesn't exist that's fine, filter_lariats.py will check before trying to use it
+			if self.ref_repeatmasker is None:
+				setattr(self, 'ref_repeatmasker', pathlib.Path(os.path.join(self.ref_dir, 'repeatmasker.bed')))
 
 		# input_reads and seq_type
 		if self.read_file is not None and self.read_one is None and self.read_two is None:
