@@ -5,34 +5,34 @@
 #=============================================================================#
 #                                  Arguments                                  #
 #=============================================================================#
-# RNA-seq fastq read file(s)
-INPUT_FILES="${1}"
-# Type of sequencing data. "single" or "paired"
-SEQ_TYPE="${2}"
 # hisat2 index of reference genome
-GENOME_INDEX="${3}"
+GENOME_INDEX="${1}"
 # Reference genome FASTA file
-GENOME_FASTA="${4}"
+GENOME_FASTA="${2}"
 # FASTA file of 5' splice sites (first 20nts of all introns)
-FIVEP_FASTA="${5}"
+FIVEP_FASTA="${3}"
 # Annotated exons
-EXONS_TSV="${6}"
+EXONS_TSV="${4}"
 # Annotated introns
-INTRONS_TSV="${7}"
-# Output directory 
-OUTPUT_BASE="${8}"
+INTRONS_TSV="${5}"
 # Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
-STRAND="${9}"
+STRAND="${6}"
 # Annotated repeat regions
-REPEATS_BED="${10}"
+REPEATS_BED="${7}"
 # Run make_track.py after filter_lariats.py. true or false, default false
-UCSC_TRACK="${11}"
+UCSC_TRACK="${8}"
 # Keep read_classes.tsv.gz. true or false, default false
-KEEP_CLASSES="${12}"
+KEEP_CLASSES="${9}"
 # Keep the temp files created during the run. true or false, default false
-KEEP_TEMP="${13}"
+KEEP_TEMP="${10}"
 # Number of threads to use
-THREADS="${14}"
+THREADS="${11}"
+# RNA-seq fastq read file(s)
+INPUT_FILES="${12}"
+# Type of sequencing data. "single" or "paired"
+SEQ_TYPE="${13}"
+# Output directory 
+OUTPUT_BASE="${14}"
 # Level for python logging. "DEBUG", "INFO", "WARNING", or "ERROR"
 LOG_LEVEL="${15}"
 # Directory containing lariat mapping pipeline files

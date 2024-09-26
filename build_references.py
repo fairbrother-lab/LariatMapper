@@ -260,8 +260,8 @@ if __name__ == '__main__':
 
 	# Print arguments
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
-	arg_message = '\n\t'.join(arg_message)
-	log.info(f'Arguments: \n\t{arg_message}')
+	arg_message = '\n'.join(arg_message)
+	log.info(f'Arguments: \n{arg_message}')
 
 	# Validate the args and determine additional variables
 	hisat2_extensions, anno_type, gunzip = process_args(args, parser, log)
