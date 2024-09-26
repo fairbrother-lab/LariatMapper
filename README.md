@@ -23,7 +23,7 @@ The environment can then be activated by running
  
 before running scripts in the pipeline.
 
-For M1 mac users: please install packages `bowtie2`, `bedtools`, and `samtools` using the command `arch -arm64 brew install [package]` before running `conda`, if any of the above pacakges has not previously been installed.
+For M1 mac users: please install packages `bowtie2`, `bedtools`, and `samtools` using the command `arch -arm64 brew install [package]` before running `conda`, if any of the above pacakges has not previously been installed. ??????????
 
 ### Reference files
 LariatMapper needs a set of reference files to run. 
@@ -90,7 +90,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - genomic_bp_context: The genomic sequence from positions -4 to +5 of the branchpoint. Reverse-complemented if strand is "-"
 - total_mapped_reads: The number of input reads that mapped linearly to the reference genome (identical across all rows)
 
-*may be multiple comma-delimited values
+*May be multiple comma-delimited values
 
 `template_switching_reads.tsv` columns:
 
@@ -102,7 +102,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - genomic_bp_context*: The genomic sequence from positions -4 to +5 of the branchpoint. Reverse-complemented if strand is "-"
 - read_bp_pos*: The position of the branchpoint in the read 
 
-*may be multiple comma-delimited values
+*May be multiple comma-delimited values
 
 All position values (`fivep_pos`, `threep_pos`, `bp_pos`) are 0-based and inclusive. 
 
@@ -112,10 +112,7 @@ If a lariat's 5' splice site and branchpoint could be attributed to multiple gen
 	PCBP2,ENSG00000257379	ENSG00000197111.16,ENSG00000257379.1	lncRNA,protein_coding
 
 
-## Demo
+## Additional information
+See DEMO.md for a demonstration of a basic LariatMapper run.
 
-
-## Design
-
-
-<img src="resources/images/LariatMapper.png" alt="" width="500"/>
+See DESIGN.md for an overiview of LariatMapper's design and the theory behind it.
