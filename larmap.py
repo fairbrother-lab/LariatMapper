@@ -27,6 +27,12 @@ class Settings:
 				('ref_5p_fasta', 'fivep_sites.fa'),
 				('ref_exons', 'exons.tsv.gz'),
 				('ref_introns', 'introns.tsv.gz'))
+	PATH_SETTINGS = ('read_file', 'read_one', 'read_two', 'ref_dir', 'ref_h2index', 'ref_fasta', 
+					'ref_5p_fasta', 'ref_exons', 'ref_introns', 'output_dir', 'ref_repeatmasker',
+					'pipeline_dir')
+	ARGS_TO_MAP_LARIATS = ('ref_h2index', 'ref_fasta', 'ref_5p_fasta', 'ref_exons', 'ref_introns', 
+						'strand', 'ref_repeatmasker', 'ucsc_track', 'keep_classes', 'keep_temp', 
+						'threads', 'input_reads', 'seq_type', 'output_base', 'log_level', 'pipeline_dir')
 
 	# Supplied argument attributes
 	# If an argument is not supplied, it will be None
@@ -63,11 +69,11 @@ class Settings:
 	def __post_init__(self):
 		# Reference files
 		if self.ref_dir is None:
-			for ref_attr_name, ref_file_name in self.REQ_REFS:
+			for ref_attr_name, ref_file_name in Settings.REQ_REFS:
 				if getattr(self, ref_attr_name) is None:
 					raise ValueError(f"--ref_dir not supplied so all individual reference file arguments are required. Missing --{ref_attr_name}")
 		else:
-			for ref_attr_name, ref_file_name in self.REQ_REFS:
+			for ref_attr_name, ref_file_name in Settings.REQ_REFS:
 				if getattr(self, ref_attr_name) is None:
 					setattr(self, ref_attr_name, pathlib.Path(os.path.join(self.ref_dir, ref_file_name)))
 			
@@ -96,6 +102,21 @@ class Settings:
 		else:
 			self.log_level = 'INFO'
 
+		# Make sure all paths are absolute
+		for attr in Settings.PATH_SETTINGS:
+			if getattr(self, attr) is not None:
+				setattr(self, attr, pathlib.Path(getattr(self, attr)).resolve())
+		
+		# output_base
+		# All output files will be formatted like f"{output_base}file.ext"
+		if self.output_prefix is None:
+			self.output_base = f'{self.output_dir}/'
+		else:
+			for char in FORBIDDEN_CHARS:
+				if char in str(self.output_prefix):
+					parser.error(f'Illegal character in output prefix: {char}')
+			self.output_base = f'{self.output_dir/self.output_prefix}_'
+
 
 	def validate_args(self):
 		# Confirm that the read file(s) exit
@@ -122,29 +143,16 @@ class Settings:
 		for char in FORBIDDEN_CHARS:
 			if char in str(self.output_dir):
 				raise ValueError(f'Illegal character in output directory: {char}')
-		
-		# Determine the output_base
-		# All output files will be formatted like f"{output_base}file.ext"
-		if self.output_prefix is None:
-			self.output_base = f'{self.output_dir}/'
-		else:
-			for char in FORBIDDEN_CHARS:
-				if char in str(self.output_prefix):
-					parser.error(f'Illegal character in output prefix: {char}')
-			self.output_base = f'{self.output_dir/self.output_prefix}_'
 
 		# Validate threads arg
 		if not self.threads>0:
 			raise ValueError(f'-t/--threads must be a positive integer. Input was "{repr(self.threads)}"')
-		
+
 
 	@property
 	def map_lariats_args(self):
 		args = []
-		for attr in ('input_reads', 'seq_type', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 
-			   		'ref_exons', 'ref_introns','output_base', 'strand', 'ref_repeatmasker', 
-					'ucsc_track', 'keep_classes', 'keep_temp', 'threads', 'log_level', 
-					'pipeline_dir'):
+		for attr in Settings.ARGS_TO_MAP_LARIATS:
 			arg_val = str(getattr(self, attr))
 			if attr in ('ucsc_track', 'keep_classes', 'keep_temp'):
 				arg_val = arg_val.lower()
@@ -154,7 +162,7 @@ class Settings:
 	
 
 	def json_dump(self, file):
-		dict_ = {key: str(val) for key,val in dataclasses.asdict(settings).items()}
+		dict_ = {key: str(val) for key,val in dataclasses.asdict(self).items()}
 		with open(file, 'w') as json_file:
 			json.dump(dict_, json_file)
 
@@ -249,8 +257,8 @@ if __name__ == '__main__':
 
 	# Report arguments
 	arg_message = [f'{key}={val}' for key, val in args.items() if val is not None and val is not False]
-	arg_message = '\n\t'.join(arg_message)
-	log.info(f'Arguments: \n\t{arg_message}')
+	arg_message = '\n'.join(arg_message)
+	log.info(f'Arguments: \n{arg_message}')
 
 	# Check if up-to-date
 	if settings.skip_version_check is False:
