@@ -229,7 +229,7 @@ if __name__ == '__main__':
 	# Optional arguments
 	optional_args = parser.add_argument_group(title='Optional arguments')
 		# Experimentally-revelant options 
-	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'Forward', 'Reverse'), default='Unstranded', help="Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; Forward = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Reverse = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)")
+	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help="WARNING, EXPERIMENTAL FEATURE STILL IN DEVELOPMENT! Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)")
 	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = No filter, unless a RepeatMasker BED file is found in REF_DIR).')
 		# Output options
 	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
@@ -257,8 +257,8 @@ if __name__ == '__main__':
 
 	# Report arguments
 	arg_message = [f'{key}={val}' for key, val in args.items() if val is not None and val is not False]
-	arg_message = '\n'.join(arg_message)
-	log.info(f'Arguments: \n{arg_message}')
+	arg_message = '\n\t'.join(arg_message)
+	log.info(f'Arguments: \n\t{arg_message}')
 
 	# Check if up-to-date
 	if settings.skip_version_check is False:
