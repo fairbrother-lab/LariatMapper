@@ -110,20 +110,20 @@ def run_command(command:str, log:logging.Logger=None, input:str=None, timeout:in
 	'''
 	if log is not None:
 		log.debug(f'Running command: {repr(command)}')
-		if input is not None: 
+		if input is not None:
 			if len(input) <= 1_000:
 				log.debug(f'Input: \n{input}')
 			else:
 				log.debug(f'Input (TRUNCATED): \n{input[:1_000]}')
 
 	response = subprocess.run(command.split(' '), 
-						   capture_output=True, 
-						   text=True, 
-						   input=input, 
-						   timeout=timeout)
+							capture_output=True, 
+							text=True, 
+							input=input, 
+							timeout=timeout)
 	if response.returncode != 0:
 		raise RunCommandError(process=response)
-	
+
 	return response.stderr.strip() + response.stdout.strip()
 
 
