@@ -528,4 +528,12 @@ if __name__ == '__main__':
 	circulars = circulars.loc[~circulars.read_id.isin(temp_switches.read_id.values)]
 	circulars.to_csv(CIRCULARS_FILE.format(output_base), sep='\t', index=False)
 
+	# Collapse temp_switch rows because somehow read id duplicates show up despite
+	# the fact that each read should be totally covered in a single chunk
+	temp_switches = (temp_switches
+				  		.groupby('read_id', as_index=False)
+						.agg({col: functions.str_join for col in temp_switches.columns if col != 'read_id'})
+	)
+	temp_switches.to_csv(TEMP_SWITCH_FILE.format(output_base), sep='\t', index=False)
+
 	log.debug('End of script')
