@@ -268,6 +268,8 @@ if __name__ == '__main__':
 		except Exception as e:
 			log.debug(e)
 			log.warning('Could not check if LariatMapper is up-to-date with the main branch on GitHub. Continuing anyway...')
+			time.sleep(60)	# Give the user a chance to see the warning
+
 
 	# Validate arguments
 	settings.validate_args()
