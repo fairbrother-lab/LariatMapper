@@ -187,3 +187,14 @@ def linecount(file:str) -> int:
 		count = sum(1 for line in file_in)
 	
 	return count
+
+
+def get_chrom_length(faidx:str, chrom:str) -> int:
+	'''
+	Retrieve the length of a chromosome from a faidx index file (e.g. genome.fa.fai)
+	'''
+	with open(faidx) as file_in:
+		for line in file_in:
+			if line.startswith(chrom):
+				return int(line.split('\t')[1])
+
