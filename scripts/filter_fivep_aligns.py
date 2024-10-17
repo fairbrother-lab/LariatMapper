@@ -67,7 +67,7 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 			up_pos = max(fivep_pos-5, 1) 				# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{up_pos}\t{fivep_pos}\t{site}\t0\t{strand}\n'  
 		else:
-			chrom_length = len(Fasta(genome_fasta)[chrom])
+			chrom_length = functions.get_chrom_length(f'{genome_fasta}.fai', chrom)
 			up_pos = min(fivep_pos+6, chrom_length)		# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{fivep_pos+1}\t{up_pos}\t{site}\t0\t{strand}\n'
 
