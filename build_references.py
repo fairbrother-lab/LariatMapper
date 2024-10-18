@@ -260,8 +260,8 @@ if __name__ == '__main__':
 
 	# Print arguments
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
-	arg_message = '\n\t'.join(arg_message)
-	log.info(f'Arguments: \n\t{arg_message}')
+	arg_message = '\n'.join(arg_message)
+	log.info(f'Arguments: \n{arg_message}')
 
 	# Validate the args and determine additional variables
 	hisat2_extensions, anno_type, gunzip = process_args(args, parser, log)
@@ -282,10 +282,12 @@ if __name__ == '__main__':
 			shutil.copyfile(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
 	else:
 		log.info('Creating links to input files...')
-		os.symlink(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
+		if not os.path.isfile(f'{out_dir}/{REF_GENOME_FILE}'):
+			os.symlink(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
 		for ext in hisat2_extensions:
-			os.symlink(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
-		if repeatmasker_bed is not None:
+			if not os.path.isfile(f'{out_dir}/{REF_HISAT2_INDEX}{ext}'):
+				os.symlink(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
+		if repeatmasker_bed is not None and not os.path.isfile(f'{out_dir}/{REF_REPEATMASKER_FILE}'):
 			os.symlink(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
 
 	log.info('Parsing transcripts from annotation file...')

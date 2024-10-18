@@ -70,6 +70,17 @@ SUMMARY_TEMPLATE = (
 					"Head mapping:\t{Head_mapping}\n"
 					"Head alignment filtering:\t{Head_alignment_filtering}\n"
 					"Lariat filtering:\t{Lariat_filtering}\n"
+					"\n"
+					"----------------------------------------\n"
+					"          Additional statistics         \n"
+					"----------------------------------------\n"
+					"Lariat reads, genomic_bp_nt = A:\t{A:.2%}\n"
+					"Lariat reads, genomic_bp_nt = C:\t{C:.2%}\n"
+					"Lariat reads, genomic_bp_nt = G:\t{G:.2%}\n"
+					"Lariat reads, genomic_bp_nt = T:\t{T:.2%}\n"
+					"Lariat reads, genomic_bp_nt = N:\t{N:.2%}\n"
+					"Lariat reads, genomic_bp_nt ≠ read_bp_nt:\t{bp_mismatch:.2%}\n"
+					"Lariat reads, |bp_dist_to_threep| ≤ 70:\t{within_70:.2%}\n"
 )
 READ_COUNTS_TEMPLATE = (
 						"Category\tSubcategory\tReads\n"
@@ -91,8 +102,21 @@ READ_COUNTS_TEMPLATE = (
 						"Read count after stage\tLariat filtering:\t{Lariat_filtering}\n"
 )
 
-READ_CLASSES = ("Linear", "Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
-				'Template_switching', 'Circularized_intron', 'Lariat')
+NOLINEAR_READ_CLASSES = ("Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
+						'Template_switching', 'Circularized_intron', 'Lariat')
+#=============================================================================#
+#                               Functions                                     #
+#=============================================================================#
+def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
+	'''
+	Get the number of reads that mapped to the reference genome
+	'''
+	command = f'samtools view --count --exclude-flags 12 {OUTPUT_BAM_FILE.format(output_base)}'
+	count = int(functions.run_command(command, log=log))
+	if seq_type == 'paired':
+		count = count//2
+
+	return count
 
 
 
@@ -120,13 +144,16 @@ if __name__ == '__main__':
 	r1 = pysam.FastxFile(settings['input_reads'].split(',')[0])
 	stats['input_count'] = sum(1 for read in r1)
 
+	# Add linear mapping count
+	stats['Linear'] = add_mapped_reads(output_base, seq_type, log)
+
 	# Add read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
 	read_classes.read_class = (read_classes.read_class
 								.str.replace(' ', '_')
 								.str.replace('-', '_')
 								.str.replace("'", ''))
-	classes = (pd.Categorical(read_classes.read_class, categories=READ_CLASSES, ordered=True)
+	classes = (pd.Categorical(read_classes.read_class, categories=NOLINEAR_READ_CLASSES, ordered=True)
 				.value_counts()
 				.to_dict())
 	log.debug(f'Read classes: {classes}')
@@ -172,6 +199,14 @@ if __name__ == '__main__':
 			if align.is_mapped and align.mate_is_unmapped:
 				mp += 1
 		stats['mixed_pairs'] = mp
+
+	# Add additional info
+	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t')
+	lariat_reads.genomic_bp_nt = pd.Categorical(lariat_reads.genomic_bp_nt, categories=['A', 'C', 'G', 'T', 'N'])
+	stats.update(lariat_reads.genomic_bp_nt.value_counts(normalize=True).to_dict())
+	stats['within_70'] = lariat_reads.bp_dist_to_threep.abs().le(70).sum()/lariat_reads.shape[0]
+	stats['bp_mismatch'] = lariat_reads.genomic_bp_nt.ne(lariat_reads.read_bp_nt).sum()/lariat_reads.shape[0]
+	
 	
 	# Write summary info to file
 	log.debug(f'Summary stats: {stats}')

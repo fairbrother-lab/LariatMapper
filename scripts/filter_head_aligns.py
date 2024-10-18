@@ -39,15 +39,15 @@ CIRCULARS_COLS = ['read_id',
 				'chrom',
 				'strand',
 				'fivep_pos',
-				'bp_pos',
+				'head_end_pos',
 				'threep_pos',
-				'bp_dist_to_threep',
+				'head_dist_to_threep',
 				'read_is_reverse',
-				'read_bp_pos',
 				'read_seq',
-				'read_bp_nt',
-				'genomic_bp_nt',
-				'genomic_bp_context',
+				'read_head_end_pos',
+				'read_head_end_nt',
+				'head_end_nt',
+				'head_end_context',
 				'gene_id',
 				]
 PUTATITVE_LARIATS_COLS = ['read_id', 
@@ -58,8 +58,8 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'threep_pos', 
 						'bp_dist_to_threep',
 						'read_is_reverse', 
-						'read_bp_pos',
 						'read_seq', 
+						'read_bp_pos',
 						'read_bp_nt', 
 						'genomic_bp_nt', 
 						'genomic_bp_context', 
@@ -188,7 +188,7 @@ def parse_alignments_chunk(alignments_sam:str, chunk_start:int, chunk_end:int, n
 			alignments = pd.concat([alignments, next_line])
 			chunk_end += 1
 		alignments = alignments.iloc[:-1]
-		
+
 	# Convert 1-based inclusive to 0-based inclusive
 	alignments.align_start = (alignments.align_start-1).astype('UInt64')
 	# Infer some more info
@@ -330,7 +330,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after alignment quality filter')
 		return 
-	
+
 	# Merge alignments with tails
 	# This expands each alignment row into alignment-5'ss-combination rows
 	alignments = pd.merge(alignments, tails, 'left', on=['read_id'])
@@ -394,7 +394,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after fivep_intron_match filter')
 		return 
-	
+
 	# Infer more info
 	alignments['threep_pos'] = alignments.apply(add_nearest_threep, axis=1)
 	alignments['bp_dist_to_threep'] = alignments.apply(lambda row: -abs(row['bp_pos']-row['threep_pos']) if pd.notna(row['threep_pos']) else pd.NA, axis=1)
@@ -405,7 +405,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 	if alignments.empty:
 		log.debug(f'Process {os.getpid()}: Chunk exhausted after final filters')
 		return 
-	
+
 	# Identify circularized intron reads
 	alignments['circular'] = alignments.bp_dist_to_threep.isin((0, -1, -2))
 
@@ -415,6 +415,13 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		circulars = circulars.astype(str)
 		circulars.read_id = circulars.read_id.str.slice(0,-6)
 		circulars['fivep_sites'] = circulars[['fivep_chrom', 'fivep_pos', 'strand']].agg(functions.str_join, axis=1)
+		circulars = circulars.rename(columns={'bp_pos': 'head_end_pos', 
+											'bp_dist_to_threep':'head_dist_to_threep',
+											'read_bp_pos': 'read_head_end_pos',
+											'read_bp_nt': 'read_head_end_nt',
+											'genomic_bp_nt': 'head_end_nt',
+											'genomic_bp_context': 'head_end_context',											
+											})
 		circulars = circulars[CIRCULARS_COLS]
 		circulars = circulars.groupby('read_id', as_index=False).agg({col: functions.str_join for col in circulars.columns if col != 'read_id'})
 		with circulars_lock:
@@ -514,5 +521,19 @@ if __name__ == '__main__':
 			# If an error was thrown in the process, raise it with .get()
 			if not result.successful():
 				result.get()
+
+	# Remove template-switching reads from circularized reads
+	circulars = pd.read_csv(CIRCULARS_FILE.format(output_base), sep='\t', na_filter=False)
+	temp_switches = pd.read_csv(TEMP_SWITCH_FILE.format(output_base), sep='\t', na_filter=False)
+	circulars = circulars.loc[~circulars.read_id.isin(temp_switches.read_id.values)]
+	circulars.to_csv(CIRCULARS_FILE.format(output_base), sep='\t', index=False)
+
+	# Collapse temp_switch rows because somehow read id duplicates show up despite
+	# the fact that each read should be totally covered in a single chunk
+	temp_switches = (temp_switches
+				  		.groupby('read_id', as_index=False)
+						.agg({col: functions.str_join for col in temp_switches.columns if col != 'read_id'})
+	)
+	temp_switches.to_csv(TEMP_SWITCH_FILE.format(output_base), sep='\t', index=False)
 
 	log.debug('End of script')
