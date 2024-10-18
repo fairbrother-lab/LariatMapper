@@ -63,7 +63,13 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 	for site in fivep_sites:
 		chrom, fivep_pos, strand = site.split(';')
 		fivep_pos = int(fivep_pos)
-		bedtools_input += f'{chrom}\t{fivep_pos-5}\t{fivep_pos}\t{site}\t0\t{strand}\n' if strand == '+' else f'{chrom}\t{fivep_pos+1}\t{fivep_pos+6}\t{site}\t0\t{strand}\n'
+		if strand == '+':
+			up_pos = max(fivep_pos-5, 1) 				# Make sure the 5bp upstream is within chrom
+			bedtools_input += f'{chrom}\t{up_pos}\t{fivep_pos}\t{site}\t0\t{strand}\n'  
+		else:
+			chrom_length = functions.get_chrom_length(f'{genome_fasta}.fai', chrom)
+			up_pos = min(fivep_pos+6, chrom_length)		# Make sure the 5bp upstream is within chrom
+			bedtools_input += f'{chrom}\t{fivep_pos+1}\t{up_pos}\t{site}\t0\t{strand}\n'
 
 	# Call bedtools getfasta 
 	fivep_upstream_seqs = functions.getfasta(genome_fasta, bedtools_input, log)
@@ -194,11 +200,19 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 
 			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 			# If it does NOT, add the read alignment to fivep_pass
+			# If it does, add the read alignment to failed_alignments
+			# In almost all cases we're comparing the 5bp upstream in the genome to the 5bp 
+			# upstream of in the read, but if the 5'ss is at the very edge of its chromosome there 
+			# may be less than 5bp of sequence upstream of the 5'ss, so we use the length of 
+			# fivep_upstream_seqs[fivep_site] to determine how many bp to reach upstream in the read. 
+			# In almost all cases it'll be 5bp
 			if read_is_reverse:
-				read_upstream = read_seq[read_fivep_end:read_fivep_end+5].upper()
+				segment_end = read_fivep_end + len(fivep_upstream_seqs[fivep_site])
+				read_upstream = read_seq[read_fivep_end:segment_end].upper()
 				upstream_mismatch = read_upstream != functions.reverse_complement(fivep_upstream_seqs[fivep_site])
 			else:
-				read_upstream = read_seq[read_fivep_start-5:read_fivep_start].upper()
+				segment_start = read_fivep_start - len(fivep_upstream_seqs[fivep_site])
+				read_upstream = read_seq[segment_start:read_fivep_start].upper()
 				upstream_mismatch = read_upstream != fivep_upstream_seqs[fivep_site]
 				
 			if upstream_mismatch:

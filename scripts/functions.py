@@ -22,11 +22,21 @@ class RunCommandError(Exception):
 
 	def __init__(self, process:subprocess.CompletedProcess):
 		super().__init__()
-		self.process = process
-		self.response = process.stdout + process.stderr
+		self.returncode = process.returncode
+		self.stdout = process.stdout 
+		self.stderr = process.stderr
+		self.command = process.args
+		# Prep the command for printing
+		if isinstance(self.command, list):
+			self.command = ' '.join(self.command)
+		if len(self.command) > 1000:
+			self.command = self.command[:1000] + '... (TRUNCATED)'
 
 	def __str__(self):
-		return f'Command returned non-zero exit status {self.process.returncode}. \n{self.response}'
+		return f"Command returned non-zero exit status {self.returncode}.\n" +\
+			f"Command: {self.command}\n" +\
+			f"Standard out: {self.stdout}\n" +\
+			f"Standard error: {self.stderr}" 
 
 
 
@@ -100,20 +110,20 @@ def run_command(command:str, log:logging.Logger=None, input:str=None, timeout:in
 	'''
 	if log is not None:
 		log.debug(f'Running command: {repr(command)}')
-		if input is not None: 
+		if input is not None:
 			if len(input) <= 1_000:
 				log.debug(f'Input: \n{input}')
 			else:
 				log.debug(f'Input (TRUNCATED): \n{input[:1_000]}')
 
 	response = subprocess.run(command.split(' '), 
-						   capture_output=True, 
-						   text=True, 
-						   input=input, 
-						   timeout=timeout)
+							capture_output=True, 
+							text=True, 
+							input=input, 
+							timeout=timeout)
 	if response.returncode != 0:
 		raise RunCommandError(process=response)
-	
+
 	return response.stderr.strip() + response.stdout.strip()
 
 
@@ -177,3 +187,14 @@ def linecount(file:str) -> int:
 		count = sum(1 for line in file_in)
 	
 	return count
+
+
+def get_chrom_length(faidx:str, chrom:str) -> int:
+	'''
+	Retrieve the length of a chromosome from a faidx index file (e.g. genome.fa.fai)
+	'''
+	with open(faidx) as file_in:
+		for line in file_in:
+			if line.startswith(chrom):
+				return int(line.split('\t')[1])
+

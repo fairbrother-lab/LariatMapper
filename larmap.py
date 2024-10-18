@@ -27,6 +27,12 @@ class Settings:
 				('ref_5p_fasta', 'fivep_sites.fa'),
 				('ref_exons', 'exons.tsv.gz'),
 				('ref_introns', 'introns.tsv.gz'))
+	PATH_SETTINGS = ('read_file', 'read_one', 'read_two', 'ref_dir', 'ref_h2index', 'ref_fasta', 
+					'ref_5p_fasta', 'ref_exons', 'ref_introns', 'output_dir', 'ref_repeatmasker',
+					'pipeline_dir')
+	ARGS_TO_MAP_LARIATS = ('ref_h2index', 'ref_fasta', 'ref_5p_fasta', 'ref_exons', 'ref_introns', 
+						'strand', 'ref_repeatmasker', 'ucsc_track', 'keep_classes', 'keep_temp', 
+						'threads', 'input_reads', 'seq_type', 'output_base', 'log_level', 'pipeline_dir')
 
 	# Supplied argument attributes
 	# If an argument is not supplied, it will be None
@@ -63,14 +69,18 @@ class Settings:
 	def __post_init__(self):
 		# Reference files
 		if self.ref_dir is None:
-			for ref, ref_dir_name in self.REQ_REFS:
-				if getattr(self, ref) is None:
-					raise ValueError(f"--ref_dir not supplied so all individual reference file arguments are required. Missing --{ref}")
+			for ref_attr_name, ref_file_name in Settings.REQ_REFS:
+				if getattr(self, ref_attr_name) is None:
+					raise ValueError(f"--ref_dir not supplied so all individual reference file arguments are required. Missing --{ref_attr_name}")
 		else:
-			for ref, ref_dir_name in self.REQ_REFS:
-				if getattr(self, ref) is None:
-					setattr(self, ref, pathlib.Path(os.path.join(self.ref_dir, ref_dir_name)))
-			setattr(self, 'ref_repeatmasker', pathlib.Path(os.path.join(self.ref_dir, 'repeatmasker.bed')))
+			for ref_attr_name, ref_file_name in Settings.REQ_REFS:
+				if getattr(self, ref_attr_name) is None:
+					setattr(self, ref_attr_name, pathlib.Path(os.path.join(self.ref_dir, ref_file_name)))
+			
+			# If ref_repeatmasker wasn't input, set it to {ref_dir}/repeatmasker.bed
+			# If it doesn't exist that's fine, filter_lariats.py will check before trying to use it
+			if self.ref_repeatmasker is None:
+				setattr(self, 'ref_repeatmasker', pathlib.Path(os.path.join(self.ref_dir, 'repeatmasker.bed')))
 
 		# input_reads and seq_type
 		if self.read_file is not None and self.read_one is None and self.read_two is None:
@@ -91,6 +101,21 @@ class Settings:
 			self.log_level = 'DEBUG'
 		else:
 			self.log_level = 'INFO'
+
+		# Make sure all paths are absolute
+		for attr in Settings.PATH_SETTINGS:
+			if getattr(self, attr) is not None:
+				setattr(self, attr, pathlib.Path(getattr(self, attr)).resolve())
+		
+		# output_base
+		# All output files will be formatted like f"{output_base}file.ext"
+		if self.output_prefix is None:
+			self.output_base = f'{self.output_dir}/'
+		else:
+			for char in FORBIDDEN_CHARS:
+				if char in str(self.output_prefix):
+					parser.error(f'Illegal character in output prefix: {char}')
+			self.output_base = f'{self.output_dir/self.output_prefix}_'
 
 
 	def validate_args(self):
@@ -118,29 +143,16 @@ class Settings:
 		for char in FORBIDDEN_CHARS:
 			if char in str(self.output_dir):
 				raise ValueError(f'Illegal character in output directory: {char}')
-		
-		# Determine the output_base
-		# All output files will be formatted like f"{output_base}file.ext"
-		if self.output_prefix is None:
-			self.output_base = f'{self.output_dir}/'
-		else:
-			for char in FORBIDDEN_CHARS:
-				if char in str(self.output_prefix):
-					parser.error(f'Illegal character in output prefix: {char}')
-			self.output_base = f'{self.output_dir/self.output_prefix}'
 
 		# Validate threads arg
 		if not self.threads>0:
 			raise ValueError(f'-t/--threads must be a positive integer. Input was "{repr(self.threads)}"')
-		
+
 
 	@property
 	def map_lariats_args(self):
 		args = []
-		for attr in ('input_reads', 'seq_type', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 
-			   		'ref_exons', 'ref_introns','output_base', 'strand', 'ref_repeatmasker', 
-					'ucsc_track', 'keep_classes', 'keep_temp', 'threads', 'log_level', 
-					'pipeline_dir'):
+		for attr in Settings.ARGS_TO_MAP_LARIATS:
 			arg_val = str(getattr(self, attr))
 			if attr in ('ucsc_track', 'keep_classes', 'keep_temp'):
 				arg_val = arg_val.lower()
@@ -150,7 +162,7 @@ class Settings:
 	
 
 	def json_dump(self, file):
-		dict_ = {key: str(val) for key,val in dataclasses.asdict(settings).items()}
+		dict_ = {key: str(val) for key,val in dataclasses.asdict(self).items()}
 		with open(file, 'w') as json_file:
 			json.dump(dict_, json_file)
 
@@ -217,7 +229,7 @@ if __name__ == '__main__':
 	# Optional arguments
 	optional_args = parser.add_argument_group(title='Optional arguments')
 		# Experimentally-revelant options 
-	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'Forward', 'Reverse'), default='Unstranded', help="Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; Forward = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Reverse = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)")
+	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help="WARNING, EXPERIMENTAL FEATURE STILL IN DEVELOPMENT! Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)")
 	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = No filter, unless a RepeatMasker BED file is found in REF_DIR).')
 		# Output options
 	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
@@ -256,6 +268,8 @@ if __name__ == '__main__':
 		except Exception as e:
 			log.debug(e)
 			log.warning('Could not check if LariatMapper is up-to-date with the main branch on GitHub. Continuing anyway...')
+			time.sleep(60)	# Give the user a chance to see the warning
+
 
 	# Validate arguments
 	settings.validate_args()
