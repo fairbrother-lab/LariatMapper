@@ -321,12 +321,16 @@ if __name__ == '__main__' :
 
 	log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 	processes = []
-	for chunk_start, chunk_end in chunk_ranges:
+	for chunk_start, chunk_end in chunk_ranges[1:]:
 		process = mp.Process(target=filter_reads_chunk, 
 							args=(chunk_start, chunk_end, n_aligns, read_seqs, 
-			 					fivep_upstream_seqs, strand, output_base, log_level, ))
+								fivep_upstream_seqs, strand, output_base, log_level,))
 		process.start()
 		processes.append(process)
+		
+	# Process the first chunk in the main process
+	filter_reads_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, read_seqs,
+					fivep_upstream_seqs, strand, output_base, log_level) 
 
 	# Check if any processes hit an error
 	for process in processes:
