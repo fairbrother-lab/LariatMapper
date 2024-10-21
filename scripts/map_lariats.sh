@@ -156,7 +156,7 @@ python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_T
 # python -u $PIPELINE_DIR/scripts/classify_linear.py $OUTPUT_BASE $EXONS_TSV $INTRONS_TSV $SEQ_TYPE $LOG_LEVEL \
 # 	|| exit 1
 r_anno_dir=/home/tmooney/Lariat_mapping/linear_map_wrap/GTF
-Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -g $r_anno_dir -r $r_seq_type -o $OUTPUT_BASE \
+Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -g $r_anno_dir -r $SEQ_TYPE -o $OUTPUT_BASE \
 	|| exit 1
 python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
 	|| exit 1
