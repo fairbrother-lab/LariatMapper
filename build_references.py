@@ -58,7 +58,7 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 		anno_type, gunzip = prev_ext, True
 	else:
 		anno_type, gunzip = last_ext, False
-	if not anno_type in ('gtf', 'gff'):
+	if not anno_type in ('gtf', 'gff', 'gff3'):
 		parser.error(f'Annotation file must be in .gtf or .gff format, not .{anno_type}')
 
 	# Validate threads arg
@@ -75,8 +75,8 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 		tags = [attr_val.strip('"') for attr_name, attr_val in attributes if attr_name=='tag']
 		attributes = {attr_name: attr_val.strip('"') for attr_name, attr_val in attributes if attr_name!='tag'}
 		attributes['tags'] = tags
-	elif file_type == 'gff':
-		attributes = [attr.split('=') for attr in attribute_string.split('; ')]
+	elif file_type in ('gff', 'gff3'):
+		attributes = [attr.split('=') for attr in attribute_string.split(';')]
 		attributes = [(attr[0].lstrip(), attr[1]) for attr in attributes]
 		attributes = dict(attributes)
 		if 'tag' in attributes:
@@ -95,7 +95,7 @@ def parse_transcripts(genome_anno:str, anno_type:str, gunzip:bool, transcript_at
 
 	transcripts = {}
 	for line in in_file:
-		if line.startswith('#'):
+		if line=='\n' or line.startswith('#'):
 			continue
 		
 		# Parse the line, making sure it's an exon feature
@@ -111,7 +111,7 @@ def parse_transcripts(genome_anno:str, anno_type:str, gunzip:bool, transcript_at
 		attributes = parse_attributes(attributes, anno_type)
 
 		if transcript_attribute not in attributes:
-			raise ValueError(f'Attribute for transcript id "{transcript_attribute}" not found in attributes of line "{line}"')
+			raise ValueError(f'Attribute for transcript id "{transcript_attribute}" not found in attributes {repr(attributes)}of line "{line}"')
 		if gene_attribute not in attributes:
 			raise ValueError(f'Attribute for gene id "{gene_attribute}" not found in attributes {repr(attributes)} of line "{line}"')
 		
@@ -152,13 +152,13 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 			intron = (chrom, strand, intron_start, intron_end, gene_id)
 			introns.append(intron)
 	
-	# Collapse gene ids
-	exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
-	exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
-	# Sort to make debugging easier
-	exons = exons.sort_values(['chrom', 'start', 'end'])
-	# Write to file
-	exons.to_csv(f'{out_dir}/exons.tsv.gz', sep='\t', index=False, compression='gzip')
+	# # Collapse gene ids
+	# exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
+	# exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
+	# # Sort to make debugging easier
+	# exons = exons.sort_values(['chrom', 'start', 'end'])
+	# # Write to file
+	# exons.to_csv(f'{out_dir}/exons.tsv.gz', sep='\t', index=False, compression='gzip')
 
 	# Collapse gene ids
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
@@ -298,5 +298,10 @@ if __name__ == '__main__':
 
 	log.info("Processing five-prime splice sites...")
 	build_fivep(introns, genome_fasta, threads, out_dir, log)
+
+	log.info("Building GRanges objects...")
+	cmd = f"Rscript {pipeline_dir}/scripts/build_R_references.R" +\
+			f" -a {genome_anno} -g {gene_attribute} -t {transcript_attribute} -o {out_dir}"
+	functions.run_command(cmd, log=log)
 
 	log.info('Reference building complete.')

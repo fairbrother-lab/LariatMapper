@@ -5,14 +5,14 @@
 #=============================================================================#
 #                                  Arguments                                  #
 #=============================================================================#
+# Reference directory
+REF_DIR="${1}"
 # hisat2 index of reference genome
-GENOME_INDEX="${1}"
+GENOME_INDEX="${2}"
 # Reference genome FASTA file
-GENOME_FASTA="${2}"
+GENOME_FASTA="${3}"
 # FASTA file of 5' splice sites (first 20nts of all introns)
-FIVEP_FASTA="${3}"
-# Annotated exons
-EXONS_TSV="${4}"
+FIVEP_FASTA="${4}"
 # Annotated introns
 INTRONS_TSV="${5}"
 # Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
@@ -153,8 +153,7 @@ python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_T
 	|| exit 1 
 
 ### Classify reads
-r_anno_dir=/home/tmooney/Lariat_mapping/linear_map_wrap/GTF
-Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -g $r_anno_dir -r $SEQ_TYPE -o $OUTPUT_BASE \
+Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE \
 	|| exit 1
 python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
 	|| exit 1

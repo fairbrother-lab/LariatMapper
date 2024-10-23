@@ -10,11 +10,11 @@ option_list <- list(
                 help = "input bam file", metavar = "BAM_PATH"),
     make_option(c("-f", "--file"), type = "character", default = NULL, 
                 help = "Path to utils R file", metavar = "FILE_PATH"),
-    make_option(c("-g", "--gtf"), type = "character", default = NULL, 
-                help = "Path to GTF dir", metavar = "DIR_PATH"),
+    make_option(c("-r", "--ref_dir"), type = "character", default = NULL, 
+                help = "Path to reference dir", metavar = "DIR_PATH"),
     make_option(c("-o", "--output_base"), type = "character", default = NULL, 
                 help = "Path to output", metavar = "OUT_PATH"),
-    make_option(c("-r", "--read_layout"), type = "character", default = "paired", 
+    make_option(c("-l", "--read_layout"), type = "character", default = "paired", 
                 help = "single = single-end sequencing data, paired = paired-end sequencing data", metavar = "READ_LAYOUT")
 )
 
@@ -23,7 +23,7 @@ opts <- parse_args(parser)
 
 input_bam <- opts$input
 utils_R <- opts$file
-gtf_dir <- opts$gtf
+ref_dir <- opts$ref_dir
 output_base <- opts$output_base
 read_layout <- opts$read_layout
 
@@ -36,9 +36,9 @@ source(utils_R)
 ###
 
 ### Prepare annotation file
-gene_gr <- readRDS(file.path(gtf_dir, "gene_gr.rds"))
-exon_gr <- readRDS(file.path(gtf_dir, "exon_gr.rds"))
-intron_gr <- readRDS(file.path(gtf_dir, "intron_gr.rds"))
+gene_gr <- readRDS(file.path(ref_dir, "gene_gr.rds"))
+exon_gr <- readRDS(file.path(ref_dir, "exon_gr.rds"))
+intron_gr <- readRDS(file.path(ref_dir, "intron_gr.rds"))
 ###
 
 ### Run counting step
