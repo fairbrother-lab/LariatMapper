@@ -466,13 +466,14 @@ if __name__ == '__main__':
 	with open(HEADS_TO_GENOME_FILE.format(output_base)) as sam:
 		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} head alignments')
-	chunk_ranges = [[chunk_start, chunk_start+ALIGN_CHUNKSIZE] for chunk_start in range(1, n_aligns+1, ALIGN_CHUNKSIZE)]
-	chunk_ranges[-1][-1] = n_aligns
-	log.debug(f'chunk_ranges: {chunk_ranges}')
-
+	
 	if n_aligns == 0:
 		log.info('No reads remaining')
 		exit()
+
+	chunk_ranges = [[chunk_start, chunk_start+ALIGN_CHUNKSIZE] for chunk_start in range(1, n_aligns+1, ALIGN_CHUNKSIZE)]
+	chunk_ranges[-1][-1] = n_aligns
+	log.debug(f'chunk_ranges: {chunk_ranges}')
 
 	# Load reference data for processing alignments
 	introns, fivep_genes = parse_intron_info(ref_introns)

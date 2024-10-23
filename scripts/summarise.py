@@ -35,10 +35,10 @@ SUMMARY_TEMPLATE = (
 					"Input reads:\t{input_reads}\n"
 					"Input type:\t{seq_type}\n"
 					"Input strandedness:\t{strand}\n"
+					"Reference directory:\t{ref_dir}\n"
 					"Reference HISAT2 index:\t{ref_h2index}\n"
 					"Reference genome FASTA:\t{ref_fasta}\n"
 					"Reference 5'ss FASTA:\t{ref_5p_fasta}\n"
-					"Reference exons:\t{ref_exons}\n"
 					"Reference introns:\t{ref_introns}\n"
 					"Reference RepeatMasker:\t{ref_repeatmasker}\n"
 					"Output path:\t{output_base}\n"
@@ -56,8 +56,8 @@ SUMMARY_TEMPLATE = (
 					"pre-mRNA:\t{exon_intron_junc}\n"
 					"Exonic:\t{exon_only}\n"
 					"Intronic:\t{intron_only}\n"
-					"Genic, ambiguous:\t{ambig}\n"
-					"Intergenic:\t{intergenic}\n"
+					# "Genic, ambiguous:\t{ambig}\n"
+					# "Intergenic:\t{intergenic}\n"
 					"Unmapped:\t{Unmapped}\n"
 					"Unmapped with 5'ss alignment:\t{Unmapped_with_5ss_alignment}\n"
 					"Template-switching:\t{Template_switching}\n"
@@ -98,8 +98,8 @@ READ_COUNTS_TEMPLATE = (
 						"Linearly mapped\tpre-mRNA\t{exon_intron_junc}\n"
 						"Linearly mapped\tExonic\t{exon_only}\n"
 						"Linearly mapped\tIntronic\t{intron_only}\n"
-						"Linearly mapped\tGenic, ambiguous\t{ambig}\n"
-						"Linearly mapped\tIntergenic\t{intergenic}\n"
+						# "Linearly mapped\tGenic, ambiguous\t{ambig}\n"
+						# "Linearly mapped\tIntergenic\t{intergenic}\n"
 						"Not linearly mapped\tTotal\t{not_linear}\n"
 						"Not linearly mapped\tUnmapped\t{Unmapped}\n"
 						"Not linearly mapped\tUnmapped with 5'ss alignment\t{Unmapped_with_5ss_alignment}\n"
@@ -163,10 +163,10 @@ if __name__ == '__main__':
 
 	# Add linear read class counts
 	linear_counts = pd.read_csv(LINEAR_COUNTS_FILE.format(output_base), sep='\t', index_col=0)
-	linear_counts['rowsum'] = linear_counts.sum(axis=1) - linear_counts.gene
-	linear_counts['ambig'] = linear_counts.gene - linear_counts.rowsum
+	# linear_counts['rowsum'] = linear_counts.sum(axis=1) - linear_counts.gene
+	# linear_counts['ambig'] = linear_counts.gene - linear_counts.rowsum
 	stats.update(linear_counts.apply(sum).to_dict())
-	stats['intergenic'] = stats['Linear'] - stats['gene']
+	# stats['intergenic'] = stats['Linear'] - stats['gene']
 
 	# Add nonlinear read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
