@@ -214,20 +214,19 @@ if __name__ == '__main__':
 	read_group.add_argument('-1', '--read_one', type=pathlib.Path, help='Read 1 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f')
 	read_group.add_argument('-2', '--read_two', type=pathlib.Path, help='Read 2 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f')
 	read_group.add_argument('-f', '--read_file', type=pathlib.Path, help='Input FASTQ file when processing single-end RNA-seq data. Mutually exclusive with -1 and -2')
-	reference_group = parser.add_argument_group(title='Reference files', 
-											 description='Provide either a reference files directory (REF_DIR) or an argument for each reference file. If both REF_DIR and individual reference files are supplied, the individually specified files will be used.')
-	reference_group.add_argument('-r', '--ref_dir', required=True, type=pathlib.Path, help='Directory with reference files created by build_references.py.')
-	reference_group.add_argument('-i', '--ref_h2index', type=pathlib.Path, help='hisat2 index of the reference genome')
-	reference_group.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome')
-	reference_group.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help='FASTA file with sequences of first 20nt of annotated introns')
-	reference_group.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns')
+	reference_group = parser.add_argument_group(title='Reference data')
+	reference_group.add_argument('-r', '--ref_dir', required=True, type=pathlib.Path, help='Directory with reference files created by build_references.py')
 	out_group = parser.add_argument_group(title='Output')
-	out_group.add_argument('-o', '--output_dir', required=True, type=pathlib.Path, help='Directory for output files. Will be created if it does not exist')
+	out_group.add_argument('-o', '--output_dir', required=True, type=pathlib.Path, help='Directory for output files. Will be created if it does not exist at runtime')
 	# Optional arguments
 	optional_args = parser.add_argument_group(title='Optional arguments')
 		# Experimentally-revelant options 
 	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help="WARNING, EXPERIMENTAL FEATURE STILL IN DEVELOPMENT! Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)")
-	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = No filter, unless a RepeatMasker BED file is found in REF_DIR).')
+	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help="BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering")
+	optional_args.add_argument('-i', '--ref_h2index', type=pathlib.Path, help='hisat2 index of the reference genome (Default = REF_DIR/hisat2_index)')
+	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome (Default = REF_DIR/genome.fa)')
+	optional_args.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help='FASTA file with sequences of first 20nt of annotated introns (Default = REF_DIR/fivep_sites.fa)')
+	optional_args.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns (Default = REF_DIR/introns.tsv.gz)')
 		# Output options
 	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	optional_args.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
