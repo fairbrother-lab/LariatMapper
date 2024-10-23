@@ -331,7 +331,7 @@ if __name__ == '__main__' :
 	# Process the first chunk in the main process
 	filter_reads_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, read_seqs,
 					fivep_upstream_seqs, strand, output_base, log_level) 
-	
+
 	# Check if any processes hit an error
 	for process in processes:
 		process.join()

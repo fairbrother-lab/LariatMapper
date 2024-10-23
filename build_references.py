@@ -58,7 +58,7 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 		anno_type, gunzip = prev_ext, True
 	else:
 		anno_type, gunzip = last_ext, False
-	if not anno_type in ('gtf', 'gff'):
+	if not anno_type in ('gtf', 'gff', 'gff3'):
 		parser.error(f'Annotation file must be in .gtf or .gff format, not .{anno_type}')
 
 	# Validate threads arg
@@ -75,8 +75,8 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 		tags = [attr_val.strip('"') for attr_name, attr_val in attributes if attr_name=='tag']
 		attributes = {attr_name: attr_val.strip('"') for attr_name, attr_val in attributes if attr_name!='tag'}
 		attributes['tags'] = tags
-	elif file_type == 'gff':
-		attributes = [attr.split('=') for attr in attribute_string.split('; ')]
+	elif file_type in ('gff', 'gff3'):
+		attributes = [attr.split('=') for attr in attribute_string.split(';')]
 		attributes = [(attr[0].lstrip(), attr[1]) for attr in attributes]
 		attributes = dict(attributes)
 		if 'tag' in attributes:
@@ -87,7 +87,7 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 	return attributes
 
 
-def parse_transcripts(genome_anno:str, anno_type:str, gunzip:bool, transcript_attribute:str, gene_attribute:str, log):
+def parse_transcripts(genome_anno:str, anno_type:str, gunzip:bool, t_attr:str, g_attr:str, log):
 	if gunzip:
 		in_file = gzip.open(genome_anno, 'rt')
 	else:
@@ -95,7 +95,7 @@ def parse_transcripts(genome_anno:str, anno_type:str, gunzip:bool, transcript_at
 
 	transcripts = {}
 	for line in in_file:
-		if line.startswith('#'):
+		if line=='\n' or line.startswith('#'):
 			continue
 		
 		# Parse the line, making sure it's an exon feature
@@ -110,16 +110,16 @@ def parse_transcripts(genome_anno:str, anno_type:str, gunzip:bool, transcript_at
 		end = int(end)
 		attributes = parse_attributes(attributes, anno_type)
 
-		if transcript_attribute not in attributes:
-			raise ValueError(f'Attribute for transcript id "{transcript_attribute}" not found in attributes of line "{line}"')
-		if gene_attribute not in attributes:
-			raise ValueError(f'Attribute for gene id "{gene_attribute}" not found in attributes {repr(attributes)} of line "{line}"')
+		if g_attr not in attributes:
+			raise ValueError(f'Attribute for gene id "{g_attr}" not found in attributes {repr(attributes)} of line "{line}"')
+		if t_attr not in attributes:
+			raise ValueError(f'Attribute for transcript id "{t_attr}" not found in attributes {repr(attributes)}of line "{line}"')
 		
 		# Add the exon to its transcript's list
 		exon = (start, end)
-		transcript_id = attributes[transcript_attribute]
+		transcript_id = attributes[t_attr]
 		if transcript_id not in transcripts:
-			transcripts[transcript_id] = {'chrom': chrom, 'strand': strand, 'gene': attributes[gene_attribute], 'exons': []}
+			transcripts[transcript_id] = {'chrom': chrom, 'strand': strand, 'gene': attributes[g_attr], 'exons': []}
 		transcripts[transcript_id]['exons'].append(exon)
 
 	return transcripts
@@ -152,13 +152,13 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 			intron = (chrom, strand, intron_start, intron_end, gene_id)
 			introns.append(intron)
 	
-	# Collapse gene ids
-	exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
-	exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
-	# Sort to make debugging easier
-	exons = exons.sort_values(['chrom', 'start', 'end'])
-	# Write to file
-	exons.to_csv(f'{out_dir}/exons.tsv.gz', sep='\t', index=False, compression='gzip')
+	# # Collapse gene ids
+	# exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
+	# exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
+	# # Sort to make debugging easier
+	# exons = exons.sort_values(['chrom', 'start', 'end'])
+	# # Write to file
+	# exons.to_csv(f'{out_dir}/exons.tsv.gz', sep='\t', index=False, compression='gzip')
 
 	# Collapse gene ids
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
@@ -232,8 +232,8 @@ if __name__ == '__main__':
 	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default = 1)')
 	parser.add_argument('-r', '--repeatmasker_bed', help='Path to BED file with RepeatMasker annotation of reference genome')
 	parser.add_argument('-c', '--copy', action='store_true', help='Create deep copies of the input files in out_dir (default = create symbolic links)')
-	parser.add_argument('-x', '--transcript_attribute', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute (default=transcript_id)',)
-	parser.add_argument('-g', '--gene_attribute', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute (default=gene_id)',)
+	parser.add_argument('-g', '--g_attr', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute (default=gene_id)',)
+	parser.add_argument('-x', '--t_attr', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute (default=transcript_id)',)
 	log_levels = parser.add_mutually_exclusive_group()
 	log_levels.add_argument('-q', '--quiet', action='store_true', help="Don't print any status messages")
 	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages")
@@ -266,7 +266,7 @@ if __name__ == '__main__':
 	# Validate the args and determine additional variables
 	hisat2_extensions, anno_type, gunzip = process_args(args, parser, log)
 
-	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, out_dir, threads, copy, transcript_attribute, gene_attribute  = args.genome_fasta, args.genome_anno, args.repeatmasker_bed, args.hisat2_index, args.out_dir, args.threads, args.copy, args.transcript_attribute, args.gene_attribute
+	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, out_dir, threads, copy, t_attr, g_attr  = args.genome_fasta, args.genome_anno, args.repeatmasker_bed, args.hisat2_index, args.out_dir, args.threads, args.copy, args.t_attr, args.g_attr
 
 	# Make dir
 	if not os.path.isdir(out_dir):
@@ -291,12 +291,17 @@ if __name__ == '__main__':
 			os.symlink(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
 
 	log.info('Parsing transcripts from annotation file...')
-	transcripts = parse_transcripts(genome_anno, anno_type, gunzip, transcript_attribute, gene_attribute, log)
+	transcripts = parse_transcripts(genome_anno, anno_type, gunzip, t_attr, g_attr, log)
 	
 	log.info('Processing exons and introns...')
 	introns = build_exons_introns(transcripts, out_dir, log)
 
 	log.info("Processing five-prime splice sites...")
 	build_fivep(introns, genome_fasta, threads, out_dir, log)
+
+	log.info("Building GRanges objects...")
+	cmd = f"Rscript {pipeline_dir}/scripts/build_R_refs.R" +\
+			f" -a {genome_anno} -g {g_attr} -t {t_attr} -o {out_dir}"
+	functions.run_command(cmd, log=log)
 
 	log.info('Reference building complete.')

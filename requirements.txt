@@ -1,4 +1,7 @@
 bedtools
+bioconductor-genomicalignments
+bioconductor-genomicfeatures
+bioconductor-rtracklayer
 bowtie2
 hisat2
 intervaltree
@@ -8,5 +11,8 @@ pandas
 pyarrow
 pyfaidx
 pysam
+r-base
+r-optparse
+r-tidyverse
 python>=3.9, <=3.11
 samtools

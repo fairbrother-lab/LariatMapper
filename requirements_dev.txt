@@ -1,2 +1,5 @@
+ipykernel
+plotnine
 pytest
 pytest-xdist
+r-irkernel

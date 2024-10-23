@@ -25,12 +25,11 @@ class Settings:
 	REQ_REFS = (('ref_h2index', 'hisat2_index'), 
 				('ref_fasta', 'genome.fa'), 
 				('ref_5p_fasta', 'fivep_sites.fa'),
-				('ref_exons', 'exons.tsv.gz'),
 				('ref_introns', 'introns.tsv.gz'))
 	PATH_SETTINGS = ('read_file', 'read_one', 'read_two', 'ref_dir', 'ref_h2index', 'ref_fasta', 
-					'ref_5p_fasta', 'ref_exons', 'ref_introns', 'output_dir', 'ref_repeatmasker',
+					'ref_5p_fasta', 'ref_introns', 'output_dir', 'ref_repeatmasker',
 					'pipeline_dir')
-	ARGS_TO_MAP_LARIATS = ('ref_h2index', 'ref_fasta', 'ref_5p_fasta', 'ref_exons', 'ref_introns', 
+	ARGS_TO_MAP_LARIATS = ('ref_dir', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 'ref_introns', 
 						'strand', 'ref_repeatmasker', 'ucsc_track', 'keep_classes', 'keep_temp', 
 						'threads', 'input_reads', 'seq_type', 'output_base', 'log_level', 'pipeline_dir')
 
@@ -43,7 +42,6 @@ class Settings:
 	ref_h2index: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/hisat2_index
 	ref_fasta: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/genome.fa
 	ref_5p_fasta: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/fivep_sites.fa
-	ref_exons: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/exons.tsv.gz
 	ref_introns: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/introns.tsv.gz
 	output_dir: pathlib.Path
 	strand: str
@@ -67,20 +65,20 @@ class Settings:
 
 
 	def __post_init__(self):
-		# Reference files
-		if self.ref_dir is None:
-			for ref_attr_name, ref_file_name in Settings.REQ_REFS:
-				if getattr(self, ref_attr_name) is None:
-					raise ValueError(f"--ref_dir not supplied so all individual reference file arguments are required. Missing --{ref_attr_name}")
-		else:
-			for ref_attr_name, ref_file_name in Settings.REQ_REFS:
-				if getattr(self, ref_attr_name) is None:
-					setattr(self, ref_attr_name, pathlib.Path(os.path.join(self.ref_dir, ref_file_name)))
-			
-			# If ref_repeatmasker wasn't input, set it to {ref_dir}/repeatmasker.bed
-			# If it doesn't exist that's fine, filter_lariats.py will check before trying to use it
-			if self.ref_repeatmasker is None:
-				setattr(self, 'ref_repeatmasker', pathlib.Path(os.path.join(self.ref_dir, 'repeatmasker.bed')))
+		# # Reference files
+		# if self.ref_dir is None:
+		# 	for ref_attr_name, ref_file_name in Settings.REQ_REFS:
+		# 		if getattr(self, ref_attr_name) is None:
+		# 			raise ValueError(f"--ref_dir not supplied so all individual reference file arguments are required. Missing --{ref_attr_name}")
+		# else:
+		for ref_attr_name, ref_file_name in Settings.REQ_REFS:
+			if getattr(self, ref_attr_name) is None:
+				setattr(self, ref_attr_name, pathlib.Path(os.path.join(self.ref_dir, ref_file_name)))
+		
+		# If ref_repeatmasker wasn't input, set it to {ref_dir}/repeatmasker.bed
+		# If it doesn't exist that's fine, filter_lariats.py will check before trying to use it
+		if self.ref_repeatmasker is None:
+			setattr(self, 'ref_repeatmasker', pathlib.Path(os.path.join(self.ref_dir, 'repeatmasker.bed')))
 
 		# input_reads and seq_type
 		if self.read_file is not None and self.read_one is None and self.read_two is None:
@@ -128,7 +126,7 @@ class Settings:
 			raise ValueError(f'"{self.read_two}" is not an existing file')
 
 		# Confirm that the reference files exist and don't have forbidden characters
-		for file in (self.ref_fasta, self.ref_5p_fasta, self.ref_exons, self.ref_introns):
+		for file in (self.ref_fasta, self.ref_5p_fasta, self.ref_introns):
 			if file.is_file() is False:
 				raise ValueError(f'"{file}" is not an existing file')
 			for char in FORBIDDEN_CHARS:
@@ -216,21 +214,19 @@ if __name__ == '__main__':
 	read_group.add_argument('-1', '--read_one', type=pathlib.Path, help='Read 1 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f')
 	read_group.add_argument('-2', '--read_two', type=pathlib.Path, help='Read 2 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f')
 	read_group.add_argument('-f', '--read_file', type=pathlib.Path, help='Input FASTQ file when processing single-end RNA-seq data. Mutually exclusive with -1 and -2')
-	reference_group = parser.add_argument_group(title='Reference files', 
-											 description='Provide either a reference files directory (REF_DIR) or an argument for each reference file. If both REF_DIR and individual reference files are supplied, the individually specified files will be used.')
-	reference_group.add_argument('-r', '--ref_dir', type=pathlib.Path, help='Directory with reference files created by build_references.py.')
-	reference_group.add_argument('-i', '--ref_h2index', type=pathlib.Path, help='hisat2 index of the reference genome')
-	reference_group.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome')
-	reference_group.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help='FASTA file with sequences of first 20nt of annotated introns')
-	reference_group.add_argument('-e', '--ref_exons', type=pathlib.Path, help='TSV file of all annotated exons')
-	reference_group.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns')
+	reference_group = parser.add_argument_group(title='Reference data')
+	reference_group.add_argument('-r', '--ref_dir', required=True, type=pathlib.Path, help='Directory with reference files created by build_references.py')
 	out_group = parser.add_argument_group(title='Output')
-	out_group.add_argument('-o', '--output_dir', required=True, type=pathlib.Path, help='Directory for output files. Will be created if it does not exist')
+	out_group.add_argument('-o', '--output_dir', required=True, type=pathlib.Path, help='Directory for output files. Will be created if it does not exist at runtime')
 	# Optional arguments
 	optional_args = parser.add_argument_group(title='Optional arguments')
 		# Experimentally-revelant options 
 	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help="WARNING, EXPERIMENTAL FEATURE STILL IN DEVELOPMENT! Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)")
-	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help='BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = No filter, unless a RepeatMasker BED file is found in REF_DIR).')
+	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help="BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering")
+	optional_args.add_argument('-i', '--ref_h2index', type=pathlib.Path, help='hisat2 index of the reference genome (Default = REF_DIR/hisat2_index)')
+	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome (Default = REF_DIR/genome.fa)')
+	optional_args.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help='FASTA file with sequences of first 20nt of annotated introns (Default = REF_DIR/fivep_sites.fa)')
+	optional_args.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns (Default = REF_DIR/introns.tsv.gz)')
 		# Output options
 	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	optional_args.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
@@ -269,7 +265,6 @@ if __name__ == '__main__':
 			log.debug(e)
 			log.warning('Could not check if LariatMapper is up-to-date with the main branch on GitHub. Continuing anyway...')
 			time.sleep(60)	# Give the user a chance to see the warning
-
 
 	# Validate arguments
 	settings.validate_args()
