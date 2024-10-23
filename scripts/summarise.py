@@ -16,7 +16,7 @@ import functions
 # In files
 ARGS_FILE = "{}settings.json"
 OUTPUT_BAM_FILE = "{}output.bam"
-BAM_COUNTS_FILE = "{}output.bam_count.tsv"
+LINEAR_COUNTS_FILE = "{}output.bam_count.tsv"
 READ_CLASSES_FILE = "{}read_classes.tsv.gz"
 # Out files
 SUMMARY_FILE = "{}summary.txt"
@@ -35,10 +35,10 @@ SUMMARY_TEMPLATE = (
 					"Input reads:\t{input_reads}\n"
 					"Input type:\t{seq_type}\n"
 					"Input strandedness:\t{strand}\n"
+					"Reference directory:\t{ref_dir}\n"
 					"Reference HISAT2 index:\t{ref_h2index}\n"
 					"Reference genome FASTA:\t{ref_fasta}\n"
 					"Reference 5'ss FASTA:\t{ref_5p_fasta}\n"
-					"Reference exons:\t{ref_exons}\n"
 					"Reference introns:\t{ref_introns}\n"
 					"Reference RepeatMasker:\t{ref_repeatmasker}\n"
 					"Output path:\t{output_base}\n"
@@ -52,7 +52,12 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"              Read classes              \n"
 					"----------------------------------------\n"
-					"Linear:\t{Linear}\n"
+					"mRNA:\t{exon_exon_junc}\n"
+					"pre-mRNA:\t{exon_intron_junc}\n"
+					"Exonic:\t{exon_only}\n"
+					"Intronic:\t{intron_only}\n"
+					# "Genic, ambiguous:\t{ambig}\n"
+					# "Intergenic:\t{intergenic}\n"
 					"Unmapped:\t{Unmapped}\n"
 					"Unmapped with 5'ss alignment:\t{Unmapped_with_5ss_alignment}\n"
 					"Template-switching:\t{Template_switching}\n"
@@ -74,18 +79,27 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"          Additional statistics         \n"
 					"----------------------------------------\n"
-					"Lariat reads, genomic_bp_nt = A:\t{A:.2%}\n"
-					"Lariat reads, genomic_bp_nt = C:\t{C:.2%}\n"
-					"Lariat reads, genomic_bp_nt = G:\t{G:.2%}\n"
-					"Lariat reads, genomic_bp_nt = T:\t{T:.2%}\n"
-					"Lariat reads, genomic_bp_nt = N:\t{N:.2%}\n"
-					"Lariat reads, genomic_bp_nt ≠ read_bp_nt:\t{bp_mismatch:.2%}\n"
-					"Lariat reads, |bp_dist_to_threep| ≤ 70:\t{within_70:.2%}\n"
+					"mRNA/pre-mRNA = {pre_ratio:.1%}\n"
+					"Lariat RPM = {lariat_rpm:.3g}\n"
+					"Circularized intron RPM = {circ_rpm:.3g}\n"
+					"Lariat reads, genomic_bp_nt = A:\t{A:.1%}\n"
+					"Lariat reads, genomic_bp_nt = C:\t{C:.1%}\n"
+					"Lariat reads, genomic_bp_nt = G:\t{G:.1%}\n"
+					"Lariat reads, genomic_bp_nt = T:\t{T:.1%}\n"
+					"Lariat reads, genomic_bp_nt = N:\t{N:.1%}\n"
+					"Lariat reads, genomic_bp_nt ≠ read_bp_nt:\t{bp_mismatch:.1%}\n"
+					"Lariat reads, |bp_dist_to_threep| ≤ 70:\t{within_70:.1%}\n"
 )
 READ_COUNTS_TEMPLATE = (
 						"Category\tSubcategory\tReads\n"
 						"Input\tTotal\t{input_count}\n"
 						"Linearly mapped\tTotal\t{Linear}\n"
+						"Linearly mapped\tmRNA\t{exon_exon_junc}\n"
+						"Linearly mapped\tpre-mRNA\t{exon_intron_junc}\n"
+						"Linearly mapped\tExonic\t{exon_only}\n"
+						"Linearly mapped\tIntronic\t{intron_only}\n"
+						# "Linearly mapped\tGenic, ambiguous\t{ambig}\n"
+						# "Linearly mapped\tIntergenic\t{intergenic}\n"
 						"Not linearly mapped\tTotal\t{not_linear}\n"
 						"Not linearly mapped\tUnmapped\t{Unmapped}\n"
 						"Not linearly mapped\tUnmapped with 5'ss alignment\t{Unmapped_with_5ss_alignment}\n"
@@ -147,7 +161,14 @@ if __name__ == '__main__':
 	# Add linear mapping count
 	stats['Linear'] = add_mapped_reads(output_base, seq_type, log)
 
-	# Add read class counts
+	# Add linear read class counts
+	linear_counts = pd.read_csv(LINEAR_COUNTS_FILE.format(output_base), sep='\t', index_col=0)
+	# linear_counts['rowsum'] = linear_counts.sum(axis=1) - linear_counts.gene
+	# linear_counts['ambig'] = linear_counts.gene - linear_counts.rowsum
+	stats.update(linear_counts.apply(sum).to_dict())
+	# stats['intergenic'] = stats['Linear'] - stats['gene']
+
+	# Add nonlinear read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
 	read_classes.read_class = (read_classes.read_class
 								.str.replace(' ', '_')
@@ -201,6 +222,9 @@ if __name__ == '__main__':
 		stats['mixed_pairs'] = mp
 
 	# Add additional info
+	stats['pre_ratio'] = stats['exon_exon_junc'] / stats['exon_intron_junc']
+	stats['lariat_rpm'] = stats['Lariat'] / stats['Linear'] * 1e6
+	stats['circ_rpm'] = stats['Circularized_intron'] / stats['Linear'] * 1e6
 	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t')
 	lariat_reads.genomic_bp_nt = pd.Categorical(lariat_reads.genomic_bp_nt, categories=['A', 'C', 'G', 'T', 'N'])
 	stats.update(lariat_reads.genomic_bp_nt.value_counts(normalize=True).to_dict())

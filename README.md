@@ -29,11 +29,13 @@ LariatMapper needs a set of reference files to run.
 You will need:
 - A FASTA file of the reference genome (`GENOME_FASTA`)
 - A GTF or GFF file of annotations for the reference genome (`GENOME_ANNO`)
+- The name of the attribute for a feature's gene ID in the annotation file (`G_ATTR`, defaults to "gene_id")
+- The name of the attribute for a feature's transcript ID in the annotation file (`T_ATTR`, defaults to "transcript_id")
 - A hisat2 index of the reference genome (`HISAT2_INDEX`)
 
 Run `build_references.py` with the paths to each file and the desired output path:
 
-	python build_references.py -f GENOME_FASTA -a <GENOME_ANNO> -i <HISAT2_INDEX> -o <OUT_DIR>
+	python build_references.py -f GENOME_FASTA -a <GENOME_ANNO> -i <HISAT2_INDEX> -o <OUT_DIR> -g <G_ATTR> -t <T_ATTR>
 
 You can then use `OUT_DIR` as the reference files directory when running the pipeline (argument `-r, --ref_dir`)
 
@@ -67,46 +69,43 @@ Input read files:
                         Input FASTQ file when processing single-end RNA-seq data. Mutually exclusive with -1 and -2
 
 Reference files:
-  Provide either a reference files directory (REF_DIR) or an argument for each reference file. If both REF_DIR and individual reference files are supplied, the individually specified files will be used.
 	-r REF_DIR, --ref_dir REF_DIR
-                        Directory with reference files created by build_references.py.
-	-i REF_H2INDEX, --ref_h2index REF_H2INDEX
-                        hisat2 index of the reference genome
-	-g REF_FASTA, --ref_fasta REF_FASTA
-                        FASTA file of the reference genome
-	-5 REF_5P_FASTA, --ref_5p_fasta REF_5P_FASTA
-                        FASTA file with sequences of first 20nt of annotated introns
-	-e REF_EXONS, --ref_exons REF_EXONS
-                        TSV file of all annotated exons
-	-n REF_INTRONS, --ref_introns REF_INTRONS
-                        TSV file of all annotated introns
+                        Directory with reference files created by build_references.py
 
 Output:
 	-o OUTPUT_DIR, --output_dir OUTPUT_DIR
                         Directory for output files. Will be created if it does not exist
 
 Optional arguments:
-  -s {Unstranded,First,Second}, --strand {Unstranded,First,Second}
+	-s {Unstranded,First,Second}, --strand {Unstranded,First,Second}
                         WARNING, EXPERIMENTAL FEATURE STILL IN DEVELOPMENT! Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)
-  -m REF_REPEATMASKER, --ref_repeatmasker REF_REPEATMASKER
-                        BED file of repetitive regions annotated by RepeatMasker. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = No filter, unless a RepeatMasker BED file is found in REF_DIR).
-  -p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
+	-m REF_REPEATMASKER, --ref_repeatmasker REF_REPEATMASKER
+                        BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering
+	-i REF_H2INDEX, --ref_h2index REF_H2INDEX
+                        hisat2 index of the reference genome (Default = REF_DIR/hisat2_index)
+	-g REF_FASTA, --ref_fasta REF_FASTA
+                        FASTA file of the reference genome (Default = REF_DIR/genome.fa)
+	-5 REF_5P_FASTA, --ref_5p_fasta REF_5P_FASTA
+                        FASTA file with sequences of first 20nt of annotated introns (Default = REF_DIR/fivep_sites.fa)
+	-n REF_INTRONS, --ref_introns REF_INTRONS
+                        TSV file of all annotated introns (Default = REF_DIR/introns.tsv.gz)
+	-p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
                         Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv)
-  -u, --ucsc_track      
+	-u, --ucsc_track      
   						Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments
-  -c, --keep_classes    
+	-c, --keep_classes    
 						Keep a file with per-read classification named "read_classes.tsv.gz" in the output (Default = delete)
-  -k, --keep_temp       
+	-k, --keep_temp       
 						Keep all temporary files created while running the pipeline. Forces -c/--keep_classes (Default = delete)
-  -t THREADS, --threads THREADS
+	-t THREADS, --threads THREADS
                         Number of threads to use for parallel processing (Default = 1)
-  -x, --skip_version_check
+	-x, --skip_version_check
                         Don't check if LariatMapper is up-to-date with the main branch on GitHub (Default = check and warn if not up-to-date)
-  -q, --quiet           
+	-q, --quiet           
 						Only print fatal error messages (sets logging level to ERROR, Default = INFO). Mutually exclusive with -w and -d
-  -w, --warning         
+	-w, --warning         
 						Print warning messages and fatal error messages (sets logging level to WARNING, Default = INFO). Mutually exclusive with -q and -d
-  -d, --debug           
+	-d, --debug           
 						Print extensive status messages (sets logging level to DEBUG, Default = INFO). Mutually exclusive with -q and -w
 ```
 

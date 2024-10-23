@@ -167,7 +167,7 @@ if __name__ == '__main__':
 	# Do this to prevent ('id_a', 'id_a,id_b') -> 'id_a,id_a,id_b' since the gene_id col may already be comma-delimited
 	read_classes.gene_id = read_classes.gene_id.transform(lambda gids: functions.str_join(gids.split(','), unique=True))
 
-	read_classes['spliced'] = pd.Series(np.nan, dtype='object')
+	# read_classes['spliced'] = pd.Series(np.nan, dtype='object')
 	
 	# # Concat the linearly-aligned reads
 	# if os.path.isfile(f'{output_base}linear_classes.tsv'):
@@ -184,9 +184,5 @@ if __name__ == '__main__':
 
 	# Write to file
 	read_classes.to_csv(f'{output_base}read_classes.tsv.gz', sep='\t', index=False, na_rep='N/A')
-
-	# Delete the linear classes file
-	if os.path.isfile(f'{output_base}linear_classes.tsv'):
-		os.remove(f'{output_base}linear_classes.tsv')
 
 	log.debug('End of script')
