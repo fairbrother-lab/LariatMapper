@@ -10,9 +10,9 @@ args <- commandArgs(trailingOnly = TRUE)
 option_list <- list(
     make_option(c("-a", "--anno"), type = "character", default = NULL, 
                 help = "input annotation file (GTF or GFF)", metavar = "ANNO_PATH"),
-	make_option(c("-g", "--gene_attribute"), type = "character", default = "gene_id", 
+	make_option(c("-g", "--g_attr"), type = "character", default = "gene_id", 
                 help = "The name of the attribute that encodes gene ID (default=gene_id)", metavar = "OUT_PATH"),
-	make_option(c("-t", "--transcript_attribute"), type = "character", default = "transcript_id", 
+	make_option(c("-t", "--t_attr"), type = "character", default = "transcript_id", 
                 help = "The name of the attribute that encodes transcript ID (default=transcript_id)", metavar = "OUT_PATH"),
 	make_option(c("-o", "--output"), type = "character", default = NULL, 
                 help = "Path to output dir", metavar = "OUT_PATH"),
@@ -27,8 +27,8 @@ parser <- OptionParser(option_list = option_list)
 opts <- parse_args(parser)
 
 anno_file <- opts$anno
-gene_attribute <- opts$gene_attribute
-transcript_attribute <- opts$transcript_attribute
+g_attr <- opts$g_attr
+t_attr <- opts$t_attr
 output_dir <- opts$output
 quiet <- opts$quiet
 debug <- opts$debug
@@ -37,8 +37,8 @@ debug <- opts$debug
 anno <- import(anno_file)
 
 # Assign gene ID and transcript ID
-mcols(anno)['gene_id'] = mcols(anno)[[gene_attribute]] %>% sapply(., function(x) if (length(x) == 0) NA else x)
-mcols(anno)['tx_name'] = mcols(anno)[[transcript_attribute]] %>% sapply(., function(x) if (length(x) == 0) NA else x)
+mcols(anno)['gene_id'] = mcols(anno)[[g_attr]] %>% sapply(., function(x) if (length(x) == 0) NA else x)
+mcols(anno)['tx_name'] = mcols(anno)[[t_attr]] %>% sapply(., function(x) if (length(x) == 0) NA else x)
 
 # Make TxDb object
 txdb <- makeTxDbFromGRanges(anno)
