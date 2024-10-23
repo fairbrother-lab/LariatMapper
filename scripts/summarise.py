@@ -79,7 +79,7 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"          Additional statistics         \n"
 					"----------------------------------------\n"
-					"pre-mRNA/mRNA = {pre_ratio:.1%}\n"
+					"mRNA/pre-mRNA = {pre_ratio:.1%}\n"
 					"Lariat RPM = {lariat_rpm:.3g}\n"
 					"Circularized intron RPM = {circ_rpm:.3g}\n"
 					"Lariat reads, genomic_bp_nt = A:\t{A:.1%}\n"
@@ -222,7 +222,7 @@ if __name__ == '__main__':
 		stats['mixed_pairs'] = mp
 
 	# Add additional info
-	stats['pre_ratio'] = stats['exon_intron_junc'] / stats['exon_exon_junc']
+	stats['pre_ratio'] = stats['exon_exon_junc'] / stats['exon_intron_junc']
 	stats['lariat_rpm'] = stats['Lariat'] / stats['Linear'] * 1e6
 	stats['circ_rpm'] = stats['Circularized_intron'] / stats['Linear'] * 1e6
 	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t')
