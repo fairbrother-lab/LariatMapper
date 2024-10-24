@@ -53,6 +53,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	lariat_reads = pd.read_csv(PUTATITVE_LARIATS_FILE.format(output_base), sep='\t', dtype={'filter_failed': 'object'}, na_filter=False)
 	lariat_reads = lariat_reads.rename(columns={'align_start': 'head_start', 'align_end': 'head_end'})
 
+	# If no reads are left, end the run early
 	if lariat_reads.empty:
 		log.info('No reads remaining')
 		with open(LARIATS_FILE.format(output_base), 'w') as w:
@@ -60,7 +61,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 		with open(FAILED_LARIATS_FILE.format(output_base), 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
 
-		exit()
+		sys.exit(4)
 	
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
 	lariat_reads[['read_id', 'read_num']] = lariat_reads.read_id.str.split('/', expand=True)
@@ -189,9 +190,6 @@ if __name__ == '__main__':
 	# Load putatitve lariat alignments
 	log.debug('Parsing lariat reads...')
 	lariat_reads = load_lariat_table(output_base, log)
-	if len(lariat_reads)==0:
-		log.info('No reads remaining')
-		exit()
 	log.info(f'Pre-filter read count = {len(lariat_reads.read_id.unique())}')
 
 	# Get linear mapped reads count 

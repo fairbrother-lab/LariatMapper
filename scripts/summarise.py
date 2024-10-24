@@ -7,6 +7,8 @@ import pyfaidx
 import pysam
 
 import functions
+from filter_head_aligns import CIRCULARS_COLS, TEMP_SWITCH_COLS
+from filter_lariats import FINAL_RESULTS_COLS
 
 
 
@@ -145,6 +147,18 @@ if __name__ == '__main__':
 	log = functions.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
+	# Make neccesary output files if they are absent due to the run ending early
+	if not os.path.isfile(f'{output_base}lariat_reads.tsv'):
+		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
+			w.write('\t'.join(FINAL_RESULTS_COLS))
+	if not os.path.isfile(f'{output_base}circularized_intron_reads.tsv'):
+		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
+			w.write('\t'.join(CIRCULARS_COLS))
+	if not os.path.isfile(f'{output_base}template_switching_reads.tsv'):
+		with open(f'{output_base}template_switching_reads.tsv', 'w') as w:
+			w.write('\t'.join(TEMP_SWITCH_COLS))
+
+
 	# Initialise stats dict
 	stats = {}
 
@@ -183,32 +197,41 @@ if __name__ == '__main__':
 
 	# Add read counts after each stage
 	unmapped = set()
-	for rid in pyfaidx.Fasta(f'{output_base}unmapped_reads.fa', as_raw=True):
-		unmapped.add(rid.name[:-2])
+	if os.path.isfile(f'{output_base}unmapped_reads.fa'):
+		for rid in pyfaidx.Fasta(f'{output_base}unmapped_reads.fa', as_raw=True):
+			unmapped.add(rid.name[:-2])
 	stats['Linear_mapping'] = len(unmapped)
 
 	fivep_maps = set()
-	with open(f'{output_base}fivep_to_reads.sam', 'r') as r:
-		for line in r:
-			rid = line.split('\t')[2][:-2]
-			fivep_maps.add(rid)
+	if os.path.isfile(f'{output_base}fivep_to_reads.sam'):
+		with open(f'{output_base}fivep_to_reads.sam', 'r') as r:
+			for line in r:
+				rid = line.split('\t')[2][:-2]
+				fivep_maps.add(rid)
 	stats['5ss_mapping'] = len(fivep_maps)
 
-	tails = pd.read_csv(f'{output_base}tails.tsv', sep='\t', usecols=['read_id']).read_id
-	stats['5ss_alignment_filtering'] = tails.str.slice(0,-6).nunique()
+	if os.path.isfile(f'{output_base}tails.tsv'):
+		tails = pd.read_csv(f'{output_base}tails.tsv', sep='\t', usecols=['read_id']).read_id
+		stats['5ss_alignment_filtering'] = tails.str.slice(0,-6).nunique()
+	else:
+		stats['5ss_alignment_filtering'] = 0
 
 	head_maps = set()
-	with open(f'{output_base}heads_to_genome.sam', 'r') as r:
-		for line in r:
-			rid = line.split('\t')[0][:-6]
-			head_maps.add(rid)
+	if os.path.isfile(f'{output_base}heads_to_genome.sam'):
+		with open(f'{output_base}heads_to_genome.sam', 'r') as r:
+			for line in r:
+				rid = line.split('\t')[0][:-6]
+				head_maps.add(rid)
 	stats['Head_mapping'] = len(head_maps)
 
-	putative_lariats = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t', usecols=['read_id']).read_id
-	stats['Head_alignment_filtering'] = putative_lariats.str.slice(0,-6).nunique()
+	if os.path.isfile(f'{output_base}putative_lariats.tsv'):
+		putative_lariats = pd.read_csv(f'{output_base}putative_lariats.tsv', sep='\t', usecols=['read_id']).read_id
+		stats['Head_alignment_filtering'] = putative_lariats.str.slice(0,-6).nunique()
+	else:
+		stats['Head_alignment_filtering'] = 0
 
-	filtered_lariats = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t', usecols=['read_id']).read_id
-	stats['Lariat_filtering'] = filtered_lariats.nunique()
+	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t', usecols=['read_id']).read_id
+	stats['Lariat_filtering'] = lariat_reads.nunique()
 
 	# For paired-end data, add count of reads where one mate mapped linearly in the 
 	# initial mapping and the other didn't
@@ -225,13 +248,17 @@ if __name__ == '__main__':
 	stats['pre_ratio'] = stats['exon_exon_junc'] / stats['exon_intron_junc']
 	stats['lariat_rpm'] = stats['Lariat'] / stats['Linear'] * 1e6
 	stats['circ_rpm'] = stats['Circularized_intron'] / stats['Linear'] * 1e6
-	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t')
-	lariat_reads.genomic_bp_nt = pd.Categorical(lariat_reads.genomic_bp_nt, categories=['A', 'C', 'G', 'T', 'N'])
-	stats.update(lariat_reads.genomic_bp_nt.value_counts(normalize=True).to_dict())
-	stats['within_70'] = lariat_reads.bp_dist_to_threep.abs().le(70).sum()/lariat_reads.shape[0]
-	stats['bp_mismatch'] = lariat_reads.genomic_bp_nt.ne(lariat_reads.read_bp_nt).sum()/lariat_reads.shape[0]
+	if lariat_reads.shape[0]==0:
+		stats.update({bp: 0 for bp in ['A', 'C', 'G', 'T', 'N']})
+		stats['within_70'] = 0
+		stats['bp_mismatch'] = 0
+	else:
+		lariat_reads.genomic_bp_nt = pd.Categorical(lariat_reads.genomic_bp_nt, categories=['A', 'C', 'G', 'T', 'N'])
+		stats.update(lariat_reads.genomic_bp_nt.value_counts(normalize=True).to_dict())
+		stats['within_70'] = lariat_reads.bp_dist_to_threep.abs().le(70).sum()/lariat_reads.shape[0]
+		stats['bp_mismatch'] = lariat_reads.genomic_bp_nt.ne(lariat_reads.read_bp_nt).sum()/lariat_reads.shape[0]
 	
-	
+
 	# Write summary info to file
 	log.debug(f'Summary stats: {stats}')
 	with open(SUMMARY_FILE.format(output_base), 'w') as w:

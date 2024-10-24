@@ -55,6 +55,16 @@ failed_fiveps="$OUTPUT_BASE"failed_fivep_alignments.tsv
 failed_heads="$OUTPUT_BASE"failed_head_alignments.tsv
 failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
 
+# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
+temp_files=(
+	$output_bam $output_bam.bai $unmapped_fasta $unmapped_fasta.fai
+	$unmapped_fasta.1.bt* $unmapped_fasta.2.bt* $unmapped_fasta.3.bt* $unmapped_fasta.4.bt* 
+	$unmapped_fasta.rev.1.bt* $unmapped_fasta.rev.2.bt* $fivep_to_reads $heads_fasta 
+	$heads_to_genome $tails $putative_lariats $failed_fiveps $failed_heads $failed_lariat 
+	$OUTPUT_BASE"settings.json"
+)
+
+
 if [ "$STRAND" == "Unstranded" ]; then
 	hisat2_strand_arg=""
 elif [ "$STRAND" == "Forward" ] & [ "$SEQ_TYPE" == "single" ]; then
@@ -68,6 +78,59 @@ elif [ "$STRAND" == "Reverse" ] & [ "$SEQ_TYPE" == "paired" ]; then
 fi
 
 
+#=============================================================================#
+#                                  Functions                                  #
+#=============================================================================#
+end_run () {
+	### Classify reads
+	Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE
+	check_exitcode
+	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL 
+	check_exitcode
+
+	### Summarise results
+	### Also create lariat, circ, and temp-switch output files if they don't exist
+	python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE
+	check_exitcode
+
+	### Delete the temporary files 
+	if ! $KEEP_TEMP; then
+		printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting temporary files...\n"
+		for file in "${temp_files[@]}"; do
+			rm $file
+		done
+		if ! $KEEP_CLASSES; then
+			rm $OUTPUT_BASE"read_classes.tsv.gz"
+		fi
+	fi 
+
+	### Print completion message
+	if [ "${OUTPUT_BASE: -1}" == "/" ];then
+		printf "$(date +'%d/%b/%y %H:%M:%S') | Lariat mapping complete.\n"
+	else
+		printf "$(date +'%d/%b/%y %H:%M:%S') | Lariat mapping complete for "$(echo ${OUTPUT_BASE:0:-1} | sed "s:.*/::")".\n"
+	fi
+
+	### Exit
+	exit 0
+}
+
+check_exitcode () {
+	exit_code=$?
+	### Exit code 0 = success
+	if [ $exit_code -eq 0 ];then
+		return 0
+	### Exit code 4 = No reads or alignments remain for processing part-way through the pipeline
+	### End the run early
+	elif [ $exit_code -eq 4 ];then
+		printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining. "
+		end_run
+	else
+		exit $exit_code
+	fi
+}
+
+
 
 #=============================================================================#
 #                                    Calls                                    #
@@ -79,8 +142,8 @@ if [ "$SEQ_TYPE" == "single" ]; then
 	       $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -U $INPUT_FILES \
 		| samtools view --bam --with-header --add-flags PAIRED,READ1 \
 		| samtools sort --threads $THREADS --verbosity 0 \
-		> $output_bam \
-		|| exit 1
+		> $output_bam 
+	check_exitcode
 elif [ "$SEQ_TYPE" == "paired" ]; then
 	# Get the two read files from the comma-separated list
 	IFS=',' read -r read_one read_two <<< "$INPUT_FILES"
@@ -89,29 +152,30 @@ elif [ "$SEQ_TYPE" == "paired" ]; then
 		   $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -1 $read_one -2 $read_two \
 		| samtools view --bam --with-header \
 		| samtools sort --threads $THREADS --verbosity 0 \
-		> $output_bam \
-		|| exit 1
+		> $output_bam
+	check_exitcode
 fi
 samtools index $output_bam
+check_exitcode
 
 unmapped_read_count=$(samtools view --count --require-flags 4 $output_bam)
 if [ $unmapped_read_count == 0 ];then
-	printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining\n"
-	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
-		|| exit 1
-	python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE \
-		|| exit 1
+	end_run
 fi
 
 ### Create fasta file of unmapped reads 
 printf "$(date +'%d/%b/%y %H:%M:%S') | Creating fasta file of unmapped reads...\n"
-samtools fasta -N --require-flags 4 -o $unmapped_fasta $output_bam >/dev/null 2>&1 || exit 1
+samtools fasta -N --require-flags 4 -o $unmapped_fasta $output_bam >/dev/null 2>&1
+check_exitcode
 printf "$(date +'%d/%b/%y %H:%M:%S') | Indexing unmapped reads fasta file...\n"
-samtools faidx $unmapped_fasta || exit 1
+samtools faidx $unmapped_fasta 
+check_exitcode
 
 ### Build a bowtie2 index of the unmapped reads
 printf "$(date +'%d/%b/%y %H:%M:%S') | Building bowtie2 index of unmapped fasta...\n"
-bowtie2-build --quiet --threads $THREADS $unmapped_fasta $unmapped_fasta || exit 1 
+bowtie2-build --quiet --threads $THREADS $unmapped_fasta $unmapped_fasta
+check_exitcode 
+
 
 ## Align fasta file of all 5' splice sites (first 20nts of introns) to unmapped reads index
 # We need to order the output SAM by reference (the read id, in this case) for the following filtering process
@@ -119,8 +183,8 @@ printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
 	| samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -M \
 	| samtools view \
-	> $fivep_to_reads \
-	|| exit 1 
+	> $fivep_to_reads
+check_exitcode
 
 # # ## Align unmapped reads to index of all 5' splice sites (first 20nts of introns)
 # printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
@@ -130,8 +194,8 @@ bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threa
 
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%d/%b/%y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
-python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS \
-	|| exit 1 
+python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
+check_exitcode
 
 ### Map read heads to genome
 printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping heads to genome...\n"
@@ -139,67 +203,27 @@ hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $heads_fasta \
 	| samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n \
 	| samtools view \
-	> $heads_to_genome \
-	|| exit 1
+	> $heads_to_genome
+check_exitcode
 
 ### Filter head alignments
 printf "$(date +'%d/%b/%y %H:%M:%S') | Analyzing head alignments and outputting lariat table...\n"
-python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL \
-	|| exit 1 
+python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
+check_exitcode
 
 ### Filter lariat mappings and choose 1 for each read
 printf "$(date +'%d/%b/%y %H:%M:%S') | Filtering putative lariat alignments...\n"
-python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED \
-	|| exit 1 
-
-### Classify reads
-Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE \
-	|| exit 1
-python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL \
-	|| exit 1
-python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE \
-	|| exit 1
+python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED
+check_exitcode
 
 ### Make a custom track BED file of identified lariats 
 if $UCSC_TRACK; then
 	printf "$(date +'%d/%b/%y %H:%M:%S') | Making UCSC Genome Browser track...\n"
-	python -u $PIPELINE_DIR/scripts/make_track.py $OUTPUT_BASE $LOG_LEVEL \
-		|| exit 1
+	python -u $PIPELINE_DIR/scripts/make_track.py $OUTPUT_BASE $LOG_LEVEL 
+	check_exitcode
 fi
 
 
 
 wait
-### Delete the temporary files 
-if ! $KEEP_TEMP; then
-	printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting temporary files...\n"
-	rm $output_bam
-	rm $output_bam.bai
-	rm $unmapped_fasta 
-	rm $unmapped_fasta.fai
-	# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
-	rm $unmapped_fasta.1.bt*
-	rm $unmapped_fasta.2.bt*
-	rm $unmapped_fasta.3.bt*
-	rm $unmapped_fasta.4.bt*
-	rm $unmapped_fasta.rev.1.bt*
-	rm $unmapped_fasta.rev.2.bt*
-	rm $fivep_to_reads
-	rm $heads_fasta
-	rm $heads_to_genome
-	rm $tails
-	rm $putative_lariats
-	rm $failed_fiveps
-	rm $failed_heads
-	rm $failed_lariat
-	rm $OUTPUT_BASE"settings.json"
-	if ! $KEEP_CLASSES; then
-		rm $OUTPUT_BASE"read_classes.tsv.gz"
-	fi
-fi 
-
-if [ "${OUTPUT_BASE: -1}" == "/" ];then
-	printf "$(date +'%d/%b/%y %H:%M:%S') | Lariat mapping complete.\n"
-else
-	printf "$(date +'%d/%b/%y %H:%M:%S') | Lariat mapping complete for "$(echo ${OUTPUT_BASE:0:-1} | sed "s:.*/::")".\n"
-fi
+end_run

@@ -38,7 +38,8 @@ if __name__ == '__main__':
 	if lariat_reads.empty:
 		with open(f'{output_base}lariat_reads.bed', 'w') as w:
 			pass
-		exit()
+		sys.exit(0)
+
 
 	lariat_reads['head_len'] = lariat_reads.apply(lambda row: row['read_bp_pos']+1 if row['read_is_reverse'] is False else len(row['read_seq']) - (row['read_bp_pos']+1), axis=1)
 	lariat_reads['head_start'] = lariat_reads.apply(lambda row: row['bp_pos']-row['head_len'] if row['strand']=='+' else row['bp_pos'], axis=1)

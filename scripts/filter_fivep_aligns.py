@@ -304,9 +304,9 @@ if __name__ == '__main__' :
 		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} read-fivep alignments')
 
+	# If there are no alignments, end the run early
 	if n_aligns == 0:
-		log.info('No reads remaining')
-		exit()
+		sys.exit(4)
 
 	chunk_ranges = decide_chunk_ranges(n_aligns, threads)
 	log.debug(f'chunk ranges: {chunk_ranges}')
