@@ -28,13 +28,13 @@ MAX_GAP_LENGTH = 3
 ALIGN_CHUNKSIZE = 100_000
 BP_CONTEXT_LENGTH = 8
 
-TEMPLATE_SWITCHING_COLS = ['read_id',
-						'fivep_sites',
-						'temp_switch_sites',
-						'read_seq', 
-						'fivep_seq',
-						'genomic_bp_context',
-						'read_bp_pos',]
+TEMP_SWITCH_COLS = ['read_id',
+					'fivep_sites',
+					'temp_switch_sites',
+					'read_seq', 
+					'fivep_seq',
+					'genomic_bp_context',
+					'read_bp_pos',]
 CIRCULARS_COLS = ['read_id',
 				'chrom',
 				'strand',
@@ -363,7 +363,7 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 		temp_switches.read_id = temp_switches.read_id.str.slice(0,-6)
 		temp_switches['fivep_sites'] = temp_switches[['fivep_chrom', 'strand', 'fivep_pos']].agg(';'.join, axis=1)
 		temp_switches['temp_switch_sites'] = temp_switches[['chrom', 'bp_pos']].agg(';'.join, axis=1)
-		temp_switches = temp_switches[TEMPLATE_SWITCHING_COLS]
+		temp_switches = temp_switches[TEMP_SWITCH_COLS]
 		temp_switches = temp_switches.groupby('read_id', as_index=False).agg({col: functions.str_join for col in temp_switches.columns if col != 'read_id'})
 		with temp_switch_lock:
 			temp_switches.to_csv(TEMP_SWITCH_FILE.format(output_base), mode='a', sep='\t', header=False, index=False)
@@ -467,9 +467,9 @@ if __name__ == '__main__':
 		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} head alignments')
 
+	# If there are no alignments, end the run early
 	if n_aligns == 0:
-		log.info('No reads remaining')
-		exit()
+		sys.exit(4)
 
 	chunk_ranges = [[chunk_start, chunk_start+ALIGN_CHUNKSIZE] for chunk_start in range(1, n_aligns+1, ALIGN_CHUNKSIZE)]
 	chunk_ranges[-1][-1] = n_aligns
@@ -484,7 +484,7 @@ if __name__ == '__main__':
 	with open(FAILED_HEADS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(PUTATITVE_LARIATS_COLS + ['filter_failed']) + '\n')
 	with open(TEMP_SWITCH_FILE.format(output_base), 'w') as w:
-		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
+		w.write('\t'.join(TEMP_SWITCH_COLS) + '\n')
 	with open(CIRCULARS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(CIRCULARS_COLS) + '\n')
 	with open(PUTATITVE_LARIATS_FILE.format(output_base), 'w') as w:
