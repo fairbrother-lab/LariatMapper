@@ -160,6 +160,7 @@ check_exitcode
 
 unmapped_read_count=$(samtools view --count --require-flags 4 $output_bam)
 if [ $unmapped_read_count == 0 ];then
+	printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining."
 	end_run
 fi
 
