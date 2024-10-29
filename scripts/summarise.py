@@ -60,6 +60,7 @@ SUMMARY_TEMPLATE = (
 					"Intronic:\t{intron_only}\n"
 					# "Genic, ambiguous:\t{ambig}\n"
 					# "Intergenic:\t{intergenic}\n"
+					"Other linear (placeholder):\t{linear_other}\n"
 					"Unmapped:\t{Unmapped}\n"
 					"Unmapped with 5'ss alignment:\t{Unmapped_with_5ss_alignment}\n"
 					"Template-switching:\t{Template_switching}\n"
@@ -81,9 +82,9 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"          Additional statistics         \n"
 					"----------------------------------------\n"
-					"mRNA/pre-mRNA = {pre_ratio:.1%}\n"
-					"Lariat RPM = {lariat_rpm:.3g}\n"
-					"Circularized intron RPM = {circ_rpm:.3g}\n"
+					"mRNA/pre-mRNA = {pre_ratio:.4g}\n"
+					"Lariat RPM = {lariat_rpm:.4g}\n"
+					"Circularized intron RPM = {circ_rpm:.4g}\n"
 					"Lariat reads, genomic_bp_nt = A:\t{A:.1%}\n"
 					"Lariat reads, genomic_bp_nt = C:\t{C:.1%}\n"
 					"Lariat reads, genomic_bp_nt = G:\t{G:.1%}\n"
@@ -102,6 +103,7 @@ READ_COUNTS_TEMPLATE = (
 						"Linearly mapped\tIntronic\t{intron_only}\n"
 						# "Linearly mapped\tGenic, ambiguous\t{ambig}\n"
 						# "Linearly mapped\tIntergenic\t{intergenic}\n"
+						"Linearly mapped\tOther (placeholder)\t{linear_other}\n"
 						"Not linearly mapped\tTotal\t{not_linear}\n"
 						"Not linearly mapped\tUnmapped\t{Unmapped}\n"
 						"Not linearly mapped\tUnmapped with 5'ss alignment\t{Unmapped_with_5ss_alignment}\n"
@@ -109,7 +111,7 @@ READ_COUNTS_TEMPLATE = (
 						"Not linearly mapped\tCircularized intron\t{Circularized_intron}\n"
 						"Not linearly mapped\tIn repetitive region\t{In_repetitive_region}\n"
 						"Not linearly mapped\tLariat\t{Lariat}\n"
-						"Only one mate linearly mapped\tTotal\t{mixed_pairs}\n"
+						"Other\tOne mate linearly mapped\t{mixed_pairs}\n"
 						"Read count after stage\tLinear mapping:\t{Linear_mapping}\n"
 						"Read count after stage\t5'ss mapping:\t{5ss_mapping}\n"
 						"Read count after stage\t5'ss alignment filtering:\t{5ss_alignment_filtering}\n"
@@ -181,6 +183,7 @@ if __name__ == '__main__':
 	# linear_counts['ambig'] = linear_counts.gene - linear_counts.rowsum
 	stats.update(linear_counts.apply(sum).to_dict())
 	# stats['intergenic'] = stats['Linear'] - stats['gene']
+	stats['linear_other'] = stats['Linear'] - stats['exon_exon_junc'] - stats['exon_intron_junc'] - stats['exon_only'] - stats['intron_only']
 
 	# Add nonlinear read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
@@ -230,8 +233,8 @@ if __name__ == '__main__':
 	else:
 		stats['Head_alignment_filtering'] = 0
 
-	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t', usecols=['read_id']).read_id
-	stats['Lariat_filtering'] = lariat_reads.nunique()
+	lariat_reads = pd.read_csv(f'{output_base}lariat_reads.tsv', sep='\t')
+	stats['Lariat_filtering'] = lariat_reads.read_id.nunique()
 
 	# For paired-end data, add count of reads where one mate mapped linearly in the 
 	# initial mapping and the other didn't
@@ -269,6 +272,25 @@ if __name__ == '__main__':
 	log.debug(f'Read count stats: {read_count_stats}')
 	with open(READ_COUNTS_FILE.format(output_base), 'w') as w:
 		w.write(READ_COUNTS_TEMPLATE.format(**read_count_stats))
+
+
+	# Check read counts output for consistency, warn if inconsistent
+	counts = pd.read_csv(READ_COUNTS_FILE.format(output_base), sep='\t', index_col=[0,1])
+	lin_tot = counts.at[('Linearly mapped', 'Total'), 'Reads']
+	lin_subs = counts.loc['Linearly mapped'].Reads.sum() - lin_tot
+	nonlin_tot = counts.at[('Not linearly mapped', 'Total'), 'Reads']
+	nonlin_subs = counts.loc['Not linearly mapped'].Reads.sum() - nonlin_tot
+	inp = counts.at[('Input', 'Total'), 'Reads'] 
+	if lin_tot != lin_subs:
+		raise RuntimeError(f'Linearly mapped read subcategories do not sum to total ({lin_subs:,} ≠ {lin_tot:,})')
+	if nonlin_tot != nonlin_subs:
+		raise RuntimeError(f'Not linearly mapped read subcategories do not sum to total ({nonlin_subs:,} ≠ {nonlin_tot:,})')
+	if inp != lin_tot + nonlin_tot:
+		raise RuntimeError(f'Input reads do not sum to linearly and non-linearly mapped reads ({inp:,} ≠ {lin_tot + nonlin_tot:,})')
+	survival_counts = counts.loc[counts.index.get_level_values('Category')=='Read count after stage'].Reads.values
+	if not all(survival_counts[i] >= survival_counts[i+1] for i in range(len(survival_counts)-1)):
+		raise RuntimeError(f'Read counts after each stage are not in decreasing order')
+
 
 	log.debug('End of script')
 
