@@ -195,6 +195,7 @@ def get_chrom_length(faidx:str, chrom:str) -> int:
 	'''
 	with open(faidx) as file_in:
 		for line in file_in:
-			if line.startswith(chrom):
-				return int(line.split('\t')[1])
+			line_chrom, length = line.split('\t')[:2]
+			if line_chrom == chrom:
+				return int(length)
 
