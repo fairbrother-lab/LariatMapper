@@ -81,7 +81,7 @@ fi
 #=============================================================================#
 #                                  Functions                                  #
 #=============================================================================#
-end_run () {
+end_run() {
 	### Classify reads
 	Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE
 	check_exitcode
@@ -115,7 +115,7 @@ end_run () {
 	exit 0
 }
 
-check_exitcode () {
+check_exitcode() {
 	exit_code=$?
 	### Exit code 0 = success
 	if [ $exit_code -eq 0 ];then
@@ -160,7 +160,7 @@ check_exitcode
 
 unmapped_read_count=$(samtools view --count --require-flags 4 $output_bam)
 if [ $unmapped_read_count == 0 ];then
-	printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining."
+	printf "$(date +'%d/%b/%y %H:%M:%S') | All reads mapped linearly to genome."
 	end_run
 fi
 
