@@ -95,7 +95,7 @@ end_run() {
 
 	### Delete the temporary files 
 	if ! $KEEP_TEMP; then
-		printf "$(date +'%d/%b/%y %H:%M:%S') | Deleting temporary files...\n"
+		printf "$(date +'%d/%b/%Y %H:%M:%S') | Deleting temporary files...\n"
 		for file in "${temp_files[@]}"; do
 			rm $file
 		done
@@ -106,9 +106,9 @@ end_run() {
 
 	### Print completion message
 	if [ "${OUTPUT_BASE: -1}" == "/" ];then
-		printf "$(date +'%d/%b/%y %H:%M:%S') | Lariat mapping complete.\n"
+		printf "$(date +'%d/%b/%Y %H:%M:%S') | Lariat mapping complete.\n"
 	else
-		printf "$(date +'%d/%b/%y %H:%M:%S') | Lariat mapping complete for "$(echo ${OUTPUT_BASE:0:-1} | sed "s:.*/::")".\n"
+		printf "$(date +'%d/%b/%Y %H:%M:%S') | Lariat mapping complete for "$(echo ${OUTPUT_BASE:0:-1} | sed "s:.*/::")".\n"
 	fi
 
 	### Exit
@@ -123,7 +123,7 @@ check_exitcode() {
 	### Exit code 4 = No reads or alignments remain for processing part-way through the pipeline
 	### End the run early
 	elif [ $exit_code -eq 4 ];then
-		printf "$(date +'%d/%b/%y %H:%M:%S') | No reads remaining. "
+		printf "$(date +'%d/%b/%Y %H:%M:%S') | No reads remaining.\n"
 		end_run
 	else
 		exit $exit_code
@@ -136,7 +136,7 @@ check_exitcode() {
 #                                    Calls                                    #
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
-printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping reads to genome...\n"
+printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping reads to genome...\n"
 if [ "$SEQ_TYPE" == "single" ]; then
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 	       $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -U $INPUT_FILES \
@@ -160,27 +160,27 @@ check_exitcode
 
 unmapped_read_count=$(samtools view --count --require-flags 4 $output_bam)
 if [ $unmapped_read_count == 0 ];then
-	printf "$(date +'%d/%b/%y %H:%M:%S') | All reads mapped linearly to genome."
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | All reads mapped linearly to genome.\n"
 	end_run
 fi
 
 ### Create fasta file of unmapped reads 
-printf "$(date +'%d/%b/%y %H:%M:%S') | Creating fasta file of unmapped reads...\n"
+printf "$(date +'%d/%b/%Y %H:%M:%S') | Creating fasta file of unmapped reads...\n"
 samtools fasta -N --require-flags 4 -o $unmapped_fasta $output_bam >/dev/null 2>&1
 check_exitcode
-printf "$(date +'%d/%b/%y %H:%M:%S') | Indexing unmapped reads fasta file...\n"
+printf "$(date +'%d/%b/%Y %H:%M:%S') | Indexing unmapped reads fasta file...\n"
 samtools faidx $unmapped_fasta 
 check_exitcode
 
 ### Build a bowtie2 index of the unmapped reads
-printf "$(date +'%d/%b/%y %H:%M:%S') | Building bowtie2 index of unmapped fasta...\n"
+printf "$(date +'%d/%b/%Y %H:%M:%S') | Building bowtie2 index of unmapped fasta...\n"
 bowtie2-build --quiet --threads $THREADS $unmapped_fasta $unmapped_fasta
 check_exitcode 
 
 
 ## Align fasta file of all 5' splice sites (first 20nts of introns) to unmapped reads index
 # We need to order the output SAM by reference (the read id, in this case) for the following filtering process
-printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
+printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
 	| samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -M \
 	| samtools view \
@@ -188,18 +188,18 @@ bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threa
 check_exitcode
 
 # # ## Align unmapped reads to index of all 5' splice sites (first 20nts of introns)
-# printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
+# printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 # bowtie2 --local -k 1000 -L 20 -i C,1,0 --ma 1 --mp 1,1 --np 1 --rdg 1,1 --rfg 1,1 --score-min C,20,0 \
 # 		--no-unal --no-head --threads $THREADS -x $FIVEP_INDEX -f -U $unmapped_fasta \
 # 	> $reads_to_fivep 
 
 ## Extract reads with a mapped 5' splice site and trim it off
-printf "$(date +'%d/%b/%y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
+printf "$(date +'%d/%b/%Y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
 python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
 check_exitcode
 
 ### Map read heads to genome
-printf "$(date +'%d/%b/%y %H:%M:%S') | Mapping heads to genome...\n"
+printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping heads to genome...\n"
 hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $heads_fasta \
 	| samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n \
@@ -208,18 +208,18 @@ hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 check_exitcode
 
 ### Filter head alignments
-printf "$(date +'%d/%b/%y %H:%M:%S') | Analyzing head alignments and outputting lariat table...\n"
+printf "$(date +'%d/%b/%Y %H:%M:%S') | Analyzing head alignments and outputting lariat table...\n"
 python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
 check_exitcode
 
 ### Filter lariat mappings and choose 1 for each read
-printf "$(date +'%d/%b/%y %H:%M:%S') | Filtering putative lariat alignments...\n"
+printf "$(date +'%d/%b/%Y %H:%M:%S') | Filtering putative lariat alignments...\n"
 python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED
 check_exitcode
 
 ### Make a custom track BED file of identified lariats 
 if $UCSC_TRACK; then
-	printf "$(date +'%d/%b/%y %H:%M:%S') | Making UCSC Genome Browser track...\n"
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | Making UCSC Genome Browser track...\n"
 	python -u $PIPELINE_DIR/scripts/make_track.py $OUTPUT_BASE $LOG_LEVEL 
 	check_exitcode
 fi
