@@ -1,5 +1,8 @@
 # LariatMapper | The Fairbrother Lab
 
+# UNDER DEVELOPMENT
+# Implementation of LariatMapper pipeline with Nextflow workflow manager
+
 ## Overview
 
 A pipeline for extracting lariats and their branchpoints from RNA-sequencing data. 
@@ -45,69 +48,8 @@ If a RepeatMasker file is included in a run, LariatMapper will check putative la
 
 
 ## Running the Pipeline
-### Required arguments 
-For single-end sequencing data, run
 
-	python larmap.py -f READ_FILE -r REF_DIR -o OUTPUT_DIR
-
-For paired-end sequencing data, run
-
-	python larmap.py -1 READ_ONE -2 READ_TWO -r REF_DIR -o OUTPUT_DIR
-
-LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers (UMIs) for reliable results. 
-
-
-### All arguments
-```
-Input read files:
-  Provide either two paired-end read files or one single-end read file. Files can be uncompressed or gzip-compressed
-	-1 READ_ONE, --read_one READ_ONE
-                        Read 1 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f
-	-2 READ_TWO, --read_two READ_TWO
-                        Read 2 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f
-	-f READ_FILE, --read_file READ_FILE
-                        Input FASTQ file when processing single-end RNA-seq data. Mutually exclusive with -1 and -2
-
-Reference files:
-	-r REF_DIR, --ref_dir REF_DIR
-                        Directory with reference files created by build_references.py
-
-Output:
-	-o OUTPUT_DIR, --output_dir OUTPUT_DIR
-                        Directory for output files. Will be created if it does not exist
-
-Optional arguments:
-	-s {Unstranded,First,Second}, --strand {Unstranded,First,Second}
-                        WARNING, EXPERIMENTAL FEATURE STILL IN DEVELOPMENT! Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)
-	-m REF_REPEATMASKER, --ref_repeatmasker REF_REPEATMASKER
-                        BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering
-	-i REF_H2INDEX, --ref_h2index REF_H2INDEX
-                        hisat2 index of the reference genome (Default = REF_DIR/hisat2_index)
-	-g REF_FASTA, --ref_fasta REF_FASTA
-                        FASTA file of the reference genome (Default = REF_DIR/genome.fa)
-	-5 REF_5P_FASTA, --ref_5p_fasta REF_5P_FASTA
-                        FASTA file with sequences of first 20nt of annotated introns (Default = REF_DIR/fivep_sites.fa)
-	-n REF_INTRONS, --ref_introns REF_INTRONS
-                        TSV file of all annotated introns (Default = REF_DIR/introns.tsv.gz)
-	-p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
-                        Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv)
-	-u, --ucsc_track      
-  						Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments
-	-c, --keep_classes    
-						Keep a file with per-read classification named "read_classes.tsv.gz" in the output (Default = delete)
-	-k, --keep_temp       
-						Keep all temporary files created while running the pipeline. Forces -c/--keep_classes (Default = delete)
-	-t THREADS, --threads THREADS
-                        Number of threads to use for parallel processing (Default = 1)
-	-x, --skip_version_check
-                        Don't check if LariatMapper is up-to-date with the main branch on GitHub (Default = check and warn if not up-to-date)
-	-q, --quiet           
-						Only print fatal error messages (sets logging level to ERROR, Default = INFO). Mutually exclusive with -w and -d
-	-w, --warning         
-						Print warning messages and fatal error messages (sets logging level to WARNING, Default = INFO). Mutually exclusive with -q and -d
-	-d, --debug           
-						Print extensive status messages (sets logging level to DEBUG, Default = INFO). Mutually exclusive with -q and -w
-```
+## Put description of Nextflow config files and pipeline invocation here
 
 ## Output
 All output will be written in the directory `OUT_DIR`. This includes:
