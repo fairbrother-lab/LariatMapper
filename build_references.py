@@ -7,7 +7,7 @@ import argparse
 
 import pandas as pd
 
-from bin import functions
+from scripts import functions
 
 
 
