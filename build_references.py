@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 
 import os
-import subprocess
 import shutil
-import time
 import gzip
 import argparse
-import collections
-import tempfile
-
 
 import pandas as pd
 
-from scripts import functions
+from bin import functions
 
 
 
@@ -21,6 +16,7 @@ from scripts import functions
 # =============================================================================#
 EXON_INTRON_COLUMNS = ('chrom', 'strand', 'start', 'end', 'gene_id')
 REF_GENOME_FILE = 'genome.fa'
+REF_GENOME_INDEX = 'genome.fa.fai'
 REF_HISAT2_INDEX = 'hisat2_index'
 REF_EXONS_FILE = 'exons.tsv.gz'
 REF_INTRONS_FILE = 'introns.tsv.gz'
@@ -36,8 +32,8 @@ HISAT2_EXTENSIONS = ('1.ht2', '2.ht2', '.3.ht2', '.4.ht2','.5.ht2', '.6.ht2','.7
 #=============================================================================#
 def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	# Confirm that input files exist
-	ref_names = ['Genome fasta', 'Reference annotation']
-	ref_files = [args.genome_fasta, args.genome_anno]
+	ref_names = ['Genome fasta', 'Genome index', 'Reference annotation']
+	ref_files = [args.genome_fasta, args.genome_fasta+'.fai', args.genome_anno]
 	for rn, rf in zip(ref_names, ref_files):
 		if not os.path.isfile(rf):
 			raise FileNotFoundError(f'{rn} file does not exist at {rf}')
@@ -248,7 +244,7 @@ if __name__ == '__main__':
 		log_level = 'DEBUG'
 	else:
 		log_level = 'INFO'
-	log = functions.get_logger(log_level)
+	log = functions.get_stdout_logger(log_level)
 
 	# Report version
 	pipeline_dir = os.path.dirname(os.path.realpath(__file__))
@@ -276,6 +272,7 @@ if __name__ == '__main__':
 	if copy is True:
 		log.info('Copying input files...')
 		shutil.copyfile(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
+		shutil.copyfile(genome_fasta+'.fai', f'{out_dir}/{REF_GENOME_INDEX}')
 		for ext in hisat2_extensions:
 			shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
 		if repeatmasker_bed is not None:
@@ -284,6 +281,8 @@ if __name__ == '__main__':
 		log.info('Creating links to input files...')
 		if not os.path.isfile(f'{out_dir}/{REF_GENOME_FILE}'):
 			os.symlink(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
+		if not os.path.isfile(f'{out_dir}/{REF_GENOME_INDEX}'):
+			os.symlink(genome_fasta+'.fai', f'{out_dir}/{REF_GENOME_INDEX}')
 		for ext in hisat2_extensions:
 			if not os.path.isfile(f'{out_dir}/{REF_HISAT2_INDEX}{ext}'):
 				os.symlink(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
@@ -300,7 +299,7 @@ if __name__ == '__main__':
 	build_fivep(introns, genome_fasta, threads, out_dir, log)
 
 	log.info("Building GRanges objects...")
-	cmd = f"Rscript {pipeline_dir}/scripts/build_R_refs.R" +\
+	cmd = f"Rscript {pipeline_dir}/bin/build_R_refs.R" +\
 			f" -a {genome_anno} -g {g_attr} -t {t_attr} -o {out_dir}"
 	functions.run_command(cmd, log=log)
 

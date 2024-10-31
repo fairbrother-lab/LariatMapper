@@ -55,11 +55,12 @@ def get_read_seqs(unmapped_fasta:str) -> dict:
 	return read_seqs
 
 
-def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
+def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, genome_faidx:str, log) -> dict:
 	# Prepare 5' sites for input into bedtools getfasta
 	# We're retrieving the 5bp upstream of the 5'ss, which is the last 5bp in the upstream exon
 	bedtools_input = ''
 	fivep_sites = Fasta(fivep_fasta).keys()
+	chrom_lengths = functions.get_chrom_lengths(genome_faidx)
 	for site in fivep_sites:
 		chrom, fivep_pos, strand = site.split(';')
 		fivep_pos = int(fivep_pos)
@@ -67,8 +68,7 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 			up_pos = max(fivep_pos-5, 1) 				# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{up_pos}\t{fivep_pos}\t{site}\t0\t{strand}\n'  
 		else:
-			chrom_length = functions.get_chrom_length(f'{genome_fasta}.fai', chrom)
-			up_pos = min(fivep_pos+6, chrom_length)		# Make sure the 5bp upstream is within chrom
+			up_pos = min(fivep_pos+6, chrom_lengths[chrom])		# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{fivep_pos+1}\t{up_pos}\t{site}\t0\t{strand}\n'
 
 	# Call bedtools getfasta 
@@ -162,7 +162,7 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 		yield current_read_id, False, fivep_sites[False]
 
 
-def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, strand:str, output_base:str, log_level:str) -> None:
+def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, strand:str, output_base:str, log_file:str, log_level:str) -> None:
 	'''
 	Filter and trim the reads to which 5'ss sequences were mapped, the trimmed section being the read "head" and the trimmed-off section being the read "tail" 
 	Write read information and their aligned 5' splice site(s) to tails.tsv
@@ -170,7 +170,7 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 	'''
 	# We have to set the log level in each process because the children don't inherit the log level from their parent,
 	# even if you pass the log object itself
-	log = functions.get_logger(log_level)
+	log = functions.get_file_logger(log_file, log_level)
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
 	# Go through the assigned chunk of lines, reading and processing all 5'ss alignments to each read together
@@ -287,26 +287,20 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 # =============================================================================#
 if __name__ == '__main__' :
 	# Get args
-	output_base, log_level, genome_fasta, fivep_fasta, strand, threads, = sys.argv[1:]
-
+	output_base, log_file, log_level, n_aligns, genome_fasta, genome_faidx, fivep_fasta, strand, threads, = sys.argv[1:]
+	n_aligns = int(n_aligns)
+	
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = functions.get_file_logger(log_file, log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 	
 	threads = int(threads)
 
 	# Load reference info
 	read_seqs = get_read_seqs(UNMAPPED_READS_FILE.format(output_base))
-	fivep_upstream_seqs = get_fivep_upstream_seqs(fivep_fasta, genome_fasta, log)
+	fivep_upstream_seqs = get_fivep_upstream_seqs(fivep_fasta, genome_fasta, genome_faidx, log)
 
-	# Get the total number of alignments
-	with open(FIVEP_TO_READS_FILE.format(output_base)) as sam:
-		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} read-fivep alignments')
-
-	# If there are no alignments, end the run early
-	if n_aligns == 0:
-		sys.exit(4)
 
 	chunk_ranges = decide_chunk_ranges(n_aligns, threads)
 	log.debug(f'chunk ranges: {chunk_ranges}')
@@ -319,18 +313,19 @@ if __name__ == '__main__' :
 	with open(FAILED_FIVEPS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(FAILED_FIVEPS_COLS) + '\n')
 
+	mp.set_start_method('spawn', force=True)
 	log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 	processes = []
 	for chunk_start, chunk_end in chunk_ranges[1:]:
 		process = mp.Process(target=filter_reads_chunk, 
 							args=(chunk_start, chunk_end, n_aligns, read_seqs, 
-								fivep_upstream_seqs, strand, output_base, log_level,))
+								fivep_upstream_seqs, strand, output_base, log_file, log_level,))
 		process.start()
 		processes.append(process)
 		
 	# Process the first chunk in the main process
 	filter_reads_chunk(chunk_ranges[0][0], chunk_ranges[0][1], n_aligns, read_seqs,
-					fivep_upstream_seqs, strand, output_base, log_level) 
+					fivep_upstream_seqs, strand, output_base, log_file, log_level) 
 
 	# Check if any processes hit an error
 	for process in processes:

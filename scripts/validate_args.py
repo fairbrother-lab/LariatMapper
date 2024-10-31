@@ -5,14 +5,12 @@ import json
 import os
 import time
 import multiprocessing
-import subprocess
 import dataclasses
 import pathlib
 
 # This line is where our third-party imports go, if we had any
 
-from scripts import functions
-
+import functions
 
 
 # =============================================================================#
@@ -61,7 +59,7 @@ class Settings:
 	output_base: pathlib.Path = dataclasses.field(init=False)
 	log_level: str = dataclasses.field(init=False)
 	# Automatically determined attributes
-	pipeline_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
+	pipeline_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__))).parent.absolute()
 
 
 	def __post_init__(self):
@@ -246,7 +244,8 @@ if __name__ == '__main__':
 	settings = Settings(**args)
 
 	# Set up logging
-	log = functions.get_logger(settings.log_level)
+	log_file = settings.output_base + 'mapping_log.txt'
+	log = functions.get_file_logger(log_file, settings.log_level, new=True)
 
 	# Report version
 	log.info(f'LariatMapper {version}')
@@ -278,13 +277,4 @@ if __name__ == '__main__':
 
 	# Dump arguments to a JSON file so summarize.py can report them
 	settings.json_dump(f'{settings.output_base}settings.json')
-
-	# Set start method for multiprocessing in filter_fivep_aligns.py and filter_head_aligns.py
-	# Using the default "fork" method causes memory errors when processing bigger RNA-seq inputs
-	# This has to be defined in the first python script and only once, or else we get "RuntimeError: context has already been set" 
-	multiprocessing.set_start_method('spawn')	
-
-	# Call map_lariats.sh
-	log.debug(f'map_lariats args: {settings.map_lariats_args}')
-	map_call = f"{settings.pipeline_dir/'scripts'/'map_lariats.sh'} {' '.join(settings.map_lariats_args)}"
-	subprocess.run(map_call.split(' '))
+	

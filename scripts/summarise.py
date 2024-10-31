@@ -143,10 +143,10 @@ def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
 #=============================================================================#
 if __name__ == '__main__':
 	# Get args
-	output_base, log_level, seq_type = sys.argv[1:]
+	output_base, log_file, log_level, seq_type = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = functions.get_file_logger(log_file, log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Make neccesary output files if they are absent due to the run ending early

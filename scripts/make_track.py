@@ -27,10 +27,10 @@ def reverse_complement(seq):
 #=============================================================================#
 if __name__ == '__main__':
 	# Get args
-	output_base, log_level = sys.argv[1:]
+	output_base, log_file, log_level = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = functions.get_file_logger(log_file, log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Load lariat reads table

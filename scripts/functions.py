@@ -89,7 +89,7 @@ def align_is_reverse(flag:int) -> bool:
 	return is_reverse
 
 
-def get_logger(level:str) -> logging.Logger:
+def get_file_logger(log_file:str, level:str, new:bool = False) -> logging.Logger:
 	'''
 	Configure logging settings based on <pipeline_dir>/resources/log_config.json file, and return a logging.Logger object for the specified <level>
 	<level> must be "DEBUG", "INFO", "WARNING", or "ERROR"
@@ -98,6 +98,28 @@ def get_logger(level:str) -> logging.Logger:
 	config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../resources/log_config.json')
 	with open(config_file) as file_in:
 		config = json.load(file_in)
+	config['handlers'] = {'simple':{'class':'logging.FileHandler', 'formatter':'simple', 'filename':log_file},
+					      'extensive':{'class':'logging.FileHandler', 'formatter':'extensive', 'filename':log_file}}
+	if new:
+		config['handlers']['simple']['mode'] = 'w'
+		config['handlers']['extensive']['mode'] = 'w'
+	logging.config.dictConfig(config)
+
+	log = logging.getLogger(level.lower())
+	return log
+
+def get_stdout_logger(level:str) -> logging.Logger:
+	'''
+	Configure logging settings based on <pipeline_dir>/resources/log_config.json file, and return a logging.Logger object for the specified <level>
+	<level> must be "DEBUG", "INFO", "WARNING", or "ERROR"
+	'''
+	assert level in ('DEBUG', 'INFO', 'WARNING', 'ERROR')
+	config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../resources/log_config.json')
+	with open(config_file) as file_in:
+		config = json.load(file_in)
+	config['handlers'] = {'simple':{'class':'logging.StreamHandler', 'formatter':'simple', 'stream':'ext://sys.stdout'},
+					      'extensive':{'class':'logging.StreamHandler', 'formatter':'extensive', 'stream':'ext://sys.stdout'}}
+	
 	logging.config.dictConfig(config)
 
 	log = logging.getLogger(level.lower())
@@ -189,13 +211,15 @@ def linecount(file:str) -> int:
 	return count
 
 
-def get_chrom_length(faidx:str, chrom:str) -> int:
+def get_chrom_lengths(faidx:str) -> int:
 	'''
-	Retrieve the length of a chromosome from a faidx index file (e.g. genome.fa.fai)
+	Retrieve the lengths of chromosomes from a faidx index file (e.g. genome.fa.fai)
 	'''
+	chrom_lengths = {}
 	with open(faidx) as file_in:
 		for line in file_in:
-			line_chrom, length = line.split('\t')[:2]
-			if line_chrom == chrom:
-				return int(length)
+			index_chrom, length, _, _, _ = line.split('\t')
+			chrom_lengths[index_chrom] = int(length)
+	
+	return chrom_lengths
 

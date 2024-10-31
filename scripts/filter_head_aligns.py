@@ -312,10 +312,10 @@ def drop_failed_alignments(alignments:pd.DataFrame, output_base:str) -> pd.DataF
 		return alignments
 
 
-def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_level) -> None:
+def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, output_base, log_file, log_level) -> None:
 	# We have to set the log level in each process because the children don't inherit the log level from their parent,
 	# even if you pass the log object itself
-	log = functions.get_logger(log_level)
+	log = functions.get_file_logger(log_file, log_level)
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
 	# Load in the assigned chunk of alignments, excluding skipping low-quality alignments
@@ -455,21 +455,16 @@ def filter_alignments_chunk(chunk_start, chunk_end, n_aligns, tails, introns, ou
 # =============================================================================#
 if __name__ == '__main__':
 	# Get args
-	threads, ref_introns, genome_fasta, output_base, log_level = sys.argv[1:]
-
+	threads, n_aligns, ref_introns, genome_fasta, output_base, log_file, log_level = sys.argv[1:]
+	n_aligns = int(n_aligns)
+	
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = functions.get_file_logger(log_file, log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	threads = int(threads)
 	
-	with open(HEADS_TO_GENOME_FILE.format(output_base)) as sam:
-		n_aligns = sum(1 for _ in sam)
 	log.debug(f'{n_aligns:,} head alignments')
-
-	# If there are no alignments, end the run early
-	if n_aligns == 0:
-		sys.exit(4)
 
 	chunk_ranges = [[chunk_start, chunk_start+ALIGN_CHUNKSIZE] for chunk_start in range(1, n_aligns+1, ALIGN_CHUNKSIZE)]
 	chunk_ranges[-1][-1] = n_aligns
@@ -493,8 +488,9 @@ if __name__ == '__main__':
 	# multiprocessing won't run correctly with just 1 chunk for some reason
 	if len(chunk_ranges) == 1:
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
-		filter_alignments_chunk(1, n_aligns, n_aligns, tails, introns, output_base, log_level)
+		filter_alignments_chunk(1, n_aligns, n_aligns, tails, introns, output_base, log_file, log_level)
 	else:
+		mp.set_start_method('spawn', force=True)
 		log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 		# Create a pool of worker processes, leaving one core for the main process
 		pool = mp.Pool(processes=threads-1)
@@ -503,7 +499,7 @@ if __name__ == '__main__':
 		for chunk_start, chunk_end in chunk_ranges[1:]:
 			result = pool.apply_async(filter_alignments_chunk, 
 									args=(chunk_start, chunk_end, n_aligns, 
-			   							tails, introns, output_base, log_level,))
+			   							tails, introns, output_base, log_file, log_level,))
 			async_results.append(result)
 		
 		# Don't create any more processes

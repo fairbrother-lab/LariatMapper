@@ -1,5 +1,4 @@
 import sys
-import gzip
 import random
 import os
 
@@ -60,8 +59,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 			w.write('\t'.join(FINAL_RESULTS_COLS))
 		with open(FAILED_LARIATS_FILE.format(output_base), 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
-
-		sys.exit(4)
+		sys.exit(0)
 	
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
 	lariat_reads[['read_id', 'read_num']] = lariat_reads.read_id.str.split('/', expand=True)
@@ -181,10 +179,10 @@ def choose_read_mapping(lariat_reads):
 # =============================================================================#
 if __name__ == '__main__':
 	# Get args
-	output_base, log_level, seq_type, ref_fasta, ref_repeatmasker = sys.argv[1:]
+	output_base, log_file, log_level, seq_type, ref_repeatmasker = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = functions.get_file_logger(log_file, log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Load putatitve lariat alignments

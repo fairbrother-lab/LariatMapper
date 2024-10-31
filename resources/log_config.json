@@ -12,18 +12,6 @@
 		"style": "{"
 	  }
 	},
-	"handlers": {
-	  "simple": {
-		"class": "logging.StreamHandler",
-		"formatter": "simple",
-		"stream": "ext://sys.stdout"
-	  },
-	  "extensive": {
-		"class": "logging.StreamHandler",
-		"formatter": "extensive",
-		"stream": "ext://sys.stdout"
-	  }
-	},
 	"loggers": {
 		"debug": {
 			"level": "DEBUG",
