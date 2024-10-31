@@ -211,7 +211,7 @@ def linecount(file:str) -> int:
 	return count
 
 
-def get_chrom_lengths(faidx:str) -> int:
+def get_chrom_lengths(faidx:str) -> dict:
 	'''
 	Retrieve the lengths of chromosomes from a faidx index file (e.g. genome.fa.fai)
 	'''
