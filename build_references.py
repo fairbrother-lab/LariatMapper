@@ -299,7 +299,7 @@ if __name__ == '__main__':
 	build_fivep(introns, genome_fasta, threads, out_dir, log)
 
 	log.info("Building GRanges objects...")
-	cmd = f"Rscript {pipeline_dir}/bin/build_R_refs.R" +\
+	cmd = f"Rscript {pipeline_dir}/scripts/build_R_refs.R" +\
 			f" -a {genome_anno} -g {g_attr} -t {t_attr} -o {out_dir}"
 	functions.run_command(cmd, log=log)
 
