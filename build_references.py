@@ -275,11 +275,11 @@ if __name__ == '__main__':
 	# Link or copy the neccesary input files
 	if copy is True:
 		log.info('Copying input files...')
-		shutil.copyfile(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
+		shutil.copyfile(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}', follow_symlinks=False)
 		for ext in hisat2_extensions:
-			shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
+			shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}', follow_symlinks=False)
 		if repeatmasker_bed is not None:
-			shutil.copyfile(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
+			shutil.copyfile(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}', follow_symlinks=False)	
 	else:
 		log.info('Creating links to input files...')
 		if not os.path.isfile(f'{out_dir}/{REF_GENOME_FILE}'):
@@ -291,7 +291,7 @@ if __name__ == '__main__':
 			os.symlink(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
 
 	log.info('Building FASTA index...')
-	pyfaidx.Faidx(genome_fasta)
+	pyfaidx.Faidx(f'{out_dir}/{REF_GENOME_FILE}')
 
 	log.info('Parsing transcripts from annotation file...')
 	transcripts = parse_transcripts(genome_anno, anno_type, gunzip, t_attr, g_attr, log)
