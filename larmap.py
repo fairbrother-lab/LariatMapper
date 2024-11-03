@@ -196,15 +196,9 @@ def check_up_to_date(pipeline_dir, log):
 #                                    Main                                      #
 # =============================================================================#
 if __name__ == '__main__':
-	# Get the current version
-	with open(f'{Settings.pipeline_dir}/pyproject.toml') as toml:
-		for line in toml:
-			if line.startswith('version = "'):
-				version = line[11:].rstrip('"\n')
-
 	# Argument parser
 	parser = argparse.ArgumentParser(prog='Lariat mapping', description='Performs annotation-based mapping of lariat-derived RNA-seq reads')
-	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {version}', help='Print the version id and exit')
+	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {functions.version()}', help='Print the version id and exit')
 
 	# Required arguments
 	# We use argument groups to make the help message more readable, but we have to enforce 
@@ -249,7 +243,7 @@ if __name__ == '__main__':
 	log = functions.get_logger(settings.log_level)
 
 	# Report version
-	log.info(f'LariatMapper {version}')
+	log.info(f'LariatMapper {functions.version()}')
 
 	# Report arguments
 	arg_message = [f'{key}={val}' for key, val in args.items() if val is not None and val is not False]
