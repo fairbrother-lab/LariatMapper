@@ -82,9 +82,9 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"          Additional statistics         \n"
 					"----------------------------------------\n"
-					"mRNA/pre-mRNA = {pre_ratio:.4g}\n"
-					"Lariat RPM = {lariat_rpm:.4g}\n"
-					"Circularized intron RPM = {circ_rpm:.4g}\n"
+					"mRNA/pre-mRNA = {pre_ratio}\n"
+					"Lariat RPM = {lariat_rpm}\n"
+					"Circularized intron RPM = {circ_rpm}\n"
 					"Lariat reads, genomic_bp_nt = A:\t{A:.1%}\n"
 					"Lariat reads, genomic_bp_nt = C:\t{C:.1%}\n"
 					"Lariat reads, genomic_bp_nt = G:\t{G:.1%}\n"
@@ -248,9 +248,18 @@ if __name__ == '__main__':
 		stats['mixed_pairs'] = mp
 
 	# Add additional info
-	stats['pre_ratio'] = stats['exon_exon_junc'] / stats['exon_intron_junc']
-	stats['lariat_rpm'] = stats['Lariat'] / stats['Linear'] * 1e6
-	stats['circ_rpm'] = stats['Circularized_intron'] / stats['Linear'] * 1e6
+	if stats['exon_intron_junc'] > 0:
+		stats['pre_ratio'] = f"{stats['exon_exon_junc'] / stats['exon_intron_junc']:.4g}"
+	else:
+		stats['pre_ratio'] = 'N/A'
+
+	if stats['Linear'] > 0:
+		stats['lariat_rpm'] = f"{stats['Lariat'] / stats['Linear'] * 1e6:.4g}"
+		stats['circ_rpm'] = f"{stats['Circularized_intron'] / stats['Linear'] * 1e6:.4g}"
+	else:
+		stats['lariat_rpm'] = 'N/A'
+		stats['circ_rpm'] = 'N/A'
+
 	if lariat_reads.shape[0]==0:
 		stats.update({bp: 0 for bp in ['A', 'C', 'G', 'T', 'N']})
 		stats['within_70'] = 0
