@@ -9,7 +9,7 @@ import argparse
 import collections
 import tempfile
 
-
+import pyfaidx
 import pandas as pd
 
 from scripts import functions
@@ -289,6 +289,9 @@ if __name__ == '__main__':
 				os.symlink(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
 		if repeatmasker_bed is not None and not os.path.isfile(f'{out_dir}/{REF_REPEATMASKER_FILE}'):
 			os.symlink(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
+
+	log.info('Building FASTA index...')
+	pyfaidx.Faidx(genome_fasta)
 
 	log.info('Parsing transcripts from annotation file...')
 	transcripts = parse_transcripts(genome_anno, anno_type, gunzip, t_attr, g_attr, log)
