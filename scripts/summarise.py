@@ -201,7 +201,7 @@ if __name__ == '__main__':
 	# Add read counts after each stage
 	unmapped = set()
 	if os.path.isfile(f'{output_base}unmapped_reads.fa'):
-		for rid in pyfaidx.Fasta(f'{output_base}unmapped_reads.fa', as_raw=True):
+		for rid in pyfaidx.Fasta(f'{output_base}unmapped_reads.fa', as_raw=True, rebuild=False):
 			unmapped.add(rid.name[:-2])
 	stats['Linear_mapping'] = len(unmapped)
 
