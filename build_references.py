@@ -75,12 +75,14 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 		tags = [attr_val.strip('"') for attr_name, attr_val in attributes if attr_name=='tag']
 		attributes = {attr_name: attr_val.strip('"') for attr_name, attr_val in attributes if attr_name!='tag'}
 		attributes['tags'] = tags
+	
 	elif file_type in ('gff', 'gff3'):
-		attributes = [attr.split('=') for attr in attribute_string.split(';')]
+		attributes = [attr.split('=') for attr in attribute_string.rstrip(';').split(';')]
 		attributes = [(attr[0].lstrip(), attr[1]) for attr in attributes]
 		attributes = dict(attributes)
 		if 'tag' in attributes:
 			attributes['tags'] = attributes['tag'].split(',')
+
 	else:
 		raise ValueError(f'Invalid file type "{file_type}"')
 
@@ -290,9 +292,6 @@ if __name__ == '__main__':
 		if repeatmasker_bed is not None and not os.path.isfile(f'{out_dir}/{REF_REPEATMASKER_FILE}'):
 			os.symlink(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
 
-	log.info('Building FASTA index...')
-	pyfaidx.Faidx(f'{out_dir}/{REF_GENOME_FILE}')
-
 	log.info('Parsing transcripts from annotation file...')
 	transcripts = parse_transcripts(genome_anno, anno_type, gunzip, t_attr, g_attr, log)
 	
@@ -306,5 +305,9 @@ if __name__ == '__main__':
 	cmd = f"Rscript {pipeline_dir}/scripts/build_R_refs.R" +\
 			f" -a {genome_anno} -g {g_attr} -t {t_attr} -o {out_dir}"
 	functions.run_command(cmd, log=log)
+
+	log.info('Building FASTA indices...')
+	pyfaidx.Faidx(f'{out_dir}/{REF_GENOME_FILE}')
+	pyfaidx.Faidx(f'{out_dir}/{REF_FIVEP_FILE}')
 
 	log.info('Reference building complete.')
