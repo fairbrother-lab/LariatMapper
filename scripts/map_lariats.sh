@@ -43,6 +43,7 @@ PIPELINE_DIR="${16}"
 #=============================================================================#
 #                                  Variables                                  #
 #=============================================================================#
+output_sam="$OUTPUT_BASE"output.sam
 output_bam="$OUTPUT_BASE"output.bam
 unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
 fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
@@ -57,10 +58,11 @@ failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
 
 # Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
 temp_files=(
-	$output_bam $output_bam.bai $unmapped_fasta $unmapped_fasta.fai
+	$output_sam $output_bam $output_bam.bai $unmapped_fasta $unmapped_fasta.fai
 	$unmapped_fasta.1.bt* $unmapped_fasta.2.bt* $unmapped_fasta.3.bt* $unmapped_fasta.4.bt* 
-	$unmapped_fasta.rev.1.bt* $unmapped_fasta.rev.2.bt* $fivep_to_reads $heads_fasta 
-	$heads_to_genome $tails $putative_lariats $failed_fiveps $failed_heads $failed_lariat 
+	$unmapped_fasta.rev.1.bt* $unmapped_fasta.rev.2.bt* $fivep_to_reads $fivep_to_reads.tmp 
+	$heads_fasta $heads_to_genome $heads_to_genome.tmp $tails $putative_lariats 
+	$failed_fiveps $failed_heads $failed_lariat 
 	$OUTPUT_BASE"settings.json"
 )
 
@@ -140,21 +142,28 @@ printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping reads to genome...\n"
 if [ "$SEQ_TYPE" == "single" ]; then
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 	       $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -U $INPUT_FILES \
-		| samtools view --bam --with-header --add-flags PAIRED,READ1 \
+		> $output_sam
+	check_exitcode
+	samtools view --bam --with-header --add-flags PAIRED,READ1 $output_sam \
 		| samtools sort --threads $THREADS --verbosity 0 \
 		> $output_bam 
 	check_exitcode
+
 elif [ "$SEQ_TYPE" == "paired" ]; then
 	# Get the two read files from the comma-separated list
 	IFS=',' read -r read_one read_two <<< "$INPUT_FILES"
 	# Map
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
-		   $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -1 $read_one -2 $read_two \
-		| samtools view --bam --with-header \
+			$hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -1 $read_one -2 $read_two \
+		> $output_sam
+	check_exitcode
+	samtools view --bam --with-header $output_sam \
 		| samtools sort --threads $THREADS --verbosity 0 \
 		> $output_bam
 	check_exitcode
+
 fi
+
 samtools index $output_bam
 check_exitcode
 
@@ -182,7 +191,9 @@ check_exitcode
 # We need to order the output SAM by reference (the read id, in this case) for the following filtering process
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
-	| samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -M \
+	> $fivep_to_reads.tmp
+check_exitcode
+samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -M $fivep_to_reads.tmp \
 	| samtools view \
 	> $fivep_to_reads
 check_exitcode
@@ -202,7 +213,9 @@ check_exitcode
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping heads to genome...\n"
 hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $heads_fasta \
-	| samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n \
+	> $heads_to_genome.tmp
+check_exitcode
+samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_genome.tmp \
 	| samtools view \
 	> $heads_to_genome
 check_exitcode
