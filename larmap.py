@@ -66,11 +66,6 @@ class Settings:
 
 	def __post_init__(self):
 		# # Reference files
-		# if self.ref_dir is None:
-		# 	for ref_attr_name, ref_file_name in Settings.REQ_REFS:
-		# 		if getattr(self, ref_attr_name) is None:
-		# 			raise ValueError(f"--ref_dir not supplied so all individual reference file arguments are required. Missing --{ref_attr_name}")
-		# else:
 		for ref_attr_name, ref_file_name in Settings.REQ_REFS:
 			if getattr(self, ref_attr_name) is None:
 				setattr(self, ref_attr_name, pathlib.Path(os.path.join(self.ref_dir, ref_file_name)))
@@ -79,6 +74,13 @@ class Settings:
 		# If it doesn't exist that's fine, filter_lariats.py will check before trying to use it
 		if self.ref_repeatmasker is None:
 			setattr(self, 'ref_repeatmasker', pathlib.Path(os.path.join(self.ref_dir, 'repeatmasker.bed')))
+
+		# Make sure all paths are absolute
+		for attr in Settings.PATH_SETTINGS:
+			if getattr(self, attr) is not None:
+				print(getattr(self, attr), '\tthen\t', pathlib.Path(getattr(self, attr)).resolve())
+				setattr(self, attr, pathlib.Path(getattr(self, attr)).resolve())
+				print('and now\t', getattr(self, attr))
 
 		# input_reads and seq_type
 		if self.read_file is not None and self.read_one is None and self.read_two is None:
@@ -99,11 +101,6 @@ class Settings:
 			self.log_level = 'DEBUG'
 		else:
 			self.log_level = 'INFO'
-
-		# Make sure all paths are absolute
-		for attr in Settings.PATH_SETTINGS:
-			if getattr(self, attr) is not None:
-				setattr(self, attr, pathlib.Path(getattr(self, attr)).resolve())
 		
 		# output_base
 		# All output files will be formatted like f"{output_base}file.ext"
