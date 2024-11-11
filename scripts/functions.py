@@ -164,7 +164,7 @@ def get_seq(genome_fasta:str, chrom:str, start:int, end:int, rev_comp:bool) -> s
 		end (int): The end position of the sequence (0-based exclusive)
 		rev_comp (bool): Flag indicating whether to retrieve the reverse complement of the sequence.
 	"""
-	return pyfaidx.Fasta(genome_fasta, sequence_always_upper=True, as_raw=True, rebuild=False).get_seq(chrom, start+1, end+1, rev_comp)
+	return pyfaidx.Fasta(genome_fasta, sequence_always_upper=True, as_raw=True, rebuild=False).get_seq(chrom, start+1, end, rev_comp)
 
 
 def version() -> str:
@@ -189,13 +189,18 @@ def linecount(file:str) -> int:
 	return count
 
 
-def get_chrom_length(faidx:str, chrom:str) -> int:
+def decide_chunk_ranges(n_aligns:int, threads:int):
 	'''
-	Retrieve the length of a chromosome from a faidx index file (e.g. genome.fa.fai)
+	Returns [[chunk_1_start, chunk_1_end],... [chunk_t_start, n_aligns]] where t = threads
+	Start and end positions are 1-based inclusive
 	'''
-	with open(faidx) as file_in:
-		for line in file_in:
-			line_chrom, length = line.split('\t')[:2]
-			if line_chrom == chrom:
-				return int(length)
+	# If there are only a handful of alignments just go through them all in one thread
+	if n_aligns <= 2*threads:
+		return [[1, n_aligns]]
+	
+	# Determine the range of lines to assign to each thread
+	chunk_size = int(n_aligns / threads)
+	chunk_ranges = [[t*chunk_size+1, (t+1)*chunk_size]  for t in range(threads)]
+	chunk_ranges[-1][-1] = n_aligns
 
+	return chunk_ranges
