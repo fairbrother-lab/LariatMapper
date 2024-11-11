@@ -79,23 +79,6 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 	return fivep_upstream_seqs
 
 
-def decide_chunk_ranges(n_aligns:int, threads:int):
-	'''
-	Returns [[chunk_1_start, chunk_1_end],... [chunk_t_start, n_aligns]] where t = threads
-	Start and end positions are 1-based inclusive
-	'''
-	# If there are only a handful of alignments just go through them all in one thread
-	if n_aligns <= 2*threads:
-		return [[1, n_aligns]]
-	
-	# Determine the range of lines to assign to each thread
-	chunk_size = int(n_aligns / threads)
-	chunk_ranges = [[t*chunk_size+1, (t+1)*chunk_size]  for t in range(threads)]
-	chunk_ranges[-1][-1] = n_aligns
-
-	return chunk_ranges
-
-
 def parse_line(sam_line:str):
 	fivep_site, flag, read_id, read_fivep_start = sam_line.split('\t')[:4]
 
@@ -308,7 +291,9 @@ if __name__ == '__main__' :
 	if n_aligns == 0:
 		sys.exit(4)
 
-	chunk_ranges = decide_chunk_ranges(n_aligns, threads)
+	# Decide how to divide the collection of alignments into chunks
+	# for parallel processing, so each thread gets a roughly equal number
+	chunk_ranges = functions.decide_chunk_ranges(n_aligns, threads)
 	log.debug(f'chunk ranges: {chunk_ranges}')
 
 	# Prep out files with a header row
@@ -319,6 +304,7 @@ if __name__ == '__main__' :
 	with open(FAILED_FIVEPS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(FAILED_FIVEPS_COLS) + '\n')
 
+	# Start parallel processes, leaving the first chunk for the main process
 	log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 	processes = []
 	for chunk_start, chunk_end in chunk_ranges[1:]:
@@ -337,5 +323,7 @@ if __name__ == '__main__' :
 		process.join()
 		if process.exitcode != 0:
 			raise RuntimeError()
+		
+
 		
 	log.debug('End of script')
