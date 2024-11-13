@@ -67,7 +67,7 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 			up_pos = max(fivep_pos-5, 1) 				# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{up_pos}\t{fivep_pos}\t{site}\t0\t{strand}\n'  
 		else:
-			chrom_length = functions.get_chrom_length(f'{genome_fasta}.fai', chrom)
+			chrom_length = functions.get_chrom_length(genome_fasta, chrom)
 			up_pos = min(fivep_pos+6, chrom_length)		# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{fivep_pos+1}\t{up_pos}\t{site}\t0\t{strand}\n'
 
@@ -96,30 +96,30 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 			next(align_file)
 		
 		if chunk_start == 1:
-			start_line = align_file.readline()
+			start_align = align_file.readline()
 		# Check the line before the starting line to see if the chunk starts in the middle of a read's collection of alignments  
 		# If it is, move the starting line up until it reaches the next read's alignments
 		else:
-			previous_line_rid = align_file.readline().split('\t')[2]
-			start_line = align_file.readline()
-			while start_line.split('\t')[2] == previous_line_rid:
-				start_line = align_file.readline()
+			previous_align_rid = align_file.readline().split('\t')[2]
+			start_align = align_file.readline()
+			while start_align.split('\t')[2] == previous_align_rid:
+				start_align = align_file.readline()
 				chunk_start += 1
 
 		# Add the relevant fivep site info to fivep_sites
-		current_read_id, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(start_line)
+		current_read_id, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(start_align)
 		# This dict will hold all of the read's 5'ss alignments, seperated into reverse(True) and forward(False) alignments
 		fivep_sites = {True: [], False: []}
 		fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
 
-		line_num = chunk_start
-		while line_num < n_aligns:
-			line_num += 1
+		align_num = chunk_start
+		while align_num < n_aligns:
+			align_num += 1
 			# Get the next line's alignment info
-			line_rid, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(align_file.readline())
+			align_rid, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(align_file.readline())
 
 			# If we're still in the same read's collection of alignments, add the info to fivep_sites
-			if line_rid == current_read_id:
+			if align_rid == current_read_id:
 				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
 
 			# If we've reached the first alignment for a new read...
@@ -130,19 +130,20 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 				yield current_read_id, False, fivep_sites[False]
 
 				# Set to processing next read's alignments
-				current_read_id = line_rid
+				current_read_id = align_rid
 				fivep_sites = {True:[], False:[]}
 				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
 
 				# If we're at or have passed the end of the assigned chunk, we're done
 				# We don't do this check until we know we got all of the last read's alignments, 
 				# so we might process a few lines after the assigned chunk_end 
-				if line_num >= chunk_end:
+				if align_num > chunk_end:
 					break
 
 		# Yield the last read's alignments
-		yield current_read_id, True, fivep_sites[True]
-		yield current_read_id, False, fivep_sites[False]
+		if align_num == n_aligns:
+			yield current_read_id, True, fivep_sites[True]
+			yield current_read_id, False, fivep_sites[False]
 
 
 def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, strand:str, output_base:str, log_level:str) -> None:
