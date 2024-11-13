@@ -3,3 +3,4 @@ plotnine
 pytest
 pytest-xdist
 r-irkernel
+scalene
