@@ -78,9 +78,7 @@ class Settings:
 		# Make sure all paths are absolute
 		for attr in Settings.PATH_SETTINGS:
 			if getattr(self, attr) is not None:
-				print(getattr(self, attr), '\tthen\t', pathlib.Path(getattr(self, attr)).resolve())
 				setattr(self, attr, pathlib.Path(getattr(self, attr)).resolve())
-				print('and now\t', getattr(self, attr))
 
 		# input_reads and seq_type
 		if self.read_file is not None and self.read_one is None and self.read_two is None:
