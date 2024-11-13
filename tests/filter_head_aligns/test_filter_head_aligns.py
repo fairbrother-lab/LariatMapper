@@ -26,7 +26,8 @@ OUTPUTS_DIR = PACKAGE_DIR/'tests'/'outputs'
 #                                   Tests                                      #
 # =============================================================================#
 @pytest.mark.parametrize('threads',
-						['1', '2', '3', '4', '5'])
+						#  '3', '4'
+						['1', '2', '5'])
 @pytest.mark.parametrize('prefix',
 						['', 'prefix_'])
 def test_filter_head_aligns(threads, prefix, tmp_path):

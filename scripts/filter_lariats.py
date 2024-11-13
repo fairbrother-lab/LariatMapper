@@ -67,7 +67,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	lariat_reads[['read_id', 'read_num']] = lariat_reads.read_id.str.split('/', expand=True)
 	lariat_reads.read_num = lariat_reads.read_num.astype(int)
 	lariat_reads['align_mismatch'] = lariat_reads.read_bp_nt != lariat_reads.genomic_bp_nt
-	lariat_reads['max_quality'] = lariat_reads.groupby('read_id').quality.agg('max')
+	lariat_reads['max_quality'] = lariat_reads.groupby('read_id').head_align_quality.agg('max')
 	
 	return lariat_reads
 
@@ -123,7 +123,7 @@ def filter_lariats(row:pd.Series, repeat_rids:set, temp_switch_rids:set, circula
 			- Both the 5'SS and the BP overlap with repetitive regions from RepeatMasker (likely false positive due to sequence repetition)
 			- BP is within 2bp of a splice site (likely an intron circle, not a lariat)
 	'''
-	if row['quality'] < row['max_quality']:
+	if row['head_align_quality'] < row['max_quality']:
 		return 'align_quality'
 
 	if row['read_id'] in temp_switch_rids:

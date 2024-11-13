@@ -22,14 +22,14 @@ MAX_GAP_LENGTH = 3
 BP_CONTEXT_LENGTH = 8
 TEMP_SWITCH_BASES = 5
 
-TEMPLATE_SWITCHING_COLS = ['read_id',
-						'read_bp_pos',
-						'read_seq', 
-						'fivep_seq',
-						'fivep_sites',
-						'genomic_bp_context',
-						'temp_switch_sites',
-						]
+TEMP_SWITCH_COLS = ['read_id',
+					'read_bp_pos',
+					'read_seq', 
+					'fivep_seq',
+					'fivep_sites',
+					'genomic_bp_context',
+					'temp_switch_sites',
+					]
 CIRCULARS_COLS = ['read_id',
 				'chrom',
 				'strand',
@@ -37,7 +37,7 @@ CIRCULARS_COLS = ['read_id',
 				'fivep_pos',
 				'head_end_pos',
 				'threep_pos',
-				'head_dist_to_threep',
+				'head_end_dist_to_threep',
 				'read_is_reverse',
 				'read_seq',
 				'read_head_end_pos',
@@ -59,6 +59,7 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'read_bp_nt', 
 						'genomic_bp_nt', 
 						'genomic_bp_context', 
+						'head_align_quality',
 						]
 
 output_base = sys.argv[-2]
@@ -79,7 +80,7 @@ filtered_out_lock = mp.Lock()
 # =============================================================================#
 #                                  Classes                                     #
 # =============================================================================#
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class FivepSite():
 	# Assigned at creation
 	chrom: str
@@ -96,6 +97,7 @@ class FivepSite():
 		out = []
 		for site_str in compact_str.split(','):
 			chrom, pos, strand = site_str.split(';')
+			pos = int(pos)
 			gene_ids = fivep_genes[site_str]
 			fivep_site = FivepSite(chrom, pos, strand, gene_ids)
 			out.append(fivep_site)
@@ -103,8 +105,8 @@ class FivepSite():
 		return out
 	
 
-@dataclasses.dataclass
-class ReadTail():
+@dataclasses.dataclass(frozen=True)
+class ReadTail:
 	# Assigned at creation
 	read_id: str
 	read_is_reverse: bool
@@ -113,15 +115,19 @@ class ReadTail():
 	fivep_sites: list[FivepSite]
 	read_bp_pos: int
 
-	# Derived at creation
-	read_bp_nt: str = None
 
+	# def __post_init__(self):
+	# 	if self.read_is_reverse is True:
+	# 		self.read_bp_nt = functions.reverse_complement(self.read_seq[self.read_bp_pos])
+	# 	else:
+	# 		self.read_bp_nt = self.read_seq[self.read_bp_pos]
 
-	def __post_init__(self):
+	@property
+	def read_bp_nt(self):
 		if self.read_is_reverse is True:
-			self.read_bp_nt = functions.reverse_complement(self.read_seq[self.read_bp_pos])
+			return functions.reverse_complement(self.read_seq[self.read_bp_pos])
 		else:
-			self.read_bp_nt = self.read_seq[self.read_bp_pos]
+			return self.read_seq[self.read_bp_pos]
 
 
 	def from_row(row:pd.Series):
@@ -140,37 +146,42 @@ class ReadHeadAlignment():
 	TAIL_INFO_ATTRS = ('read_is_reverse', 'read_seq', 'fivep_seq', 'fivep_sites', 'read_bp_pos', 'read_bp_nt')
 	
 	# Assigned at creation
-	read_id: str
-	chrom: str
+	read_id: str					# Included in output
+	chrom: str						# Included in output
 	align_start: int
 	align_end: int
 	align_is_reverse: bool
 	mismatches: int
 	mismatches_p: float
 	gaps: list[int]
-	quality: int
+	head_align_quality: int					# Included in output
 	
 	# Copied from the ReadTail object 
-	read_is_reverse: bool
-	read_seq: str = None
+	read_is_reverse: bool			# Included in output
+	read_seq: str = None			# Included in output
 	fivep_seq: str = None
 	fivep_sites: list[FivepSite] = None
-	read_bp_pos: int = None
-	read_bp_nt: str = None
+	read_bp_pos: int = None			# Included in output
+	read_bp_nt: str = None			# Included in output
 
 	# Determined during filtering
-	strand: str = None
-	bp_pos: int	= None
-	genomic_bp_context: str	= None
-	genomic_bp_nt: str	= None
+	strand: str = None				# Included in output
+	bp_pos: int	= None				# Included in output
+	genomic_bp_context: str	= None	# Included in output
+	genomic_bp_nt: str	= None		# Included in output
 	introns: list = None
-	threep_pos: int	= None
-	bp_dist_to_threep: int = None
-	gene_id: str = None
-	fivep_pos: int = None
+	threep_pos: int	= None			# Included in output
+	bp_dist_to_threep: int = None	# Included in output
+	gene_id: str = None				# Included in output
+	fivep_pos: int = None			# Included in output
 
 
-	def from_pysam(pysam_align:pysam.AlignmentSegment):
+	@classmethod
+	def fail_out_fields(cls):
+		return tuple(cls.__annotations__.keys()) + ('filter_failed',)
+
+
+	def from_pysam(pysam_align:pysam.AlignedSegment):
 		"""
 		"""
 		mismatch_p = pysam_align.get_tag('NM')/pysam_align.query_length
@@ -186,7 +197,7 @@ class ReadHeadAlignment():
 					mismatches = pysam_align.get_tag('NM'),
 					mismatches_p = mismatch_p,
 					gaps = gaps,
-					quality = pysam_align.mapping_quality
+					head_align_quality = pysam_align.mapping_quality
 				)
 
 
@@ -196,12 +207,13 @@ class ReadHeadAlignment():
 
 
 	def write_failed_out(self, filter_failed:str):
-		line = ''
-		for attr in PUTATITVE_LARIATS_COLS:
+		out_fields = ReadHeadAlignment.fail_out_fields()
+		line = self.read_id
+		for attr in out_fields[1:-1]:
 			val = getattr(self, attr)
 			val = '' if val is None else val
-			if attr in ('gene_id', ):
-				val = ','.join(val)
+			if attr in ('gaps', 'fivep_sites', 'introns', 'gene_id'):
+				val = functions.str_join(val)
 			line += f'\t{val}'
 		line += f'\t{filter_failed}'
 		
@@ -212,12 +224,12 @@ class ReadHeadAlignment():
 
 	def write_temp_switch_out(self):
 		line = self.read_id[:-6] # Remove the '/X_XXX' suffix
-		for attr in TEMPLATE_SWITCHING_COLS[1:-1]:
+		for attr in TEMP_SWITCH_COLS[1:-1]:
 			val = getattr(self, attr)
 			if attr in ('fivep_sites', ):
-				val = ','.join(str(val))
+				val = functions.str_join(val)
 			line += f'\t{val}'
-		temp_switch_site = self.bp_pos + ';' + self.chrom
+		temp_switch_site = self.chrom + ';' + str(self.bp_pos) + ';' + self.strand
 		line += f'\t{temp_switch_site}'
 
 		with temp_switch_lock:
@@ -232,6 +244,7 @@ class ReadHeadAlignment():
 			val = getattr(self, attr)
 			if attr in ('gene_id',):
 				val = functions.str_join(val)
+			line += f'\t{val}'
 
 		with circle_lock:
 			with open(CIRCULARS_FILE, 'a') as a:
@@ -239,8 +252,8 @@ class ReadHeadAlignment():
 
 
 	def write_lariat_out(self):
-		line = ''
-		for attr in PUTATITVE_LARIATS_COLS:
+		line = self.read_id
+		for attr in PUTATITVE_LARIATS_COLS[1:]:
 			val = getattr(self, attr)
 			if attr in ('gene_id',):
 				val = functions.str_join(val)
@@ -259,7 +272,7 @@ class ReadHeadAlignment():
 # =============================================================================#
 def parse_intron_info(ref_introns):
 	introns_df = pd.read_csv(ref_introns, sep='\t', na_filter=False)
-	introns_df['gene_id_dict'] = introns_df.gene_id.transform(lambda gene_id: {'gene_id': set(gene_id.split(','))})
+	introns_df['gene_id_dict'] = introns_df.gene_id.transform(lambda gene_id: {'gene_id': frozenset(gene_id.split(','))})
 	
 	introns = {}
 	for chrom in introns_df.chrom.unique():
@@ -272,7 +285,7 @@ def parse_intron_info(ref_introns):
 
 	fivep_genes = introns_df.copy()
 	fivep_genes['fivep_site'] = fivep_genes.apply(lambda row: f"{row['chrom']};{row['start']};{row['strand']}" if row['strand']=='+' else f"{row['chrom']};{row['end']-1};{row['strand']}", axis=1)
-	fivep_genes = fivep_genes.groupby('fivep_site').agg({'gene_id': set}, as_index=False).gene_id.to_dict()
+	fivep_genes = fivep_genes.groupby('fivep_site').agg({'gene_id': frozenset}, as_index=False).gene_id.to_dict()
 
 	return introns, fivep_genes	
 
@@ -303,7 +316,8 @@ def parse_tails(fivep_genes:dict) -> dict:
 	return tails
 
 
-def yield_read_aligns(chunk_start:int, chunk_end:int, n_aligns:int):
+def yield_read_aligns(chunk_start:int, chunk_end:int):
+	n_aligns = pysam.AlignmentFile(HEADS_TO_GENOME_FILE).count()
 	align_file = pysam.AlignmentFile(HEADS_TO_GENOME_FILE)
 
 	# Run to the align directly before the starting alignment
@@ -344,11 +358,12 @@ def yield_read_aligns(chunk_start:int, chunk_end:int, n_aligns:int):
 			# If we're at or have passed the end of the assigned chunk, we're done
 			# We don't do this check until we know we got all of the last read's alignments, 
 			# so we might process a few lines after the assigned chunk_end 
-			if align_num >= chunk_end:
+			if align_num > chunk_end:
 				break
 
 	# Yield the last read's alignments
-	yield current_read_id, read_aligns
+	if align_num == n_aligns:
+		yield current_read_id, read_aligns
 
 
 def enveloping_introns(align:ReadHeadAlignment, introns:dict) -> list[Interval]:
@@ -361,17 +376,6 @@ def enveloping_introns(align:ReadHeadAlignment, introns:dict) -> list[Interval]:
 	envelops = [intron for intron in overlaps if intron.begin<=align.align_start and intron.end>=align.align_end]
 
 	return envelops
-
-
-def is_template_switch(align:ReadHeadAlignment) -> bool:
-	bp_adj_seq = align.genomic_bp_context[BP_CONTEXT_LENGTH+1:]
-
-	base_matches = 0
-	for i in range(TEMP_SWITCH_BASES):
-		if bp_adj_seq[i]==align.fivep_seq[i]:
-			base_matches += 1
-	
-	return base_matches == TEMP_SWITCH_BASES
 
 
 def nearest_threep_pos(align:ReadHeadAlignment) -> int:
@@ -387,14 +391,25 @@ def nearest_threep_pos(align:ReadHeadAlignment) -> int:
 
 
 def match_introns_to_fiveps(align:ReadHeadAlignment) -> tuple[list[Interval], list[FivepSite]]:
-	intron_matches = {}
-	fivep_matches = {}
+	intron_matches = set()
+	fivep_matches = set()
 	for intron, fivep in it.product(align.introns, align.fivep_sites):
 		if len(intron.data['gene_id'].intersection(fivep.gene_ids))>0:
 			intron_matches.add(intron)
 			fivep_matches.add(fivep)
 	
 	return list(intron_matches), list(fivep_matches)
+
+
+def is_template_switch(align:ReadHeadAlignment) -> bool:
+	bp_adj_seq = align.genomic_bp_context[BP_CONTEXT_LENGTH+1:]
+
+	base_matches = 0
+	for i in range(TEMP_SWITCH_BASES):
+		if bp_adj_seq[i]==align.fivep_seq[i]:
+			base_matches += 1
+	
+	return base_matches == TEMP_SWITCH_BASES
 
 
 def is_intron_circle(align:ReadHeadAlignment) -> bool:
@@ -405,12 +420,10 @@ def filter_head_alignment(align:ReadHeadAlignment,
 						genome_fasta:str,
 						introns:dict
 						) -> None:
-	# Omit fivep sites that are not on the strand we're investigating
-	align.fivep_sites = [fivep for fivep in align.fivep_sites if fivep.strand==align.strand]
 	# Skip cases where the read doesn't have any fivep sites with  
 	# the given fivep_strand, since they aren't relevant, 
 	# and there's no useful information to be gained from writing to failed out
-	if len(align.fivep_sites) == 0:
+	if sum(1 for fp in align.fivep_sites if fp.strand==align.strand) == 0:
 		return
 
 	# Infer bp position in genome
@@ -419,23 +432,25 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	else:
 		align.bp_pos = align.align_start
 
+
 	# Filter out if the bp window would extend outside of the chromosome bounds
-	if align.bp_pos - BP_CONTEXT_LENGTH//2 < 0:
+	if align.bp_pos - BP_CONTEXT_LENGTH < 0:
 		align.write_failed_out('bp_window_less_than_0')
 		return
-	chrom_len = pyfaidx.Faidx(genome_fasta).index['chr1'].rlen
-	if align.bp_pos + BP_CONTEXT_LENGTH//2 > chrom_len:
-		align.write_failed_out('bp_window_greater_than_chrom')
+	chrom_len = functions.get_chrom_length(genome_fasta, align.chrom)
+	if align.bp_pos + BP_CONTEXT_LENGTH > chrom_len:
+		align.write_failed_out('bp_window_past_chrom_end')
 		return
-
+	# print(os.getpid(), align.bp_pos, BP_CONTEXT_LENGTH, align.bp_pos-BP_CONTEXT_LENGTH, align.bp_pos+BP_CONTEXT_LENGTH)
 	# Add more info
 	align.genomic_bp_context = functions.get_seq(
 											genome_fasta = genome_fasta, 
 											chrom = align.chrom,
-											start = align.bp_pos-BP_CONTEXT_LENGTH//2,
-											end = align.bp_pos+BP_CONTEXT_LENGTH//2,
+											start = align.bp_pos-BP_CONTEXT_LENGTH,
+											end = align.bp_pos+BP_CONTEXT_LENGTH,
 											rev_comp = align.strand=='-'
 	)
+	# print(os.getpid(), align.genomic_bp_context)
 	align.genomic_bp_nt = align.genomic_bp_context[BP_CONTEXT_LENGTH]
 	align.introns = enveloping_introns(align, introns)
 	align.threep_pos = nearest_threep_pos(align)
@@ -454,6 +469,9 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	if len(align.gaps) == 1 and align.gaps[0] > MAX_GAP_LENGTH:
 		align.write_failed_out('gaps')
 		return
+	
+	if align.read_id.startswith('head_fail_fivep_intron_match'):
+		print(align.read_id, str(align))
 
 	# Write out if template-switching
 	if is_template_switch(align) is True:
@@ -486,9 +504,12 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	# Match introns to 5'ss
 	align.introns, align.fivep_sites = match_introns_to_fiveps(align)
 	# Filter out if no 5'ss-intron matches
-	if align.introns == 0:
+	if len(align.introns) == 0:
 		align.write_failed_out('fivep_intron_match')
 		return
+	
+	if align.read_id.startswith('head_fail_fivep_intron_match'):
+		print(align.read_id, str(align), 'heyo')
 
 	# Write out if intron circle
 	if is_intron_circle(align) is True:
@@ -521,14 +542,15 @@ def filter_alignments_chunk(genome_fasta:str,
 						introns:dict, 
 						chunk_start:int, 
 						chunk_end:int, 
-						n_aligns:int, 
 						log_level:str):
 	# We have to set the log level in each process because the children don't inherit the log level from their parent,
 	# even if you pass the log object itself
 	log = functions.get_logger(log_level)
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
-	for read_id, read_aligns in yield_read_aligns(chunk_start, chunk_end, n_aligns):
+	for read_id, read_aligns in yield_read_aligns(chunk_start, chunk_end):
+		# if read_id.startswith('head_fail_fivep_intron_match'):
+			# print(read_id, '\n'.join(str(align) for align in read_aligns))
 		read_tail = tails[read_id]
 
 		# Go through each alignment for the read
@@ -561,7 +583,7 @@ def post_processing():
 	# Collapse temp switch and circular tables to one row per read
 	temp_switches = (temp_switches
 					.groupby('read_id', as_index=False)
-					.agg({col: functions.str_join for col in TEMPLATE_SWITCHING_COLS[1:]})
+					.agg({col: functions.str_join for col in TEMP_SWITCH_COLS[1:]})
 	)
 	circulars = (circulars
 					.groupby('read_id', as_index=False)
@@ -607,15 +629,17 @@ if __name__ == '__main__':
 	log.debug(f'chunk_ranges: {chunk_ranges}')
 
 	# Load reference data for processing alignments
+	log.debug('Loading reference data...')
 	introns, fivep_genes = parse_intron_info(ref_introns)
-	tails = parse_tails(output_base, fivep_genes)
+	log.debug('Loading read tails...')
+	tails = parse_tails(fivep_genes)
 
 	# Write headers for the outfiles
 	# The rows will be written one by one as they are processed
 	with open(FAILED_HEADS_FILE, 'w') as w:
-		w.write('\t'.join(PUTATITVE_LARIATS_COLS + ['filter_failed']) + '\n')
+		w.write('\t'.join(ReadHeadAlignment.fail_out_fields()) + '\n')
 	with open(TEMP_SWITCH_FILE, 'w') as w:
-		w.write('\t'.join(TEMPLATE_SWITCHING_COLS) + '\n')
+		w.write('\t'.join(TEMP_SWITCH_COLS) + '\n')
 	with open(CIRCULARS_FILE, 'w') as w:
 		w.write('\t'.join(CIRCULARS_COLS) + '\n')
 	with open(PUTATITVE_LARIATS_FILE, 'w') as w:
@@ -627,13 +651,14 @@ if __name__ == '__main__':
 	for chunk_start, chunk_end in chunk_ranges[1:]:
 		process = mp.Process(target=filter_alignments_chunk, 
 							args=(genome_fasta, tails, introns, 
-								chunk_start, chunk_end, n_aligns, log_level,))
+								chunk_start, chunk_end, log_level,))
 		process.start()
 		processes.append(process)
 
 	# Process the first chunk in the main process
+	chunk_start, chunk_end = chunk_ranges[0]
 	filter_alignments_chunk(genome_fasta, tails, introns, 
-						 	chunk_start, chunk_end, n_aligns, log_level,)
+						 	chunk_start, chunk_end, log_level,)
 
 	# Check if any processes hit an error
 	for process in processes:

@@ -54,7 +54,7 @@ def reverse_complement(seq:str):
 	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
 
 
-def str_join(items:list|tuple|pd.Series, join_string:str=',', unique:bool=False) -> str:
+def str_join(items:list|tuple|set|frozenset|pd.Series, join_string:str=',', unique:bool=False) -> str:
 	'''
 	If <items> contains only 1 unique item, return str(that item)
 	Else, return a <join_string>-delimited string of <items>
@@ -62,11 +62,11 @@ def str_join(items:list|tuple|pd.Series, join_string:str=',', unique:bool=False)
 			 	[toy1, toy2, toy2, toy3], join_string=";" -> "toy1;toy2;toy2;toy3"
 			 	[toy1, toy2, toy2, toy3], unique=True     -> "toy1,toy2,toy3"
 	'''
+	if isinstance(items, (set, frozenset, pd.Series)):
+		items = tuple(items)
+
 	if len(set(items)) == 1:
-		if isinstance(items, pd.Series):
-			return str(items.iloc[0])
-		else:
-			return str(items[0])
+		return str(items[0])
 	
 	if unique is True:
 		out = []
@@ -164,7 +164,10 @@ def get_seq(genome_fasta:str, chrom:str, start:int, end:int, rev_comp:bool) -> s
 		end (int): The end position of the sequence (0-based exclusive)
 		rev_comp (bool): Flag indicating whether to retrieve the reverse complement of the sequence.
 	"""
-	return pyfaidx.Fasta(genome_fasta, sequence_always_upper=True, as_raw=True, rebuild=False).get_seq(chrom, start+1, end, rev_comp)
+	# print(os.getpid(), genome_fasta, chrom, start, end, rev_comp)
+	return str(pyfaidx.Fasta(genome_fasta, sequence_always_upper=True, rebuild=False)
+				.get_seq(chrom, start+1, end, rev_comp)
+	)
 
 
 def version() -> str:
@@ -204,3 +207,9 @@ def decide_chunk_ranges(n_aligns:int, threads:int):
 	chunk_ranges[-1][-1] = n_aligns
 
 	return chunk_ranges
+
+def get_chrom_length(genome_fasta:str, chrom:str) -> int:
+	'''
+	Retrieve the length of a chromosome from a faidx index file (e.g. genome.fa.fai)
+	'''
+	return pyfaidx.Faidx(genome_fasta).index[chrom].rlen
