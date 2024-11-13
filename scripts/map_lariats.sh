@@ -188,12 +188,13 @@ check_exitcode
 
 
 ## Align fasta file of all 5' splice sites (first 20nts of introns) to unmapped reads index
-# We need to order the output SAM by reference (the read id, in this case) for the following filtering process
+# We need to order the output SAM by read_id (which is the reference in this case)
+# so we can process all the alignments to each read together in the following filtering 
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
 	> $fivep_to_reads.tmp
 check_exitcode
-samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -M $fivep_to_reads.tmp \
+samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $fivep_to_reads.tmp \
 	| samtools view \
 	> $fivep_to_reads
 check_exitcode
@@ -215,8 +216,9 @@ hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $heads_fasta \
 	> $heads_to_genome.tmp
 check_exitcode
+# We need to order the output SAM by read_id (which is the reference in this case)
+# so we can process all the alignments to each read together in the following filtering 
 samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_genome.tmp \
-	| samtools view \
 	> $heads_to_genome
 check_exitcode
 
