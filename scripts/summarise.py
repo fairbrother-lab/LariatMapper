@@ -82,7 +82,7 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"          Additional statistics         \n"
 					"----------------------------------------\n"
-					"mRNA/pre-mRNA:\t{pre_ratio}\n"
+					"mRNA/pre-mRNA ratio:\t{pre_ratio}\n"
 					"Lariat RPM:\t{lariat_rpm}\n"
 					"Circularized intron RPM:\t{circ_rpm}\n"
 					"Lariat reads, genomic_bp_nt = A:\t{A:.1%}\n"
@@ -249,7 +249,7 @@ if __name__ == '__main__':
 
 	# Add additional info
 	if stats['exon_intron_junc'] > 0:
-		stats['pre_ratio'] = f"{stats['exon_exon_junc'] / stats['exon_intron_junc']:.4g}"
+		stats['pre_ratio'] = f"{stats['exon_exon_junc'] / (2 * stats['exon_intron_junc']):.4g}"
 	else:
 		stats['pre_ratio'] = 'N/A'
 
