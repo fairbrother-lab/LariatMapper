@@ -5,6 +5,7 @@ import json
 import subprocess
 import tempfile
 
+import fsspec
 import pandas as pd
 import pyfaidx
 
@@ -164,10 +165,21 @@ def get_seq(genome_fasta:str, chrom:str, start:int, end:int, rev_comp:bool) -> s
 		end (int): The end position of the sequence (0-based exclusive)
 		rev_comp (bool): Flag indicating whether to retrieve the reverse complement of the sequence.
 	"""
-	# print(os.getpid(), genome_fasta, chrom, start, end, rev_comp)
-	return str(pyfaidx.Fasta(genome_fasta, sequence_always_upper=True, rebuild=False)
-				.get_seq(chrom, start+1, end, rev_comp)
-	)
+	fasta = fsspec.open(genome_fasta, anon=True, mode='rb')
+	try:
+		seq = pyfaidx.Fasta(fasta, 
+							sequence_always_upper=True, 
+							rebuild=False, 
+							build_index=False,
+							as_raw=True,
+							)[chrom][start:end]
+	finally:
+		fasta.close()
+
+	if rev_comp is True:
+		seq = reverse_complement(seq)
+		
+	return seq
 
 
 def version() -> str:
@@ -208,8 +220,13 @@ def decide_chunk_ranges(n_aligns:int, threads:int):
 
 	return chunk_ranges
 
-def get_chrom_length(genome_fasta:str, chrom:str) -> int:
+
+def get_chrom_length(faidx:str, chrom:str) -> int:
 	'''
 	Retrieve the length of a chromosome from a faidx index file (e.g. genome.fa.fai)
 	'''
-	return pyfaidx.Faidx(genome_fasta).index[chrom].rlen
+	with open(faidx) as file_in:
+		for line in file_in:
+			line_chrom, length = line.split('\t')[:2]
+			if line_chrom == chrom:
+				return int(length)
