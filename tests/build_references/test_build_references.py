@@ -8,7 +8,7 @@
 # import pytest
 
 # sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
-# import testing_tools as test_funcs
+# import test_utils
 
 
 # # =============================================================================#
@@ -57,13 +57,13 @@
 # 					(BUILD_REFERENCES_DIR/'outputs'/'introns.tsv', tmp_path/'introns.tsv.gz'),
 # 					(BUILD_REFERENCES_DIR/'outputs'/'fivep_sites.fa', tmp_path/'fivep_sites.fa')
 # 					):
-# 		ref_lines, out_lines = test_funcs.load_file_lines(ref, out)
+# 		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 # 		if ref_lines == out_lines:
 # 			continue
 
 # 		# If file contents differ, decide how to report
-# 		if test_funcs.vscode_available():
-# 			test_funcs.vscode_compare(ref, out)
+# 		if test_utils.vscode_available():
+# 			test_utils.vscode_compare(ref, out)
 # 			pytest.fail(f'Output file differs from expected output: {out.name}')
 # 		else:
 # 			assert ref_lines == out_lines

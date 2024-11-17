@@ -4,6 +4,7 @@ import shutil
 import gzip
 import subprocess
 
+import pandas as pd
 import pytest
 
 

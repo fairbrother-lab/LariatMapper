@@ -8,7 +8,7 @@ import sys
 import pytest
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
-import testing_tools as test_funcs
+import test_utils
 
 
 
@@ -44,13 +44,13 @@ def test_filter_lariats(prefix, seq_type, tmp_path):
 	# Check output
 	for ref, out in ((FILTER_LARIATS_DIR/'outputs'/'failed_lariat_alignments.tsv', tmp_path/f'{prefix}failed_lariat_alignments.tsv'),
 					(FILTER_LARIATS_DIR/'outputs'/'lariat_reads.tsv', tmp_path/f'{prefix}lariat_reads.tsv')):
-		ref_lines, out_lines = test_funcs.load_file_lines(ref, out)
+		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 		if ref_lines == out_lines:
 			continue
 
 		# File contents differ, decide how to report
-		if test_funcs.vscode_available():
-			test_funcs.vscode_compare(ref, out)
+		if test_utils.vscode_available():
+			test_utils.vscode_compare(ref, out)
 			print(response_text)
 			pytest.fail(f'Output file differs from expected output: {out.name}')
 		else:

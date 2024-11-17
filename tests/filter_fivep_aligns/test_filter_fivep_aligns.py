@@ -8,7 +8,7 @@ import sys
 import pytest
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
-import testing_tools as test_funcs
+import test_utils
 
 
 
@@ -47,13 +47,13 @@ def test_filter_fivep_aligns(threads, prefix, strand, tmp_path):
 	for ref, out in ((FILTER_FIVEP_ALIGNS_DIR/'outputs'/'failed_fivep_alignments.tsv', tmp_path/f'{prefix}failed_fivep_alignments.tsv'),
 				  	(FILTER_FIVEP_ALIGNS_DIR/'outputs'/'tails.tsv', tmp_path/f'{prefix}tails.tsv'),
 				  	(FILTER_FIVEP_ALIGNS_DIR/'outputs'/'heads.fa', tmp_path/f'{prefix}heads.fa')):
-		ref_lines, out_lines = test_funcs.load_file_lines(ref, out)
+		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 		if ref_lines == out_lines:
 			continue
 
 		# If file contents differ, decide how to report
-		if test_funcs.vscode_available():
-			test_funcs.vscode_compare(ref, out)
+		if test_utils.vscode_available():
+			test_utils.vscode_compare(ref, out)
 			pytest.fail(f'Output file differs from expected output: {out.name}')
 		else:
 			assert ref_lines == out_lines

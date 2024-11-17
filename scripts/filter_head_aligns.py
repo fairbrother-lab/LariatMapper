@@ -115,20 +115,12 @@ class ReadTail:
 	fivep_sites: list[FivepSite]
 	read_bp_pos: int
 
-
-	# def __post_init__(self):
-	# 	if self.read_is_reverse is True:
-	# 		self.read_bp_nt = functions.reverse_complement(self.read_seq[self.read_bp_pos])
-	# 	else:
-	# 		self.read_bp_nt = self.read_seq[self.read_bp_pos]
-
 	@property
 	def read_bp_nt(self):
 		if self.read_is_reverse is True:
 			return functions.reverse_complement(self.read_seq[self.read_bp_pos])
 		else:
 			return self.read_seq[self.read_bp_pos]
-
 
 	def from_row(row:pd.Series):
 		return ReadTail(read_id=row['read_id'], 
@@ -143,7 +135,8 @@ class ReadTail:
 class ReadHeadAlignment():
 	"""
 	"""
-	TAIL_INFO_ATTRS = ('read_is_reverse', 'read_seq', 'fivep_seq', 'fivep_sites', 'read_bp_pos', 'read_bp_nt')
+	TAIL_INFO_ATTRS = ('read_is_reverse', 'read_seq', 'fivep_seq', 'fivep_sites',
+						'read_bp_pos', 'read_bp_nt')
 	
 	# Assigned at creation
 	read_id: str					# Included in output
@@ -154,7 +147,7 @@ class ReadHeadAlignment():
 	mismatches: int
 	mismatches_p: float
 	gaps: list[int]
-	head_align_quality: int					# Included in output
+	head_align_quality: int			# Included in output
 	
 	# Copied from the ReadTail object 
 	read_is_reverse: bool			# Included in output
@@ -175,11 +168,9 @@ class ReadHeadAlignment():
 	gene_id: str = None				# Included in output
 	fivep_pos: int = None			# Included in output
 
-
 	@classmethod
 	def fail_out_fields(cls):
 		return tuple(cls.__annotations__.keys()) + ('filter_failed',)
-
 
 	def from_pysam(pysam_align:pysam.AlignedSegment):
 		"""
@@ -200,11 +191,9 @@ class ReadHeadAlignment():
 					head_align_quality = pysam_align.mapping_quality
 				)
 
-
 	def fill_tail_info(self, tail:ReadTail):
 		for attr in self.TAIL_INFO_ATTRS:
 			setattr(self, attr, getattr(tail, attr))
-
 
 	def write_failed_out(self, filter_failed:str):
 		out_fields = ReadHeadAlignment.fail_out_fields()
@@ -221,7 +210,6 @@ class ReadHeadAlignment():
 			with open(FAILED_HEADS_FILE, 'a') as a:
 				a.write(line + '\n')
 
-
 	def write_temp_switch_out(self):
 		line = self.read_id[:-6] # Remove the '/X_XXX' suffix
 		for attr in TEMP_SWITCH_COLS[1:-1]:
@@ -236,7 +224,6 @@ class ReadHeadAlignment():
 			with open(TEMP_SWITCH_FILE, 'a') as a:
 				a.write(line + '\n')
 
-
 	def write_circle_out(self):
 		line = self.read_id[:-6] # Remove the '/X_XXX' suffix
 		for attr in CIRCULARS_COLS[1:]:
@@ -249,7 +236,6 @@ class ReadHeadAlignment():
 		with circle_lock:
 			with open(CIRCULARS_FILE, 'a') as a:
 				a.write(line + '\n')
-
 
 	def write_lariat_out(self):
 		line = self.read_id
@@ -437,20 +423,17 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	if align.bp_pos - BP_CONTEXT_LENGTH < 0:
 		align.write_failed_out('bp_window_less_than_0')
 		return
-	chrom_len = functions.get_chrom_length(genome_fasta, align.chrom)
+	chrom_len = functions.get_chrom_length(f'{genome_fasta}.fai', align.chrom)
 	if align.bp_pos + BP_CONTEXT_LENGTH > chrom_len:
 		align.write_failed_out('bp_window_past_chrom_end')
 		return
-	# print(os.getpid(), align.bp_pos, BP_CONTEXT_LENGTH, align.bp_pos-BP_CONTEXT_LENGTH, align.bp_pos+BP_CONTEXT_LENGTH)
 	# Add more info
 	align.genomic_bp_context = functions.get_seq(
 											genome_fasta = genome_fasta, 
 											chrom = align.chrom,
 											start = align.bp_pos-BP_CONTEXT_LENGTH,
 											end = align.bp_pos+BP_CONTEXT_LENGTH,
-											rev_comp = align.strand=='-'
-	)
-	# print(os.getpid(), align.genomic_bp_context)
+											rev_comp = align.strand=='-')
 	align.genomic_bp_nt = align.genomic_bp_context[BP_CONTEXT_LENGTH]
 	align.introns = enveloping_introns(align, introns)
 	align.threep_pos = nearest_threep_pos(align)
@@ -470,9 +453,6 @@ def filter_head_alignment(align:ReadHeadAlignment,
 		align.write_failed_out('gaps')
 		return
 	
-	if align.read_id.startswith('head_fail_fivep_intron_match'):
-		print(align.read_id, str(align))
-
 	# Write out if template-switching
 	if is_template_switch(align) is True:
 		align.write_temp_switch_out()
@@ -508,9 +488,6 @@ def filter_head_alignment(align:ReadHeadAlignment,
 		align.write_failed_out('fivep_intron_match')
 		return
 	
-	if align.read_id.startswith('head_fail_fivep_intron_match'):
-		print(align.read_id, str(align), 'heyo')
-
 	# Write out if intron circle
 	if is_intron_circle(align) is True:
 		align.gene_id = [functions.str_join(fivep.gene_ids, ';') for fivep in align.fivep_sites]
@@ -549,8 +526,6 @@ def filter_alignments_chunk(genome_fasta:str,
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
 	for read_id, read_aligns in yield_read_aligns(chunk_start, chunk_end):
-		# if read_id.startswith('head_fail_fivep_intron_match'):
-			# print(read_id, '\n'.join(str(align) for align in read_aligns))
 		read_tail = tails[read_id]
 
 		# Go through each alignment for the read
@@ -564,7 +539,7 @@ def filter_alignments_chunk(genome_fasta:str,
 	log.debug(f'Process {os.getpid()}: Finished')
 		
 
-def post_processing():
+def post_processing(log):
 	"""
 	Perform post-processing on template-switching and circularized reads data.
 	This function performs the following steps:
@@ -573,6 +548,8 @@ def post_processing():
 	3. Collapse the template-switching and circularized reads tables to one row per read.
 	4. Overwrite the original files with the corrected tables.
 	"""
+	log.debug('Post-processing...')
+
 	# Load data tables
 	temp_switches = pd.read_csv(TEMP_SWITCH_FILE, sep='\t', na_filter=False)
 	circulars = pd.read_csv(CIRCULARS_FILE, sep='\t', na_filter=False)
@@ -583,17 +560,18 @@ def post_processing():
 	# Collapse temp switch and circular tables to one row per read
 	temp_switches = (temp_switches
 					.groupby('read_id', as_index=False)
-					.agg({col: functions.str_join for col in TEMP_SWITCH_COLS[1:]})
+					.agg({col: lambda c: functions.str_join(sorted(c)) for col in TEMP_SWITCH_COLS[1:]})
 	)
 	circulars = (circulars
 					.groupby('read_id', as_index=False)
-					.agg({col: functions.str_join for col in CIRCULARS_COLS[1:]})
+					.agg({col: lambda c: functions.str_join(sorted(c)) for col in CIRCULARS_COLS[1:]})
 	)
 
 	# Overwrite files with the corrected tables
 	temp_switches.to_csv(TEMP_SWITCH_FILE, sep='\t', index=False)
 	circulars.to_csv(CIRCULARS_FILE, sep='\t', index=False)
 
+	log.debug('Post-processing complete')
 
 
 
@@ -667,7 +645,7 @@ if __name__ == '__main__':
 			raise RuntimeError()
 
 	# Post processing
-	post_processing()
+	post_processing(log)
 
 
 
