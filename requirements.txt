@@ -3,6 +3,7 @@ bioconductor-genomicalignments
 bioconductor-genomicfeatures
 bioconductor-rtracklayer
 bowtie2
+fsspec
 hisat2
 intervaltree
 git

@@ -8,7 +8,7 @@ import sys
 import pytest
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
-import testing_tools as test_funcs
+import test_utils
 
 
 
@@ -46,14 +46,14 @@ def test_filter_head_aligns(threads, prefix, tmp_path):
 					(FILTER_HEAD_ALIGNS_DIR/'outputs'/'template_switching_reads.tsv', tmp_path/f'{prefix}template_switching_reads.tsv'),
 					(FILTER_HEAD_ALIGNS_DIR/'outputs'/'circularized_intron_reads.tsv', tmp_path/f'{prefix}circularized_intron_reads.tsv'),
 					(FILTER_HEAD_ALIGNS_DIR/'outputs'/'putative_lariats.tsv', tmp_path/f'{prefix}putative_lariats.tsv')):
-		ref_lines, out_lines = test_funcs.load_file_lines(ref, out)
+		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 		if ref_lines == out_lines:
 			continue
 
 		# File contents differ, decide how to report
 		print(response_text)
-		if test_funcs.vscode_available():
-			test_funcs.vscode_compare(ref, out)
+		if test_utils.vscode_available():
+			test_utils.vscode_compare(ref, out)
 			pytest.fail(f'Output file differs from expected output: {out.name}')
 		else:
 			assert ref_lines == out_lines

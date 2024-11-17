@@ -171,7 +171,7 @@ def check_up_to_date(pipeline_dir, log):
 	check_command = f'git --git-dir {pipeline_dir}/.git --work-tree {pipeline_dir} -c core.fileMode=false status'
 	status = functions.run_command(check_command, log=log, timeout=60)
 	log.debug(f'Git status: {status}')
-	status = [line for line in status.split('\n') if line!='']
+	status = [line.strip() for line in status.split('\n') if line!='']
 
 	branch = status[0].split(' ')[-1]
 	if branch != 'main':
@@ -181,7 +181,7 @@ def check_up_to_date(pipeline_dir, log):
 	if not status[1].startswith('Your branch is up-to-date with '):
 		log.warning('Git: LariatMapper is not up-to-date!\n\t' + '\n\t'.join(status))
 		time.sleep(60)	# Give the user a chance to see the warning
-	elif not any(line.startswith('nothing to commit') for line in status):
+	if not any(line.startswith('nothing to commit') for line in status):
 		log.warning("Git: Working directory is not clean!\n\t" + '\n\t'.join(status))
 		time.sleep(60)	# Give the user a chance to see the warning
 	
