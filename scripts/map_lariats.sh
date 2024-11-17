@@ -188,12 +188,13 @@ check_exitcode
 
 
 ## Align fasta file of all 5' splice sites (first 20nts of introns) to unmapped reads index
-# We need to order the output SAM by reference (the read id, in this case) for the following filtering process
+# We need to order the output SAM by read_id (which is the reference in this case)
+# so we can process all the alignments to each read together in the following filtering 
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
 	> $fivep_to_reads.tmp
 check_exitcode
-samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -M $fivep_to_reads.tmp \
+samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $fivep_to_reads.tmp \
 	| samtools view \
 	> $fivep_to_reads
 check_exitcode
@@ -206,6 +207,8 @@ check_exitcode
 
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
+# scalene --html --outfile "$OUTPUT_BASE"filter_fivep_aligns.html \
+# 	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
 python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
 check_exitcode
 
@@ -215,13 +218,16 @@ hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $heads_fasta \
 	> $heads_to_genome.tmp
 check_exitcode
+# We need to order the output SAM by read_id (which is the reference in this case)
+# so we can process all the alignments to each read together in the following filtering 
 samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_genome.tmp \
-	| samtools view \
 	> $heads_to_genome
 check_exitcode
 
 ### Filter head alignments
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Analyzing head alignments and outputting lariat table...\n"
+# scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
+# 	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
 python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
 check_exitcode
 

@@ -79,23 +79,6 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 	return fivep_upstream_seqs
 
 
-def decide_chunk_ranges(n_aligns:int, threads:int):
-	'''
-	Returns [[chunk_1_start, chunk_1_end],... [chunk_t_start, n_aligns]] where t = threads
-	Start and end positions are 1-based inclusive
-	'''
-	# If there are only a handful of alignments just go through them all in one thread
-	if n_aligns <= 2*threads:
-		return [[1, n_aligns]]
-	
-	# Determine the range of lines to assign to each thread
-	chunk_size = int(n_aligns / threads)
-	chunk_ranges = [[t*chunk_size+1, (t+1)*chunk_size]  for t in range(threads)]
-	chunk_ranges[-1][-1] = n_aligns
-
-	return chunk_ranges
-
-
 def parse_line(sam_line:str):
 	fivep_site, flag, read_id, read_fivep_start = sam_line.split('\t')[:4]
 
@@ -113,30 +96,30 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 			next(align_file)
 		
 		if chunk_start == 1:
-			start_line = align_file.readline()
+			start_align = align_file.readline()
 		# Check the line before the starting line to see if the chunk starts in the middle of a read's collection of alignments  
 		# If it is, move the starting line up until it reaches the next read's alignments
 		else:
-			previous_line_rid = align_file.readline().split('\t')[2]
-			start_line = align_file.readline()
-			while start_line.split('\t')[2] == previous_line_rid:
-				start_line = align_file.readline()
+			previous_align_rid = align_file.readline().split('\t')[2]
+			start_align = align_file.readline()
+			while start_align.split('\t')[2] == previous_align_rid:
+				start_align = align_file.readline()
 				chunk_start += 1
 
 		# Add the relevant fivep site info to fivep_sites
-		current_read_id, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(start_line)
+		current_read_id, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(start_align)
 		# This dict will hold all of the read's 5'ss alignments, seperated into reverse(True) and forward(False) alignments
 		fivep_sites = {True: [], False: []}
 		fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
 
-		line_num = chunk_start
-		while line_num < n_aligns:
-			line_num += 1
+		align_num = chunk_start
+		while align_num < n_aligns:
+			align_num += 1
 			# Get the next line's alignment info
-			line_rid, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(align_file.readline())
+			align_rid, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(align_file.readline())
 
 			# If we're still in the same read's collection of alignments, add the info to fivep_sites
-			if line_rid == current_read_id:
+			if align_rid == current_read_id:
 				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
 
 			# If we've reached the first alignment for a new read...
@@ -147,18 +130,18 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 				yield current_read_id, False, fivep_sites[False]
 
 				# Set to processing next read's alignments
-				current_read_id = line_rid
+				current_read_id = align_rid
 				fivep_sites = {True:[], False:[]}
 				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
 
 				# If we're at or have passed the end of the assigned chunk, we're done
 				# We don't do this check until we know we got all of the last read's alignments, 
 				# so we might process a few lines after the assigned chunk_end 
-				if line_num > chunk_end:
+				if align_num > chunk_end:
 					break
 
 		# Yield the last read's alignments
-		if line_num == n_aligns:
+		if align_num == n_aligns:
 			yield current_read_id, True, fivep_sites[True]
 			yield current_read_id, False, fivep_sites[False]
 
@@ -309,7 +292,9 @@ if __name__ == '__main__' :
 	if n_aligns == 0:
 		sys.exit(4)
 
-	chunk_ranges = decide_chunk_ranges(n_aligns, threads)
+	# Decide how to divide the collection of alignments into chunks
+	# for parallel processing, so each thread gets a roughly equal number
+	chunk_ranges = functions.decide_chunk_ranges(n_aligns, threads)
 	log.debug(f'chunk ranges: {chunk_ranges}')
 
 	# Prep out files with a header row
@@ -320,6 +305,7 @@ if __name__ == '__main__' :
 	with open(FAILED_FIVEPS_FILE.format(output_base), 'w') as w:
 		w.write('\t'.join(FAILED_FIVEPS_COLS) + '\n')
 
+	# Start parallel processes, leaving the first chunk for the main process
 	log.debug(f'Parallel processing {len(chunk_ranges):,} chunks...')
 	processes = []
 	for chunk_start, chunk_end in chunk_ranges[1:]:
@@ -338,5 +324,8 @@ if __name__ == '__main__' :
 		process.join()
 		if process.exitcode != 0:
 			raise RuntimeError()
+
+		
+
 		
 	log.debug('End of script')

@@ -5,6 +5,7 @@ import json
 import subprocess
 import tempfile
 
+import fsspec
 import pandas as pd
 import pyfaidx
 
@@ -54,7 +55,7 @@ def reverse_complement(seq:str):
 	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
 
 
-def str_join(items:list|tuple|pd.Series, join_string:str=',', unique:bool=False) -> str:
+def str_join(items:list|tuple|set|frozenset|pd.Series, join_string:str=',', unique:bool=False) -> str:
 	'''
 	If <items> contains only 1 unique item, return str(that item)
 	Else, return a <join_string>-delimited string of <items>
@@ -62,11 +63,11 @@ def str_join(items:list|tuple|pd.Series, join_string:str=',', unique:bool=False)
 			 	[toy1, toy2, toy2, toy3], join_string=";" -> "toy1;toy2;toy2;toy3"
 			 	[toy1, toy2, toy2, toy3], unique=True     -> "toy1,toy2,toy3"
 	'''
+	if isinstance(items, (set, frozenset, pd.Series)):
+		items = tuple(items)
+
 	if len(set(items)) == 1:
-		if isinstance(items, pd.Series):
-			return str(items.iloc[0])
-		else:
-			return str(items[0])
+		return str(items[0])
 	
 	if unique is True:
 		out = []
@@ -164,7 +165,21 @@ def get_seq(genome_fasta:str, chrom:str, start:int, end:int, rev_comp:bool) -> s
 		end (int): The end position of the sequence (0-based exclusive)
 		rev_comp (bool): Flag indicating whether to retrieve the reverse complement of the sequence.
 	"""
-	return pyfaidx.Fasta(genome_fasta, sequence_always_upper=True, as_raw=True, rebuild=False).get_seq(chrom, start+1, end+1, rev_comp)
+	fasta = fsspec.open(genome_fasta, anon=True, mode='rb')
+	try:
+		seq = pyfaidx.Fasta(fasta, 
+							sequence_always_upper=True, 
+							rebuild=False, 
+							build_index=False,
+							as_raw=True,
+							)[chrom][start:end]
+	finally:
+		fasta.close()
+
+	if rev_comp is True:
+		seq = reverse_complement(seq)
+		
+	return seq
 
 
 def version() -> str:
@@ -189,6 +204,23 @@ def linecount(file:str) -> int:
 	return count
 
 
+def decide_chunk_ranges(n_aligns:int, threads:int):
+	'''
+	Returns [[chunk_1_start, chunk_1_end],... [chunk_t_start, n_aligns]] where t = threads
+	Start and end positions are 1-based inclusive
+	'''
+	# If there are only a handful of alignments just go through them all in one thread
+	if n_aligns <= 2*threads:
+		return [[1, n_aligns]]
+	
+	# Determine the range of lines to assign to each thread
+	chunk_size = int(n_aligns / threads)
+	chunk_ranges = [[t*chunk_size+1, (t+1)*chunk_size]  for t in range(threads)]
+	chunk_ranges[-1][-1] = n_aligns
+
+	return chunk_ranges
+
+
 def get_chrom_length(faidx:str, chrom:str) -> int:
 	'''
 	Retrieve the length of a chromosome from a faidx index file (e.g. genome.fa.fai)
@@ -198,4 +230,3 @@ def get_chrom_length(faidx:str, chrom:str) -> int:
 			line_chrom, length = line.split('\t')[:2]
 			if line_chrom == chrom:
 				return int(length)
-
