@@ -31,8 +31,6 @@ OUT_COLS = ['read_id',
 # =============================================================================#
 def exclude_classed_reads(df:pd.DataFrame, read_classes) -> np.array:
 	classed_rids = [row[0] for row in read_classes]
-	# keep = np.isin(read_ids, classed_rids, assume_unique=True, invert=True)
-	# read_ids = read_ids[keep]
 	df = df.loc[~df.read_id.isin(classed_rids)]
 
 	return df
@@ -51,7 +49,11 @@ def add_reads(file:str, class_:str, stage:str, read_classes:list, read_id_proces
 		df['filter_failed'] = ''
 	if 'gene_id' not in df:
 		df['gene_id'] = ''
-	df = df.groupby('read_id', as_index=False).agg({'filter_failed': lambda ffs: functions.str_join(ffs, unique=True), 'gene_id': lambda gids: functions.str_join(gids, unique=True)})
+	df = (df
+	   		.groupby('read_id', as_index=False)
+			.agg({'filter_failed': lambda ffs: functions.str_join(ffs, unique=True), 
+		 			'gene_id': lambda gids: functions.str_join(gids, unique=True)})
+	)
 
 	df = exclude_classed_reads(df, read_classes)
 
