@@ -207,6 +207,8 @@ check_exitcode
 
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
+# scalene --html --outfile "$OUTPUT_BASE"filter_fivep_aligns.html \
+# 	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
 python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
 check_exitcode
 
@@ -224,6 +226,8 @@ check_exitcode
 
 ### Filter head alignments
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Analyzing head alignments and outputting lariat table...\n"
+# scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
+# 	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
 python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
 check_exitcode
 
