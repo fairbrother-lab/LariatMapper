@@ -9,7 +9,7 @@ import subprocess
 import dataclasses
 import pathlib
 
-# This line is where our third-party imports go, if we had any
+# This line is where our third-party imports would go, if we had any
 
 from scripts import functions
 
@@ -18,7 +18,7 @@ from scripts import functions
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
-FORBIDDEN_CHARS = ('\\', '>', '<', '&', '~', '*', '?', '[', ']', ',', ';', '|', '!', '$', "'", '"')
+FORBIDDEN_CHARS = (" ", '\\', '>', '<', '&', '~', '*', '?', '[', ']', ',', ';', '|', '!', '$', "'", '"')
 
 @dataclasses.dataclass
 class Settings:
@@ -65,7 +65,7 @@ class Settings:
 
 
 	def __post_init__(self):
-		# # Reference files
+		# Reference files
 		for ref_attr_name, ref_file_name in Settings.REQ_REFS:
 			if getattr(self, ref_attr_name) is None:
 				setattr(self, ref_attr_name, pathlib.Path(os.path.join(self.ref_dir, ref_file_name)))
@@ -126,7 +126,7 @@ class Settings:
 				raise ValueError(f'"{file}" is not an existing file')
 			for char in FORBIDDEN_CHARS:
 				if char in str(file):
-					raise ValueError(f'Illegal character in {file}: {char}')
+					raise ValueError(f'Illegal character in {file}: "{char}"')
 		if (not os.path.isfile(f'{self.ref_h2index}.1.ht2')) and (not os.path.isfile(f'{self.ref_h2index}.1.ht2l')):
 			raise ValueError(f'"{self.ref_h2index}" is not an existing hisat2 index')
 		
@@ -135,7 +135,7 @@ class Settings:
 			raise ValueError(f'"{self.output_dir.parent}" is not an existing directory')
 		for char in FORBIDDEN_CHARS:
 			if char in str(self.output_dir):
-				raise ValueError(f'Illegal character in output directory: {char}')
+				raise ValueError(f'Illegal character in output directory: "{char}"')
 
 		# Validate threads arg
 		if not self.threads>0:
