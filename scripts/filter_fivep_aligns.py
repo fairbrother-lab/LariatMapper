@@ -171,16 +171,16 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 		for fivep_site, read_fivep_start, read_fivep_end in fivep_sites:
 			# If the sequencing data is strand-specific, we can rule out alignments on 
 			# the wrong strand for the read mate
-			if strand == 'First':
-				if read_num=='1' and read_is_reverse:
-					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
-				if read_num=='2' and not read_is_reverse:
-					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
-			elif strand == 'Second':
-				if read_num=='1' and not read_is_reverse:
-					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
-				if read_num=='2' and read_is_reverse:
-					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+			# if strand == 'First':
+			# 	if read_num=='1' and read_is_reverse:
+			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+			# 	if read_num=='2' and not read_is_reverse:
+			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+			# elif strand == 'Second':
+			# 	if read_num=='1' and not read_is_reverse:
+			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+			# 	if read_num=='2' and read_is_reverse:
+			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
 
 			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 			# If it does NOT, add the read alignment to fivep_pass
