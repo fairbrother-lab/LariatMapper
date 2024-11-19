@@ -249,7 +249,7 @@ if __name__ == '__main__':
 
 	# Add additional info
 	if stats['exon_intron_junc'] > 0:
-		stats['pre_ratio'] = f"{stats['exon_exon_junc'] / (2 * stats['exon_intron_junc']):.4g}"
+		stats['pre_ratio'] = f"{(2*stats['exon_exon_junc']) / stats['exon_intron_junc']:.4g}"
 	else:
 		stats['pre_ratio'] = 'N/A'
 
