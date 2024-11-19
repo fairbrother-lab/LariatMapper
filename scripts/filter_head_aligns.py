@@ -418,7 +418,6 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	else:
 		align.bp_pos = align.align_start
 
-
 	# Filter out if the bp window would extend outside of the chromosome bounds
 	if align.bp_pos - BP_CONTEXT_LENGTH < 0:
 		align.write_failed_out('bp_window_less_than_0')
@@ -427,12 +426,13 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	if align.bp_pos + BP_CONTEXT_LENGTH > chrom_len:
 		align.write_failed_out('bp_window_past_chrom_end')
 		return
+	
 	# Add more info
 	align.genomic_bp_context = functions.get_seq(
 											genome_fasta = genome_fasta, 
 											chrom = align.chrom,
 											start = align.bp_pos-BP_CONTEXT_LENGTH,
-											end = align.bp_pos+BP_CONTEXT_LENGTH,
+											end = align.bp_pos+BP_CONTEXT_LENGTH+1,
 											rev_comp = align.strand=='-')
 	align.genomic_bp_nt = align.genomic_bp_context[BP_CONTEXT_LENGTH]
 	align.introns = enveloping_introns(align, introns)
