@@ -13,6 +13,7 @@ pyfaidx
 pysam
 python>=3.9, <=3.11
 r-base
+r-ggplot2
 r-optparse
 r-tidyverse
 samtools
