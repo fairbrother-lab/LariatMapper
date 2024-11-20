@@ -46,10 +46,22 @@ singleEnd_mode <- ifelse(read_layout == "paired", F, T)
 bam_res <- linear_map_integrate(input_bam,
                                 gene_gr = gene_gr, exon_gr = exon_gr, intron_gr = intron_gr,
                                 singleEnd = singleEnd_mode)
+
+n_reads <- total_reads_bam(input_bam, 
+                           isPaired = !singleEnd_mode, 
+                           isFirstMateRead = ifelse(!singleEnd_mode, T, NA))
+summary_table <- bam_res[,-1] %>% colSums()
+summary_table <- cbind(summary_table %>% data.frame() %>% t, 
+                       "intergenic_ambiguous" = n_reads - summary_table["gene"],
+                       "spliced" = summary_table["exon_exon_junc"],
+                       "unspliced" = summary_table["exon_intron_junc"] + summary_table["intron_only"])
 ###
 
 ### Output counts table
 
 write.table(bam_res, paste0(output_base, "output.bam_count.tsv"),
+            row.names = F, col.names = T, quote = F, sep = "\t")
+
+write.table(summary_table, paste0(output_base, "output.bam_summary_count.tsv"),
             row.names = F, col.names = T, quote = F, sep = "\t")
 ###
