@@ -159,33 +159,9 @@ class Settings:
 		with open(file, 'w') as json_file:
 			json.dump(dict_, json_file)
 
-
-
-# =============================================================================#
-#                                  Functions                                   #
-# =============================================================================#
-def check_up_to_date(pipeline_dir, log):
-	# Get repo status, ignoring file mode changes with -c core.fileMode=false
-	fetch_command = f'git --git-dir {pipeline_dir}/.git --work-tree {pipeline_dir} -c core.fileMode=false fetch --all'
-	functions.run_command(fetch_command, log=log, timeout=60)
-	check_command = f'git --git-dir {pipeline_dir}/.git --work-tree {pipeline_dir} -c core.fileMode=false status'
-	status = functions.run_command(check_command, log=log, timeout=60)
-	log.debug(f'Git status: {status}')
-	status = [line.strip() for line in status.split('\n') if line!='']
-
-	branch = status[0].split(' ')[-1]
-	if branch != 'main':
-		log.warning(f'Git: LariatMapper is currently on branch {branch}, NOT the main branch!')
-		time.sleep(60)	# Give the user a chance to see the warning
-
-	if not status[1].startswith('Your branch is up-to-date with '):
-		log.warning('Git: LariatMapper is not up-to-date!\n\t' + '\n\t'.join(status))
-		time.sleep(60)	# Give the user a chance to see the warning
-	if not any(line.startswith('nothing to commit') for line in status):
-		log.warning("Git: Working directory is not clean!\n\t" + '\n\t'.join(status))
-		time.sleep(60)	# Give the user a chance to see the warning
 	
 	
+
 
 # =============================================================================#
 #                                    Main                                      #
@@ -223,7 +199,6 @@ if __name__ == '__main__':
 	optional_args.add_argument('-k', '--keep_temp', action='store_true', help='Keep all temporary files created while running the pipeline. Forces -c/--keep_classes (Default = delete)')
 		# Technical options
 	optional_args.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (Default = 1)')
-	optional_args.add_argument('-x', '--skip_version_check', action='store_true', help='Don\'t check if LariatMapper is up-to-date with the main branch on GitHub (Default = check and warn if not up-to-date)')
 	log_levels = optional_args.add_mutually_exclusive_group()
 	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR, Default = INFO). Mutually exclusive with -w and -d")
 	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING, Default = INFO). Mutually exclusive with -q and -d")
@@ -244,16 +219,6 @@ if __name__ == '__main__':
 	arg_message = [f'{key}={val}' for key, val in args.items() if val is not None and val is not False]
 	arg_message = '\n\t'.join(arg_message)
 	log.info(f'Arguments: \n\t{arg_message}')
-
-	# Check if up-to-date
-	if settings.skip_version_check is False:
-		log.debug('Checking if LariatMapper is up-to-date with the main branch on GitHub...')
-		try:
-			check_up_to_date(settings.pipeline_dir, log)
-		except Exception as e:
-			log.debug(e)
-			log.warning('Could not check if LariatMapper is up-to-date with the main branch on GitHub. Continuing anyway...')
-			time.sleep(60)	# Give the user a chance to see the warning
 
 	# Validate arguments
 	settings.validate_args()

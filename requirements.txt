@@ -6,7 +6,6 @@ bowtie2
 fsspec
 hisat2
 intervaltree
-git
 numpy
 pandas
 pyarrow
