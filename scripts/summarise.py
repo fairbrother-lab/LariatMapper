@@ -48,7 +48,6 @@ SUMMARY_TEMPLATE = (
 					"Make UCSC track:\t{ucsc_track}\n"
 					"Keep read classes file:\t{keep_classes}\n"
 					"Keep temporary files:\t{keep_temp}\n"
-					"Skip version check:\t{skip_version_check}\n"
 					"Log level:\t{log_level}\n"
 					"\n"
 					"----------------------------------------\n"
