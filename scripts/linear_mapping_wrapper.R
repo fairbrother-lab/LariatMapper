@@ -51,10 +51,9 @@ n_reads <- total_reads_bam(input_bam,
                            isPaired = !singleEnd_mode, 
                            isFirstMateRead = ifelse(!singleEnd_mode, T, NA))
 summary_table <- bam_res[,-1] %>% colSums()
-summary_table <- cbind(summary_table %>% data.frame() %>% t, 
-                       "intergenic_ambiguous" = n_reads - summary_table["gene"],
-                       "spliced" = summary_table["exon_exon_junc"],
-                       "unspliced" = summary_table["exon_intron_junc"] + summary_table["intron_only"])
+summary_table <- cbind("total_reads" = n_reads,
+                       summary_table %>% data.frame() %>% t, 
+                       "intergenic_ambiguous" = n_reads - summary_table["gene"])
 ###
 
 ### Output counts table
