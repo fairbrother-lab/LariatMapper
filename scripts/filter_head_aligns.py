@@ -23,8 +23,9 @@ BP_CONTEXT_LENGTH = 8
 TEMP_SWITCH_BASES = 5
 
 TEMP_SWITCH_COLS = ['read_id',
+					'read_orient_to_gene',
+					'read_seq_forward', 
 					'read_bp_pos',
-					'read_seq', 
 					'fivep_seq',
 					'fivep_sites',
 					'genomic_bp_context',
@@ -38,15 +39,15 @@ CIRCULARS_COLS = ['read_id',
 				'head_end_pos',
 				'threep_pos',
 				'head_end_dist_to_threep',
-				'read_is_reverse',
-				'read_seq',
+				'read_orient_to_gene',
+				'read_seq_forward',
 				'read_head_end_pos',
 				'read_head_end_nt',
 				'genomic_head_end_nt',
 				'genomic_head_end_context',
 				]
 PUTATITVE_LARIATS_COLS = ['read_id', 
-						'read_is_reverse', 
+						'read_orient_to_gene', 
 						'chrom', 
 						'strand', 
 						'gene_id', 
@@ -54,7 +55,7 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'bp_pos', 
 						'threep_pos', 
 						'bp_dist_to_threep',
-						'read_seq', 
+						'read_seq_forward', 
 						'read_bp_pos',
 						'read_bp_nt', 
 						'genomic_bp_nt', 
@@ -109,22 +110,24 @@ class FivepSite():
 class ReadTail:
 	# Assigned at creation
 	read_id: str
-	read_is_reverse: bool
+	read_orient_to_gene: str
 	read_seq: str
 	fivep_seq: str
 	fivep_sites: list[FivepSite]
 	read_bp_pos: int
 
+
 	@property
 	def read_bp_nt(self):
-		if self.read_is_reverse is True:
+		if self.read_orient_to_gene == 'Reverse':
 			return functions.reverse_complement(self.read_seq[self.read_bp_pos])
 		else:
 			return self.read_seq[self.read_bp_pos]
 
+
 	def from_row(row:pd.Series):
 		return ReadTail(read_id=row['read_id'], 
-						read_is_reverse=row['read_is_reverse'], 
+						read_orient_to_gene=row['read_orient_to_gene'], 
 						read_seq=row['read_seq'],
 						fivep_seq=row['fivep_seq'], 
 				  		fivep_sites=row['fivep_sites'], 
@@ -135,7 +138,7 @@ class ReadTail:
 class ReadHeadAlignment():
 	"""
 	"""
-	TAIL_INFO_ATTRS = ('read_is_reverse', 'read_seq', 'fivep_seq', 'fivep_sites',
+	TAIL_INFO_ATTRS = ('read_orient_to_gene', 'read_seq', 'fivep_seq', 'fivep_sites',
 						'read_bp_pos', 'read_bp_nt')
 	
 	# Assigned at creation
@@ -150,8 +153,8 @@ class ReadHeadAlignment():
 	head_align_quality: int			# Included in output
 	
 	# Copied from the ReadTail object 
-	read_is_reverse: bool			# Included in output
-	read_seq: str = None			# Included in output
+	read_orient_to_gene: str = None		# Included in output
+	read_seq: str = None	# Included in output
 	fivep_seq: str = None
 	fivep_sites: list[FivepSite] = None
 	read_bp_pos: int = None			# Included in output
@@ -168,19 +171,27 @@ class ReadHeadAlignment():
 	gene_id: str = None				# Included in output
 	fivep_pos: int = None			# Included in output
 
+
 	@classmethod
 	def fail_out_fields(cls):
 		return tuple(cls.__annotations__.keys()) + ('filter_failed',)
+	
+
+	@property
+	def read_seq_forward(self):
+		if self.read_orient_to_gene == 'Reverse':
+			return functions.reverse_complement(self.read_seq) 
+		else:
+			self.read_seq
+
 
 	def from_pysam(pysam_align:pysam.AlignedSegment):
 		"""
 		"""
 		mismatch_p = pysam_align.get_tag('NM')/pysam_align.query_length
 		gaps = [length for op, length in pysam_align.cigartuples if op in (1,2)]
-		read_is_reverse = pysam_align.query_name.endswith('_rev')
 		return ReadHeadAlignment(
 					read_id = pysam_align.query_name,
-					read_is_reverse = read_is_reverse,
 					chrom = pysam_align.reference_name,
 					align_start = pysam_align.reference_start,
 					align_end = pysam_align.reference_end,
@@ -189,11 +200,13 @@ class ReadHeadAlignment():
 					mismatches_p = mismatch_p,
 					gaps = gaps,
 					head_align_quality = pysam_align.mapping_quality
-				)
+		)
+
 
 	def fill_tail_info(self, tail:ReadTail):
 		for attr in self.TAIL_INFO_ATTRS:
 			setattr(self, attr, getattr(tail, attr))
+
 
 	def write_failed_out(self, filter_failed:str):
 		out_fields = ReadHeadAlignment.fail_out_fields()
@@ -203,12 +216,15 @@ class ReadHeadAlignment():
 			val = '' if val is None else val
 			if attr in ('gaps', 'fivep_sites', 'introns', 'gene_id'):
 				val = functions.str_join(val)
+
 			line += f'\t{val}'
+
 		line += f'\t{filter_failed}'
 		
 		with failed_out_lock:
 			with open(FAILED_HEADS_FILE, 'a') as a:
 				a.write(line + '\n')
+
 
 	def write_temp_switch_out(self):
 		line = self.read_id[:-6] # Remove the '/X_XXX' suffix
@@ -216,7 +232,9 @@ class ReadHeadAlignment():
 			val = getattr(self, attr)
 			if attr in ('fivep_sites', ):
 				val = functions.str_join(val)
+
 			line += f'\t{val}'
+
 		temp_switch_site = self.chrom + ';' + str(self.bp_pos) + ';' + self.strand
 		line += f'\t{temp_switch_site}'
 
@@ -224,18 +242,24 @@ class ReadHeadAlignment():
 			with open(TEMP_SWITCH_FILE, 'a') as a:
 				a.write(line + '\n')
 
+
 	def write_circle_out(self):
 		line = self.read_id[:-6] # Remove the '/X_XXX' suffix
-		for attr in CIRCULARS_COLS[1:]:
-			attr = attr.replace('head_end', 'bp')
-			val = getattr(self, attr)
-			if attr in ('gene_id',):
-				val = functions.str_join(val)
+		for col in CIRCULARS_COLS[1:]:
+			if col in ('head_end_pos', 'head_end_dist_to_threep', 'read_head_end_pos', 
+						'read_head_end_nt','genomic_head_end_nt', 'genomic_head_end_context'):
+				val = getattr(self, col.replace('head_end', 'bp'))
+			elif col in ('gene_id',):
+				val = functions.str_join(getattr(self, col))				
+			else:
+				val = getattr(self, col)
+
 			line += f'\t{val}'
 
 		with circle_lock:
 			with open(CIRCULARS_FILE, 'a') as a:
 				a.write(line + '\n')
+
 
 	def write_lariat_out(self):
 		line = self.read_id
@@ -243,6 +267,7 @@ class ReadHeadAlignment():
 			val = getattr(self, attr)
 			if attr in ('gene_id',):
 				val = functions.str_join(val)
+				
 			line += f'\t{val}'
 
 		with filtered_out_lock:
@@ -285,8 +310,8 @@ def parse_tails(fivep_genes:dict) -> dict:
 	Output: { str(read ID): ReadTail, ...}
 	'''
 	# Check for duplicates
-	dups = tails[['read_id', 'read_is_reverse']].duplicated().sum()
-	assert dups==0, 'Multiple rows in tails.tsv have the same read_id and read_is_reverse value, '\
+	dups = tails[['read_id', 'read_orient_to_gene']].duplicated().sum()
+	assert dups==0, 'Multiple rows in tails.tsv have the same read_id and read_orient_to_gene value, '\
 					'something went wrong in filter_fivep_aligns.py'
 
 	# Parse fivep_sites into lists of FivepSite objects
@@ -466,18 +491,18 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	# Filter out if it's a bad alignment orientation combination, 
 	# which does NOT leave the branchpoint adjacent to the 5'ss 
 	# in the read as is expected of lariats
-	if align.read_is_reverse is True:
-		if align.align_is_reverse is True and align.strand=='-':
-			align.write_failed_out('wrong_orient')
-			return
-		if align.align_is_reverse is False and align.strand=='+':
-			align.write_failed_out('wrong_orient')
-			return
-	if align.read_is_reverse is False:
+	if align.read_orient_to_gene == "Forward" :
 		if align.align_is_reverse is True and align.strand=='+':
 			align.write_failed_out('wrong_orient')
 			return
 		if align.align_is_reverse is False and align.strand=='-':
+			align.write_failed_out('wrong_orient')
+			return
+	if align.read_orient_to_gene == "Reverse":
+		if align.align_is_reverse is True and align.strand=='-':
+			align.write_failed_out('wrong_orient')
+			return
+		if align.align_is_reverse is False and align.strand=='+':
 			align.write_failed_out('wrong_orient')
 			return
 

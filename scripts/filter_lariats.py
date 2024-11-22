@@ -31,11 +31,12 @@ FINAL_RESULTS_COLS = ['read_id',
                         'bp_pos',
                         'threep_pos',
                         'bp_dist_to_threep',
-						'read_is_reverse',
+						'read_orient_to_gene',
 						'read_bp_pos',
-                        'read_seq',
+                        'read_seq_forward',
                         'read_bp_nt',
 						'genomic_bp_nt',
+						'bp_mismatch',
                         'genomic_bp_context',
                         'total_mapped_reads',
 						]
@@ -66,7 +67,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
 	lariat_reads[['read_id', 'read_num']] = lariat_reads.read_id.str.split('/', expand=True)
 	lariat_reads.read_num = lariat_reads.read_num.astype(int)
-	lariat_reads['align_mismatch'] = lariat_reads.read_bp_nt != lariat_reads.genomic_bp_nt
+	lariat_reads['bp_mismatch'] = lariat_reads.read_bp_nt != lariat_reads.genomic_bp_nt
 	lariat_reads['max_quality'] = lariat_reads.groupby('read_id').head_align_quality.agg('max')
 	
 	return lariat_reads
@@ -157,10 +158,10 @@ def choose_read_mapping(lariat_reads):
 
 		# Prioritize a mapping based on whether or not the BP base is a mismatch and the alignment orientation
 		# If multiple valid mappings in the same category, choose one at random
-		mismatch_and_forward = valid_lariat_mappings[(valid_lariat_mappings.align_mismatch) & (~valid_lariat_mappings.read_is_reverse)]
-		mismatch_and_reverse = valid_lariat_mappings[(valid_lariat_mappings.align_mismatch) & (valid_lariat_mappings.read_is_reverse)]
-		match_and_forward = valid_lariat_mappings[(~valid_lariat_mappings.align_mismatch) & (~valid_lariat_mappings.read_is_reverse)]
-		match_and_reverse = valid_lariat_mappings[(~valid_lariat_mappings.align_mismatch) & (valid_lariat_mappings.read_is_reverse)]
+		mismatch_and_forward = valid_lariat_mappings[(valid_lariat_mappings.bp_mismatch) & (valid_lariat_mappings=="Forward")]
+		mismatch_and_reverse = valid_lariat_mappings[(valid_lariat_mappings.bp_mismatch) & (valid_lariat_mappings=="Reverse")]
+		match_and_forward = valid_lariat_mappings[(~valid_lariat_mappings.bp_mismatch) & (valid_lariat_mappings=="Forward")]
+		match_and_reverse = valid_lariat_mappings[(~valid_lariat_mappings.bp_mismatch) & (valid_lariat_mappings=="Reverse")]
 
 		random.seed(1)		# For consistent output
 		for category in (mismatch_and_forward, mismatch_and_reverse, match_and_forward, match_and_reverse):

@@ -80,14 +80,13 @@ def str_join(items:list|tuple|set|frozenset|pd.Series, join_string:str=',', uniq
 		return join_string.join([str(item) for item in items])
 	
 
-
-def align_is_reverse(flag:int) -> bool:
+def align_orient(flag:int) -> bool:
 	'''
 	Return True if the reverse flag bit 0x10 is 1, else False
 	'''
 	bit_flags = bin(int(flag))
-	is_reverse = True if len(bit_flags)>=7 and bit_flags[-5]=='1' else False
-	return is_reverse
+	orient = "Forward" if len(bit_flags)>=7 and bit_flags[-5]=='1' else "Reverse"
+	return orient
 
 
 def get_logger(level:str) -> logging.Logger:
