@@ -1,4 +1,6 @@
 # Demo
+
+# WORK IN PROGRESS, DO NOT USE
 Here, we take a look at running LariatMapper via the command line. To follow this demonstration, open a Linux or MacOS command line terminal. As you read, copy the blocks of code into the terminal and run them.  
 
 First, download the demo data at https://github.com/fairbrother-lab/LariatMapper_aux
