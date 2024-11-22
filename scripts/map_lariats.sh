@@ -49,23 +49,6 @@ unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
 fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
 heads_fasta="$OUTPUT_BASE"heads.fa
 heads_to_genome="$OUTPUT_BASE"heads_to_genome.sam
-# reads_to_fivep="$OUTPUT_BASE"reads_to_fivep.sam
-tails="$OUTPUT_BASE"tails.tsv
-putative_lariats="$OUTPUT_BASE"putative_lariats.tsv
-failed_fiveps="$OUTPUT_BASE"failed_fivep_alignments.tsv
-failed_heads="$OUTPUT_BASE"failed_head_alignments.tsv
-failed_lariat="$OUTPUT_BASE"failed_lariat_alignments.tsv
-
-# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
-temp_files=(
-	$output_sam $output_bam $output_bam.bai $unmapped_fasta $unmapped_fasta.fai
-	$unmapped_fasta.1.bt* $unmapped_fasta.2.bt* $unmapped_fasta.3.bt* $unmapped_fasta.4.bt* 
-	$unmapped_fasta.rev.1.bt* $unmapped_fasta.rev.2.bt* $fivep_to_reads $fivep_to_reads.tmp 
-	$heads_fasta $heads_to_genome $heads_to_genome.tmp $tails $putative_lariats 
-	$failed_fiveps $failed_heads $failed_lariat 
-	$OUTPUT_BASE"settings.json"
-)
-
 
 if [ "$STRAND" == "Unstranded" ]; then
 	hisat2_strand_arg=""
@@ -78,6 +61,18 @@ elif [ "$STRAND" == "Reverse" ] & [ "$SEQ_TYPE" == "single" ]; then
 elif [ "$STRAND" == "Reverse" ] & [ "$SEQ_TYPE" == "paired" ]; then
 	hisat2_strand_arg="--rna-strandness RF"
 fi
+
+# List of temporary files to delete at the end of the run if KEEP_TEMP is false
+temp_files=(
+	$output_sam $output_bam $output_bam.bai $unmapped_fasta $unmapped_fasta.fai
+	# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
+	$unmapped_fasta.1.bt* $unmapped_fasta.2.bt* $unmapped_fasta.3.bt* $unmapped_fasta.4.bt* 
+	$unmapped_fasta.rev.1.bt* $unmapped_fasta.rev.2.bt* $fivep_to_reads $fivep_to_reads.tmp 
+	$heads_fasta $heads_to_genome $heads_to_genome.tmp "$OUTPUT_BASE"tails.tsv "$OUTPUT_BASE"putative_lariats.tsv
+	$OUTPUT_BASE"settings.json" $OUTPUT_BASE"output.bam_summary_count.tsv"
+	"$OUTPUT_BASE"failed_fivep_alignments.tsv "$OUTPUT_BASE"failed_head_alignments.tsv "$OUTPUT_BASE"failed_lariat_alignments.tsv
+)
+
 
 
 #=============================================================================#
@@ -94,6 +89,9 @@ end_run() {
 	### Also create lariat, circ, and temp-switch output files if they don't exist
 	python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE
 	check_exitcode
+
+	### Create a subdir named "plots" and make summary plots in it
+	Rscript $PIPELINE_DIR/scripts/summary_plots.R -o $OUTPUT_BASE
 
 	### Delete the temporary files 
 	if ! $KEEP_TEMP; then
@@ -173,6 +171,7 @@ if [ $unmapped_read_count == 0 ];then
 	end_run
 fi
 
+
 ### Create fasta file of unmapped reads 
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Creating fasta file of unmapped reads...\n"
 samtools fasta -N --require-flags 4 -o $unmapped_fasta $output_bam >/dev/null 2>&1
@@ -199,11 +198,6 @@ samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $fivep_to_reads.
 	> $fivep_to_reads
 check_exitcode
 
-# # ## Align unmapped reads to index of all 5' splice sites (first 20nts of introns)
-# printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping 5' splice sites to reads...\n"
-# bowtie2 --local -k 1000 -L 20 -i C,1,0 --ma 1 --mp 1,1 --np 1 --rdg 1,1 --rfg 1,1 --score-min C,20,0 \
-# 		--no-unal --no-head --threads $THREADS -x $FIVEP_INDEX -f -U $unmapped_fasta \
-# 	> $reads_to_fivep 
 
 ## Extract reads with a mapped 5' splice site and trim it off
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Finding 5' read alignments and trimming reads...\n"
@@ -211,6 +205,7 @@ printf "$(date +'%d/%b/%Y %H:%M:%S') | Finding 5' read alignments and trimming r
 # 	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
 python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
 check_exitcode
+
 
 ### Map read heads to genome
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping heads to genome...\n"
@@ -224,6 +219,7 @@ samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_gen
 	> $heads_to_genome
 check_exitcode
 
+
 ### Filter head alignments
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Analyzing head alignments and outputting lariat table...\n"
 # scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
@@ -231,10 +227,12 @@ printf "$(date +'%d/%b/%Y %H:%M:%S') | Analyzing head alignments and outputting 
 python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
 check_exitcode
 
+
 ### Filter lariat mappings and choose 1 for each read
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Filtering putative lariat alignments...\n"
 python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED
 check_exitcode
+
 
 ### Make a custom track BED file of identified lariats 
 if $UCSC_TRACK; then
