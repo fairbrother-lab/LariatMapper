@@ -11,15 +11,15 @@ Output: Lariats, circularized introns, and template-switching events
 ## Setup
 
 ### Dependencies
-The software dependencies are detailed in `requirements.txt`. We recommend creating a dedicated [conda environment](https://docs.conda.io/projects/conda/en/latest/index.html) for LariatMapper to avoid dependency-related problems during use.
+The software dependencies are detailed in `requirements.txt`. We recommend creating a dedicated programming environment with [mamba](https://mamba.readthedocs.io/en/latest/user_guide/mamba.html) for LariatMapper to avoid dependency-related problems during use.
 
-If you have conda installed, you can create a new environment named "lariat_mapper" by running
+If you have mamba installed, you can create a new environment named "lariat_mapper" by running
 
-	conda create --name "lariat_mapper" --file requirements.txt --channel conda-forge --channel bioconda
+	mamba create --name "lariat_mapper" --file requirements.txt --channel conda-forge --channel bioconda
 
 The environment can then be activated by running
 
-	conda activate lariat_mapper
+	mamba activate lariat_mapper
  
 before running scripts in the pipeline.
 
