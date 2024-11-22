@@ -51,7 +51,6 @@ class Settings:
 	keep_classes: bool
 	keep_temp: bool
 	threads: str
-	skip_version_check: bool
 	quiet: bool
 	warning: bool
 	debug: bool
