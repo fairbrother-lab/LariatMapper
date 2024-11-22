@@ -24,7 +24,7 @@ TAILS_COLS = ['read_id',
 			'read_seq',
 			'fivep_seq',
 			'fivep_sites',
-			'read_is_reverse',
+			'read_orient_to_gene',
 			'read_fivep_start',
 			'read_fivep_end',
 			'read_bp_pos',
@@ -34,7 +34,7 @@ FAILED_FIVEPS_COLS = ['read_id',
 						'fivep_site',
 						'read_fivep_start',
 						'read_fivep_end',
-						'read_is_reverse',
+						'read_orient_to_gene',
 						'filter_failed',
 						]
 
@@ -84,9 +84,9 @@ def parse_line(sam_line:str):
 
 	read_fivep_start = int(read_fivep_start)-1
 	read_fivep_end = read_fivep_start+20
-	read_is_reverse = functions.align_is_reverse(flag)
+	read_orient_to_gene = functions.align_orient(flag)
 
-	return read_id, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse
+	return read_id, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene
 
 
 def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_aligns:int):
@@ -107,32 +107,32 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 				chunk_start += 1
 
 		# Add the relevant fivep site info to fivep_sites
-		current_read_id, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(start_align)
-		# This dict will hold all of the read's 5'ss alignments, seperated into reverse(True) and forward(False) alignments
-		fivep_sites = {True: [], False: []}
-		fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
+		current_read_id, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene = parse_line(start_align)
+		# This dict will hold all of the read's 5'ss alignments, seperated into reverse and forward alignments
+		fivep_sites = {"Forward": [], "Reverse": []}
+		fivep_sites[read_orient_to_gene].append((fivep_site, read_fivep_start, read_fivep_end))
 
 		align_num = chunk_start
 		while align_num < n_aligns:
 			align_num += 1
 			# Get the next line's alignment info
-			align_rid, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse = parse_line(align_file.readline())
+			align_rid, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene = parse_line(align_file.readline())
 
 			# If we're still in the same read's collection of alignments, add the info to fivep_sites
 			if align_rid == current_read_id:
-				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
+				fivep_sites[read_orient_to_gene].append((fivep_site, read_fivep_start, read_fivep_end))
 
 			# If we've reached the first alignment for a new read...
 			else:
-				# Yield the reverse-aligning 5'ss for filtering
-				yield current_read_id, True, fivep_sites[True]
 				# Then yield the forward-aligning 5'ss for filtering
-				yield current_read_id, False, fivep_sites[False]
+				yield current_read_id, "Forward", fivep_sites["Forward"]
+				# Yield the reverse-aligning 5'ss for filtering
+				yield current_read_id, "Reverse", fivep_sites["Reverse"]
 
 				# Set to processing next read's alignments
 				current_read_id = align_rid
-				fivep_sites = {True:[], False:[]}
-				fivep_sites[read_is_reverse].append((fivep_site, read_fivep_start, read_fivep_end))
+				fivep_sites = {"Forward":[], "Reverse":[]}
+				fivep_sites[read_orient_to_gene].append((fivep_site, read_fivep_start, read_fivep_end))
 
 				# If we're at or have passed the end of the assigned chunk, we're done
 				# We don't do this check until we know we got all of the last read's alignments, 
@@ -142,8 +142,8 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 
 		# Yield the last read's alignments
 		if align_num == n_aligns:
-			yield current_read_id, True, fivep_sites[True]
-			yield current_read_id, False, fivep_sites[False]
+			yield current_read_id, "Forward", fivep_sites["Forward"]
+			yield current_read_id, "Reverse", fivep_sites["Reverse"]
 
 
 def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, strand:str, output_base:str, log_level:str) -> None:
@@ -161,7 +161,7 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 	# We will split each read into a forward read (with all the 5'ss aligning to the forward sequence) and a reverse read (with all the 5'ss alinging to the reverse sequence)
 	failed_alignments = []		
 	out_reads = []
-	for read_id, read_is_reverse, fivep_sites in yield_read_aligns(FIVEP_TO_READS_FILE.format(output_base), chunk_start, chunk_end, n_aligns):
+	for read_id, read_orient_to_gene, fivep_sites in yield_read_aligns(FIVEP_TO_READS_FILE.format(output_base), chunk_start, chunk_end, n_aligns):
 		if len(fivep_sites) == 0:
 			continue
 
@@ -172,15 +172,15 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 			# If the sequencing data is strand-specific, we can rule out alignments on 
 			# the wrong strand for the read mate
 			# if strand == 'First':
-			# 	if read_num=='1' and read_is_reverse:
-			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
-			# 	if read_num=='2' and not read_is_reverse:
-			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+			# 	if read_num=='1' and read_orient_to_gene == 'Reverse':
+			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
+			# 	if read_num=='2' and read_orient_to_gene == 'Forward':
+			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
 			# elif strand == 'Second':
-			# 	if read_num=='1' and not read_is_reverse:
-			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
-			# 	if read_num=='2' and read_is_reverse:
-			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, 'wrong_strand'))
+			# 	if read_num=='1' and read_orient_to_gene == 'Forward':
+			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
+			# 	if read_num=='2' and read_orient_to_gene == 'Reverse':
+			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
 
 			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 			# If it does NOT, add the read alignment to fivep_pass
@@ -190,34 +190,26 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 			# may be less than 5bp of sequence upstream of the 5'ss, so we use the length of 
 			# fivep_upstream_seqs[fivep_site] to determine how many bp to reach upstream in the read. 
 			# In almost all cases it'll be 5bp
-			if read_is_reverse:
-				segment_end = read_fivep_end + len(fivep_upstream_seqs[fivep_site])
-				read_upstream = read_seq[read_fivep_end:segment_end].upper()
-				upstream_mismatch = read_upstream != functions.reverse_complement(fivep_upstream_seqs[fivep_site])
-			else:
+			if read_orient_to_gene == "Forward":
 				segment_start = read_fivep_start - len(fivep_upstream_seqs[fivep_site])
 				read_upstream = read_seq[segment_start:read_fivep_start].upper()
 				upstream_mismatch = read_upstream != fivep_upstream_seqs[fivep_site]
+			elif read_orient_to_gene == "Reverse":
+				segment_end = read_fivep_end + len(fivep_upstream_seqs[fivep_site])
+				read_upstream = read_seq[read_fivep_end:segment_end].upper()
+				upstream_mismatch = read_upstream != functions.reverse_complement(fivep_upstream_seqs[fivep_site])
 				
 			if upstream_mismatch:
 				fivep_pass.append((fivep_site, read_fivep_start, read_fivep_end))
 			else:
-				failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_is_reverse, '5bp_up_match'))
+				failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, '5bp_up_match'))
 
 		# Check if there are no alignments for the read in the given orientation
 		if len(fivep_pass) == 0:
 			continue
 			
 		# For each orientation, trim off the upstream-most 5'ss and everything upstream of it, then write the sequence + alignments to file
-		if read_is_reverse:
-			# Get the start and end of the rightmost alignment in the read 
-			_, furthest_fivep_start, furthest_fivep_end = max(fivep_pass, key=lambda fp:fp[1])
-			read_bp_pos = furthest_fivep_end
-			# Trim off the rightmost alignment and everything to the left of it
-			head_seq = read_seq[furthest_fivep_end:]
-			# Get sequence of rightmost alignment
-			fivep_seq = functions.reverse_complement(read_seq[furthest_fivep_start:furthest_fivep_end])
-		else:
+		if read_orient_to_gene == "Forward":
 			# Get the start and end of the leftmost alignment in the read 
 			_, furthest_fivep_start, furthest_fivep_end = min(fivep_pass, key=lambda fp:fp[1])
 			read_bp_pos = furthest_fivep_start - 1
@@ -225,6 +217,14 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 			head_seq = read_seq[:furthest_fivep_start]
 			# Get sequence of leftmost alignment
 			fivep_seq = read_seq[furthest_fivep_start:furthest_fivep_end]
+		elif read_orient_to_gene == "Reverse":
+			# Get the start and end of the rightmost alignment in the read 
+			_, furthest_fivep_start, furthest_fivep_end = max(fivep_pass, key=lambda fp:fp[1])
+			read_bp_pos = furthest_fivep_end
+			# Trim off the rightmost alignment and everything to the left of it
+			head_seq = read_seq[furthest_fivep_end:]
+			# Get sequence of rightmost alignment
+			fivep_seq = functions.reverse_complement(read_seq[furthest_fivep_start:furthest_fivep_end])
 
 		# Keep the subset of 5'ss alignments that start at the upstream-most position and fail the rest
 		fivep_pass_sub = []
@@ -232,19 +232,19 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 			if fp[1] == furthest_fivep_start:
 				fivep_pass_sub.append(fp)
 			else:
-				failed_alignments.append((read_id, read_seq, *fp, read_is_reverse, 'furthest_upstream'))
+				failed_alignments.append((read_id, read_seq, *fp, read_orient_to_gene, 'furthest_upstream'))
 
 		# Check if less than 20bp is left in the read
 		if len(head_seq) < 20:
 			for fp in fivep_pass_sub:
-				failed_alignments.append((read_id, read_seq, *fp, read_is_reverse, 'enough_head_seq'))
+				failed_alignments.append((read_id, read_seq, *fp, read_orient_to_gene, 'enough_head_seq'))
 			continue
 		
 		# Add reads + alignment(s) that passed filtering to out_reads 
-		out_rid = read_id + '_rev' if read_is_reverse else read_id + '_for'
+		out_rid = read_id + '_' + read_orient_to_gene[:3].lower()
 		fivep_sites = sorted([fp[0] for fp in fivep_pass_sub])
 		fivep_sites = ','.join(fivep_sites)
-		out_reads.append((head_seq, out_rid, read_seq, fivep_seq, fivep_sites, read_is_reverse, furthest_fivep_start, furthest_fivep_end, read_bp_pos))
+		out_reads.append((head_seq, out_rid, read_seq, fivep_seq, fivep_sites, read_orient_to_gene, furthest_fivep_start, furthest_fivep_end, read_bp_pos))
 
 	# Write the filtered alignments and head sequences to file
 	with out_lock:
