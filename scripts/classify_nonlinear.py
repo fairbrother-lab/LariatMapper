@@ -11,9 +11,9 @@ import functions
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
-STAGES = ('Linear mapping', "5'ss mapping", "5'ss alignment filtering", 
+STAGES = ('Linear mapping', "Fivep mapping", "Fivep alignment filtering", 
 		  'Head mapping', 'Head alignment filtering', 'Lariat filtering', 'To the end')
-READ_CLASSES = ("Linear", "Unmapped", "Unmapped with 5'ss alignment", 'In repetitive region', 
+READ_CLASSES = ("Linear", "No alignment", "Fivep alignment", 'In repetitive region', 
 				'Template-switching', 'Circularized intron', 'Lariat',)
 
 OUT_COLS = ['read_id',
@@ -128,20 +128,20 @@ if __name__ == '__main__':
 		read_classes.extend(lariat_failed) 
 
 	read_classes = add_reads(f'{output_base}failed_head_alignments.tsv', 
-						  "Unmapped with 5'ss alignment", 
+						  "Fivep alignment", 
 						  'Head alignment filtering', 
 						  read_classes,
 						  lambda read_id: read_id[:-6])
 
 	read_classes = add_reads(f'{output_base}tails.tsv', 
-						  "Unmapped with 5'ss alignment", 
+						  "Fivep alignment", 
 						  'Head mapping', 
 						  read_classes,
 						  lambda read_id: read_id[:-6])
 
 	read_classes = add_reads(f'{output_base}failed_fivep_alignments.tsv', 
-						  "Unmapped with 5'ss alignment", 
-						  "5'ss alignment filtering", 
+						  "Fivep alignment", 
+						  "Fivep alignment filtering", 
 						  read_classes,
 						  lambda read_id: read_id[:-2])
 	
@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
 		unmapped_reads = pd.DataFrame({'read_id': list(unmapped_reads)})
 		unmapped_reads = exclude_classed_reads(unmapped_reads, read_classes)
-		unmapped_reads = [[read_id, "Unmapped", "5'ss mapping", '', '',] for read_id in unmapped_reads.read_id]
+		unmapped_reads = [[read_id, "No alignment", "Fivep mapping", '', '',] for read_id in unmapped_reads.read_id]
 		read_classes.extend(unmapped_reads)
 
 	if len(read_classes) == 0:
@@ -168,21 +168,6 @@ if __name__ == '__main__':
 
 	# Do this to prevent ('id_a', 'id_a,id_b') -> 'id_a,id_a,id_b' since the gene_id col may already be comma-delimited
 	read_classes.gene_id = read_classes.gene_id.transform(lambda gids: functions.str_join(gids.split(','), unique=True))
-
-	# read_classes['spliced'] = pd.Series(np.nan, dtype='object')
-	
-	# # Concat the linearly-aligned reads
-	# if os.path.isfile(f'{output_base}linear_classes.tsv'):
-	# 	log.debug('Adding linearly-aligned reads...')
-	# 	linear_classes = pd.read_csv(f'{output_base}linear_classes.tsv', sep='\t', na_filter=False)
-	# 	read_classes = pd.concat([linear_classes.drop(columns=['mate']), read_classes])
-
-	# # Collapse paired-end reads where one mate got linearly aligned and one mate didn't
-	# if seq_type == 'paired':
-	# 	log.debug('Collapsing paired reads...')
-	# 	read_classes = read_classes.groupby('read_id', as_index=False).agg({col: functions.str_join for col in read_classes.columns if col != 'read_id'})
-	# 	read_classes.read_class = read_classes.read_class.transform(correct_read_class)
-	# 	read_classes.stage_reached = read_classes.stage_reached.transform(correct_stage_reached)
 
 	# Write to file
 	read_classes.to_csv(f'{output_base}read_classes.tsv.gz', sep='\t', index=False, na_rep='N/A')

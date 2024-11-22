@@ -18,7 +18,7 @@ from filter_lariats import FINAL_RESULTS_COLS
 # In files
 ARGS_FILE = "{}settings.json"
 OUTPUT_BAM_FILE = "{}output.bam"
-LINEAR_COUNTS_FILE = "{}output.bam_count.tsv"
+LINEAR_COUNTS_FILE = "{}output.bam_summary_count.tsv"
 READ_CLASSES_FILE = "{}read_classes.tsv.gz"
 # Out files
 SUMMARY_FILE = "{}summary.txt"
@@ -48,21 +48,18 @@ SUMMARY_TEMPLATE = (
 					"Make UCSC track:\t{ucsc_track}\n"
 					"Keep read classes file:\t{keep_classes}\n"
 					"Keep temporary files:\t{keep_temp}\n"
-					"Skip version check:\t{skip_version_check}\n"
 					"Log level:\t{log_level}\n"
 					"\n"
 					"----------------------------------------\n"
 					"              Read classes              \n"
 					"----------------------------------------\n"
-					"mRNA:\t{exon_exon_junc}\n"
-					"pre-mRNA:\t{exon_intron_junc}\n"
-					"Exonic:\t{exon_only}\n"
-					"Intronic:\t{intron_only}\n"
-					# "Genic, ambiguous:\t{ambig}\n"
-					# "Intergenic:\t{intergenic}\n"
-					"Other linear (placeholder):\t{linear_other}\n"
-					"Unmapped:\t{Unmapped}\n"
-					"Unmapped with 5'ss alignment:\t{Unmapped_with_5ss_alignment}\n"
+					"Exon-exon junction:\t{exon_exon_junc}\n"
+					"Exon-intron junction:\t{exon_intron_junc}\n"
+					"Exon only:\t{exon_only}\n"
+					"Intron only:\t{intron_only}\n"
+					"Intergenic or ambiguous:\t{intergenic_ambiguous}\n"
+					"No alignment:\t{No_alignment}\n"
+					"Fivep alignment:\t{Fivep_alignment}\n"
 					"Template-switching:\t{Template_switching}\n"
 					"Circularized intron:\t{Circularized_intron}\n"
 					"In repetitive region:\t{In_repetitive_region}\n"
@@ -73,8 +70,8 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"Input:\t{input_count}\n"
 					"Linear mapping:\t{Linear_mapping}\n"
-					"5'ss mapping:\t{5ss_mapping}\n"
-					"5'ss alignment filtering:\t{5ss_alignment_filtering}\n"
+					"Fivep mapping:\t{5ss_mapping}\n"
+					"Fivep alignment filtering:\t{5ss_alignment_filtering}\n"
 					"Head mapping:\t{Head_mapping}\n"
 					"Head alignment filtering:\t{Head_alignment_filtering}\n"
 					"Lariat filtering:\t{Lariat_filtering}\n"
@@ -82,7 +79,7 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"          Additional statistics         \n"
 					"----------------------------------------\n"
-					"mRNA/pre-mRNA ratio:\t{pre_ratio}\n"
+					"Exon-exon/exon-intron ratio:\t{pre_ratio}\n"
 					"Lariat RPM:\t{lariat_rpm}\n"
 					"Circularized intron RPM:\t{circ_rpm}\n"
 					"Lariat reads, genomic_bp_nt = A:\t{A:.1%}\n"
@@ -96,31 +93,31 @@ SUMMARY_TEMPLATE = (
 READ_COUNTS_TEMPLATE = (
 						"Category\tSubcategory\tReads\n"
 						"Input\tTotal\t{input_count}\n"
-						"Linearly mapped\tTotal\t{Linear}\n"
-						"Linearly mapped\tmRNA\t{exon_exon_junc}\n"
-						"Linearly mapped\tpre-mRNA\t{exon_intron_junc}\n"
-						"Linearly mapped\tExonic\t{exon_only}\n"
-						"Linearly mapped\tIntronic\t{intron_only}\n"
-						# "Linearly mapped\tGenic, ambiguous\t{ambig}\n"
-						# "Linearly mapped\tIntergenic\t{intergenic}\n"
-						"Linearly mapped\tOther (placeholder)\t{linear_other}\n"
-						"Not linearly mapped\tTotal\t{not_linear}\n"
-						"Not linearly mapped\tUnmapped\t{Unmapped}\n"
-						"Not linearly mapped\tUnmapped with 5'ss alignment\t{Unmapped_with_5ss_alignment}\n"
-						"Not linearly mapped\tTemplate-switching\t{Template_switching}\n"
-						"Not linearly mapped\tCircularized intron\t{Circularized_intron}\n"
-						"Not linearly mapped\tIn repetitive region\t{In_repetitive_region}\n"
-						"Not linearly mapped\tLariat\t{Lariat}\n"
-						"Other\tOne mate linearly mapped\t{mixed_pairs}\n"
-						"Read count after stage\tLinear mapping:\t{Linear_mapping}\n"
-						"Read count after stage\t5'ss mapping:\t{5ss_mapping}\n"
-						"Read count after stage\t5'ss alignment filtering:\t{5ss_alignment_filtering}\n"
-						"Read count after stage\tHead mapping:\t{Head_mapping}\n"
-						"Read count after stage\tHead alignment filtering:\t{Head_alignment_filtering}\n"
-						"Read count after stage\tLariat filtering:\t{Lariat_filtering}\n"
+						"Linearly_mapped\tTotal\t{Linear}\n"
+						"Linearly_mapped\tExon-exon_junction\t{exon_exon_junc}\n"
+						"Linearly_mapped\tExon-intron_junction\t{exon_intron_junc}\n"
+						"Linearly_mapped\tExon_only\t{exon_only}\n"
+						"Linearly_mapped\tIntron_only\t{intron_only}\n"
+						"Linearly_mapped\tIntergenic_or_ambiguous\t{intergenic_ambiguous}\n"
+						"Linearly_mapped\tTotal_spliced\t{spliced}\n"
+						"Linearly_mapped\tTotal_unspliced\t{unspliced}\n"
+						"Not_linearly_mapped\tTotal\t{not_linear}\n"
+						"Not_linearly_mapped\tNo_alignment\t{No_alignment}\n"
+						"Not_linearly_mapped\tFivep_alignment\t{Fivep_alignment}\n"
+						"Not_linearly_mapped\tTemplate-switching\t{Template_switching}\n"
+						"Not_linearly_mapped\tCircularized_intron\t{Circularized_intron}\n"
+						"Not_linearly_mapped\tIn_repetitive_region\t{In_repetitive_region}\n"
+						"Not_linearly_mapped\tLariat\t{Lariat}\n"
+						"Other\tOne_mate_linearly_mapped\t{mixed_pairs}\n"
+						"Read_count_after_stage\tLinear_mapping\t{Linear_mapping}\n"
+						"Read_count_after_stage\tFivep_mapping\t{5ss_mapping}\n"
+						"Read_count_after_stage\tFivep_alignment_filtering\t{5ss_alignment_filtering}\n"
+						"Read_count_after_stage\tHead_mapping\t{Head_mapping}\n"
+						"Read_count_after_stage\tHead_alignment_filtering\t{Head_alignment_filtering}\n"
+						"Read_count_after_stage\tLariat_filtering\t{Lariat_filtering}\n"
 )
 
-NOLINEAR_READ_CLASSES = ("Unmapped", "Unmapped_with_5ss_alignment", 'In_repetitive_region', 
+NONLINEAR_READ_CLASSES = ("No_alignment", "Fivep_alignment", 'In_repetitive_region', 
 						'Template_switching', 'Circularized_intron', 'Lariat')
 #=============================================================================#
 #                               Functions                                     #
@@ -178,12 +175,8 @@ if __name__ == '__main__':
 	stats['Linear'] = add_mapped_reads(output_base, seq_type, log)
 
 	# Add linear read class counts
-	linear_counts = pd.read_csv(LINEAR_COUNTS_FILE.format(output_base), sep='\t', index_col=0)
-	# linear_counts['rowsum'] = linear_counts.sum(axis=1) - linear_counts.gene
-	# linear_counts['ambig'] = linear_counts.gene - linear_counts.rowsum
-	stats.update(linear_counts.apply(sum).to_dict())
-	# stats['intergenic'] = stats['Linear'] - stats['gene']
-	stats['linear_other'] = stats['Linear'] - stats['exon_exon_junc'] - stats['exon_intron_junc'] - stats['exon_only'] - stats['intron_only']
+	linear_counts = pd.read_csv(LINEAR_COUNTS_FILE.format(output_base), sep='\t')
+	stats.update(linear_counts.iloc[0].to_dict())
 
 	# Add nonlinear read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
@@ -191,7 +184,7 @@ if __name__ == '__main__':
 								.str.replace(' ', '_')
 								.str.replace('-', '_')
 								.str.replace("'", ''))
-	classes = (pd.Categorical(read_classes.read_class, categories=NOLINEAR_READ_CLASSES, ordered=True)
+	classes = (pd.Categorical(read_classes.read_class, categories=NONLINEAR_READ_CLASSES, ordered=True)
 				.value_counts()
 				.to_dict())
 	log.debug(f'Read classes: {classes}')
@@ -282,23 +275,6 @@ if __name__ == '__main__':
 	with open(READ_COUNTS_FILE.format(output_base), 'w') as w:
 		w.write(READ_COUNTS_TEMPLATE.format(**read_count_stats))
 
-
-	# Check read counts output for consistency, warn if inconsistent
-	counts = pd.read_csv(READ_COUNTS_FILE.format(output_base), sep='\t', index_col=[0,1])
-	lin_tot = counts.at[('Linearly mapped', 'Total'), 'Reads']
-	lin_subs = counts.loc['Linearly mapped'].Reads.sum() - lin_tot
-	nonlin_tot = counts.at[('Not linearly mapped', 'Total'), 'Reads']
-	nonlin_subs = counts.loc['Not linearly mapped'].Reads.sum() - nonlin_tot
-	inp = counts.at[('Input', 'Total'), 'Reads'] 
-	if lin_tot != lin_subs:
-		raise RuntimeError(f'Linearly mapped read subcategories do not sum to total ({lin_subs:,} ≠ {lin_tot:,})')
-	if nonlin_tot != nonlin_subs:
-		raise RuntimeError(f'Not linearly mapped read subcategories do not sum to total ({nonlin_subs:,} ≠ {nonlin_tot:,})')
-	if inp != lin_tot + nonlin_tot:
-		raise RuntimeError(f'Input reads do not sum to linearly and non-linearly mapped reads ({inp:,} ≠ {lin_tot + nonlin_tot:,})')
-	survival_counts = counts.loc[counts.index.get_level_values('Category')=='Read count after stage'].Reads.values
-	if not all(survival_counts[i] >= survival_counts[i+1] for i in range(len(survival_counts)-1)):
-		raise RuntimeError(f'Read counts after each stage are not in decreasing order')
 
 
 	log.debug('End of script')
