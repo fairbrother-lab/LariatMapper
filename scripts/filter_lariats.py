@@ -32,8 +32,8 @@ FINAL_RESULTS_COLS = ['read_id',
                         'threep_pos',
                         'bp_dist_to_threep',
 						'read_orient_to_gene',
-						'read_bp_pos',
                         'read_seq_forward',
+						'read_bp_pos',
                         'read_bp_nt',
 						'genomic_bp_nt',
 						'bp_mismatch',
@@ -144,24 +144,24 @@ def choose_read_mapping(lariat_reads):
 	For reads with multiple lariat mappings that have passed all filters, choose just one to assign to the read and fail the others
 	'''
 	for rid in lariat_reads.read_id.unique():
-		valid_lariat_mappings = lariat_reads[(lariat_reads.read_id==rid) & (lariat_reads.filter_failed.isna())]
+		valid_maps = lariat_reads[(lariat_reads.read_id==rid) & (lariat_reads.filter_failed.isna())]
 		# If either 1 or 0 valid lariat mappings, no need to choose
-		if len(valid_lariat_mappings) < 2:
+		if len(valid_maps) < 2:
 			continue
-		valid_read_one_lariat_mappings = valid_lariat_mappings[valid_lariat_mappings.read_num==1]
-		valid_read_two_lariat_mappings = valid_lariat_mappings[valid_lariat_mappings.read_num==2]
+		valid_read_one_lariat_mappings = valid_maps[valid_maps.read_num==1]
+		valid_read_two_lariat_mappings = valid_maps[valid_maps.read_num==2]
 		if len(valid_read_one_lariat_mappings) > 0:
-			valid_lariat_mappings = valid_read_one_lariat_mappings
+			valid_maps = valid_read_one_lariat_mappings
 			lariat_reads.loc[valid_read_two_lariat_mappings.index, 'filter_failed'] = 'not_chosen'
 		else:
-			valid_lariat_mappings = valid_read_two_lariat_mappings
+			valid_maps = valid_read_two_lariat_mappings
 
 		# Prioritize a mapping based on whether or not the BP base is a mismatch and the alignment orientation
 		# If multiple valid mappings in the same category, choose one at random
-		mismatch_and_forward = valid_lariat_mappings[(valid_lariat_mappings.bp_mismatch) & (valid_lariat_mappings=="Forward")]
-		mismatch_and_reverse = valid_lariat_mappings[(valid_lariat_mappings.bp_mismatch) & (valid_lariat_mappings=="Reverse")]
-		match_and_forward = valid_lariat_mappings[(~valid_lariat_mappings.bp_mismatch) & (valid_lariat_mappings=="Forward")]
-		match_and_reverse = valid_lariat_mappings[(~valid_lariat_mappings.bp_mismatch) & (valid_lariat_mappings=="Reverse")]
+		mismatch_and_forward = valid_maps[(valid_maps.bp_mismatch) & (valid_maps.read_orient_to_gene=="Forward")]
+		mismatch_and_reverse = valid_maps[(valid_maps.bp_mismatch) & (valid_maps.read_orient_to_gene=="Reverse")]
+		match_and_forward = valid_maps[(~valid_maps.bp_mismatch) & (valid_maps.read_orient_to_gene=="Forward")]
+		match_and_reverse = valid_maps[(~valid_maps.bp_mismatch) & (valid_maps.read_orient_to_gene=="Reverse")]
 
 		random.seed(1)		# For consistent output
 		for category in (mismatch_and_forward, mismatch_and_reverse, match_and_forward, match_and_reverse):
@@ -169,7 +169,7 @@ def choose_read_mapping(lariat_reads):
 				continue
 			
 			chosen_index = random.sample(category.index.to_list(), 1)[0]
-			rejected_indices = [ind for ind in valid_lariat_mappings.index if ind!=chosen_index]
+			rejected_indices = [ind for ind in valid_maps.index if ind!=chosen_index]
 			lariat_reads.loc[rejected_indices, 'filter_failed'] = 'not_chosen'
 			break
 
