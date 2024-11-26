@@ -3,7 +3,7 @@ require(magrittr)
 require(GenomicRanges)
 require(GenomicFeatures)
 
-shift_matching <- function(bp_gr, pattern_l, offset, genome, correct_upstream = T, debug = T){
+shift_matching <- function(bp_gr, pattern_l, offset, genome, correct_upstream = T, debug = T, make_plot = T){
 
     stopifnot(offset > 0 & offset <= 3)
 
@@ -58,7 +58,9 @@ shift_matching <- function(bp_gr, pattern_l, offset, genome, correct_upstream = 
             cat("Ratio of correction for each position relvant to the potential BP:", "\n")
             adjusted_pos_ratio <- adjusted_pos %>% prop.table()
             print(adjusted_pos_ratio)
-            barplot(adjusted_pos_ratio, main = paste("Number of reads being corrected:",sum(adjusted_pos)))  
+            if(make_plot){
+                barplot(adjusted_pos_ratio, main = paste("Number of reads being corrected:",sum(adjusted_pos)))  
+            }
         }
     }
 
@@ -83,7 +85,7 @@ pattern_matching <- function(dna_string, pattern){
 
 }
 
-pwm_l_search <- function(bp_gr, pwm_ll, offset, genome, correct_upstream = T, debug = T){
+pwm_l_search <- function(bp_gr, pwm_ll, offset, genome, correct_upstream = T, debug = T, make_plot = T){
 
     stopifnot(offset > 0 & offset <= 3)
 
@@ -173,7 +175,9 @@ pwm_l_search <- function(bp_gr, pwm_ll, offset, genome, correct_upstream = T, de
             cat("Ratio of correction for each position relvant to the potential BP:", "\n")
             adjusted_pos_ratio <- adjusted_pos %>% prop.table()
             print(adjusted_pos_ratio)
-            barplot(adjusted_pos_ratio, main = paste("Number of reads being corrected:",sum(adjusted_pos)))
+            if(make_plot){
+                barplot(adjusted_pos_ratio, main = paste("Number of reads being corrected:",sum(adjusted_pos)))
+            }
         }
     }
 
@@ -181,91 +185,91 @@ pwm_l_search <- function(bp_gr, pwm_ll, offset, genome, correct_upstream = T, de
 
 }
 
-pwm_search <- function(bp_gr, pwm_l, offset, genome, correct_upstream = T, debug = T){
+# pwm_search <- function(bp_gr, pwm_l, offset, genome, correct_upstream = T, debug = T){
 
-    stopifnot(offset > 0 & offset <= 3)
+#     stopifnot(offset > 0 & offset <= 3)
 
-    bp_gr$bp_pos <- bp_gr
-    bp_gr$status <- "uncorrected"
+#     bp_gr$bp_pos <- bp_gr
+#     bp_gr$status <- "uncorrected"
 
-    pwm <- pwm_l[["pwm"]]
-    size <- pwm_l[["pwm"]] %>% ncol()
-    bp_pos <- pwm_l[["bp_pos"]]
+#     pwm <- pwm_l[["pwm"]]
+#     size <- pwm_l[["pwm"]] %>% ncol()
+#     bp_pos <- pwm_l[["bp_pos"]]
 
-    if(class(genome) == "character"){
-        bp_gr_extend_seq <- subset_seq(string = genome, 
-                                       win_size = ((genome[1] %>% nchar) - 1)/2, 
-                                       pwm_len = size, 
-                                       bp_pos = bp_pos, 
-                                       offset = offset, 
-                                       correct_upstream = correct_upstream)
-    } else{
-        bp_gr_extend <- bp_gr %>% resize(bp_pos, fix = "end") %>% resize(size, fix = "start") 
-        if(correct_upstream){
-            bp_gr_extend <- bp_gr_extend + offset
-        } else{
-            bp_gr_extend <- (bp_gr_extend + offset) %>% resize(size + offset, fix = "end")
-        }
-        bp_gr_extend_seq <- getSeq(genome, bp_gr_extend)
-    }
+#     if(class(genome) == "character"){
+#         bp_gr_extend_seq <- subset_seq(string = genome, 
+#                                        win_size = ((genome[1] %>% nchar) - 1)/2, 
+#                                        pwm_len = size, 
+#                                        bp_pos = bp_pos, 
+#                                        offset = offset, 
+#                                        correct_upstream = correct_upstream)
+#     } else{
+#         bp_gr_extend <- bp_gr %>% resize(bp_pos, fix = "end") %>% resize(size, fix = "start") 
+#         if(correct_upstream){
+#             bp_gr_extend <- bp_gr_extend + offset
+#         } else{
+#             bp_gr_extend <- (bp_gr_extend + offset) %>% resize(size + offset, fix = "end")
+#         }
+#         bp_gr_extend_seq <- getSeq(genome, bp_gr_extend)
+#     }
 
-    bp_gr_extend_pwm <- sapply(bp_gr_extend_seq, pwm_matching, pwm, offset, bp_pos, correct_upstream)
-    bp_gr_extend_pwm_max_index <- apply(bp_gr_extend_pwm, 2, function(x) {
-        index <- intersect(which(x >= 0.8), which.max(x))
-        return(ifelse(length(index) == 0, 1, index))
-    })
-    pwm_loc <- rownames(bp_gr_extend_pwm)[bp_gr_extend_pwm_max_index] %>% as.numeric()
-    adjust_loc <- pwm_loc - bp_pos
+#     bp_gr_extend_pwm <- sapply(bp_gr_extend_seq, pwm_matching, pwm, offset, bp_pos, correct_upstream)
+#     bp_gr_extend_pwm_max_index <- apply(bp_gr_extend_pwm, 2, function(x) {
+#         index <- intersect(which(x >= 0.8), which.max(x))
+#         return(ifelse(length(index) == 0, 1, index))
+#     })
+#     pwm_loc <- rownames(bp_gr_extend_pwm)[bp_gr_extend_pwm_max_index] %>% as.numeric()
+#     adjust_loc <- pwm_loc - bp_pos
 
-    bp_gr$bp_pos <- shiftStranded(bp_gr$bp_pos, adjust_loc)
-    bp_gr$status[adjust_loc != 0] <- "corrected"
-    bp_gr$adjust_loc <- adjust_loc
+#     bp_gr$bp_pos <- shiftStranded(bp_gr$bp_pos, adjust_loc)
+#     bp_gr$status[adjust_loc != 0] <- "corrected"
+#     bp_gr$adjust_loc <- adjust_loc
 
-    if(debug){
-        if(mean(adjust_loc) == 0){
-            if(correct_upstream){
-                offset_l <- c(0:-offset, 1:offset)
-                adjusted_pos <- vector(length=offset*2+1, mode = "numeric")
-                names(adjusted_pos) <- offset_l %>% as.character()
-            } else{
-                offset_l <- 0:offset
-                adjusted_pos <- vector(length=offset+1, mode = "numeric")
-                names(adjusted_pos) <- offset_l %>% as.character()
-            }
-        } else{
-            adjusted_pos <- adjust_loc %>% table 
-            adjusted_pos <- as.vector(adjusted_pos)
-            names(adjusted_pos) <- names(adjust_loc %>% table)
+#     if(debug){
+#         if(mean(adjust_loc) == 0){
+#             if(correct_upstream){
+#                 offset_l <- c(0:-offset, 1:offset)
+#                 adjusted_pos <- vector(length=offset*2+1, mode = "numeric")
+#                 names(adjusted_pos) <- offset_l %>% as.character()
+#             } else{
+#                 offset_l <- 0:offset
+#                 adjusted_pos <- vector(length=offset+1, mode = "numeric")
+#                 names(adjusted_pos) <- offset_l %>% as.character()
+#             }
+#         } else{
+#             adjusted_pos <- adjust_loc %>% table 
+#             adjusted_pos <- as.vector(adjusted_pos)
+#             names(adjusted_pos) <- names(adjust_loc %>% table)
             
-            if(length(adjusted_pos) != ifelse(correct_upstream, 2*offset+1, offset+1)){
-                if(correct_upstream){
-                    add_name <- c(0:-offset, 1:offset) %>% as.character()
-                } else{
-                    add_name <- c(0:offset) %>% as.character()
-                }
-                add_name <- add_name[!add_name %in% c(names(adjusted_pos))]
-                for (i in seq_along(add_name)) {
-                    adjusted_pos[add_name[i]] <- 0
-                }
-            }
-        }
-        adjusted_pos <- adjusted_pos[order(names(adjusted_pos) %>% as.numeric())]
-        adjusted_pos <- adjusted_pos[-which(names(adjusted_pos) == "0")]
+#             if(length(adjusted_pos) != ifelse(correct_upstream, 2*offset+1, offset+1)){
+#                 if(correct_upstream){
+#                     add_name <- c(0:-offset, 1:offset) %>% as.character()
+#                 } else{
+#                     add_name <- c(0:offset) %>% as.character()
+#                 }
+#                 add_name <- add_name[!add_name %in% c(names(adjusted_pos))]
+#                 for (i in seq_along(add_name)) {
+#                     adjusted_pos[add_name[i]] <- 0
+#                 }
+#             }
+#         }
+#         adjusted_pos <- adjusted_pos[order(names(adjusted_pos) %>% as.numeric())]
+#         adjusted_pos <- adjusted_pos[-which(names(adjusted_pos) == "0")]
 
-        cat("Count of correction for each position relvant to the potential BP:", "\n")
-        print(adjusted_pos)
+#         cat("Count of correction for each position relvant to the potential BP:", "\n")
+#         print(adjusted_pos)
 
-        if(sum(adjusted_pos) > 0){
-            cat("Ratio of correction for each position relvant to the potential BP:", "\n")
-            adjusted_pos_ratio <- adjusted_pos %>% prop.table()
-            print(adjusted_pos_ratio)
-            barplot(adjusted_pos_ratio, main = paste("Number of reads being corrected:",sum(adjusted_pos)))
-        }
-    }
+#         if(sum(adjusted_pos) > 0){
+#             cat("Ratio of correction for each position relvant to the potential BP:", "\n")
+#             adjusted_pos_ratio <- adjusted_pos %>% prop.table()
+#             print(adjusted_pos_ratio)
+#             barplot(adjusted_pos_ratio, main = paste("Number of reads being corrected:",sum(adjusted_pos)))
+#         }
+#     }
 
-    return(bp_gr)
+#     return(bp_gr)
 
-}
+# }
 
 pwm_matching <- function(dna_string, pwm, offset, ref_pos, correct_upstream){
 
@@ -284,7 +288,7 @@ pwm_matching <- function(dna_string, pwm, offset, ref_pos, correct_upstream){
 
 }
 
-model_based_search <- function(bp_gr, cbp_prob, offset, correct_upstream = T, debug = T){
+model_based_search <- function(bp_gr, cbp_prob, offset, correct_upstream = T, debug = T, make_plot = T){
 
     stopifnot(offset > 0 & offset <= 3)
 
@@ -356,7 +360,9 @@ model_based_search <- function(bp_gr, cbp_prob, offset, correct_upstream = T, de
             cat("Ratio of correction for each position relvant to the potential BP:", "\n")
             adjusted_pos_ratio <- adjusted_pos %>% prop.table()
             print(adjusted_pos_ratio)
-            barplot(adjusted_pos_ratio, main = paste("Number of reads being corrected:",sum(adjusted_pos)))
+            if(make_plot){
+                barplot(adjusted_pos_ratio, main = paste("Number of reads being corrected:",sum(adjusted_pos)))
+            }
         }
     }
 
