@@ -36,16 +36,22 @@ CIRCULARS_COLS = ['read_id',
 				'strand',
 				'gene_id',
 				'fivep_pos',
-				'head_end_pos',
+				'bp_pos',
 				'threep_pos',
-				'head_end_dist_to_threep',
+				'bp_dist_to_threep',
 				'read_orient_to_gene',
 				'read_seq_forward',
-				'read_head_end_pos',
-				'read_head_end_nt',
-				'genomic_head_end_nt',
-				'genomic_head_end_context',
+				'read_bp_pos',
+				'read_bp_nt',
+				'genomic_bp_nt',
+				'genomic_bp_context',
 				]
+CIRCULARS_COL_RENAMES = {'bp_pos': 'head_end_pos',
+						 'bp_dist_to_threep': 'head_end_dist_to_threep',
+						 'read_bp_pos': 'read_head_end_pos',
+						 'read_bp_nt': 'read_head_end_nt',
+						 'genomic_bp_nt': 'genomic_head_end_nt',
+						 'genomic_bp_context': 'genomic_head_end_context',}
 PUTATITVE_LARIATS_COLS = ['read_id', 
 						'read_orient_to_gene', 
 						'chrom', 
@@ -62,6 +68,7 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'genomic_bp_context', 
 						'head_align_quality',
 						]
+COMMA_JOIN_COLS = ('fivep_sites', 'gene_id', 'gaps', 'fivep_sites', 'introns', 'gene_id')
 
 output_base = sys.argv[-2]
 # In files
@@ -174,11 +181,14 @@ class ReadHeadAlignment():
 
 	@classmethod
 	def fail_out_fields(cls):
-		return tuple(cls.__annotations__.keys()) + ('filter_failed',)
+		return tuple(cls.__annotations__.keys()) + ('read_seq_forward', 'filter_failed',)
 	
 
 	@property
 	def read_seq_forward(self):
+		if self.read_seq is None:
+			return None
+		
 		if self.read_orient_to_gene == 'Reverse':
 			return functions.reverse_complement(self.read_seq) 
 		elif self.read_orient_to_gene == 'Forward':
@@ -205,23 +215,40 @@ class ReadHeadAlignment():
 		)
 
 
+	def from_row(row:pd.Series):
+		attrs = tuple(ReadHeadAlignment.__annotations__.keys())
+		attr_dict = {}
+		for attr in attrs:
+			if attr in row:
+				attr_dict[attr] = row[attr]
+			else:
+				attr_dict[attr] = None
+
+		return ReadHeadAlignment(**attr_dict)
+
+
 	def fill_tail_info(self, tail:ReadTail):
 		for attr in self.TAIL_INFO_ATTRS:
 			setattr(self, attr, getattr(tail, attr))
 
 
-	def write_failed_out(self, filter_failed:str):
-		out_fields = ReadHeadAlignment.fail_out_fields()
+	def to_line(self, columns:list):
 		line = self.read_id
-		for col in out_fields[1:-1]:
+		for col in columns[1:]:
 			val = getattr(self, col)
 			val = '' if val is None else val
-			if col in ('gaps', 'fivep_sites', 'introns', 'gene_id'):
+			if col in COMMA_JOIN_COLS and isinstance(val, (list, tuple, set, frozenset)):
 				val = functions.str_join(val)
-			elif col == 'read_bp_pos':
+			elif col == 'read_bp_pos' and self.read_seq is not None:
 				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
 
 			line += f'\t{val}'
+			
+		return line
+
+
+	def write_failed_out(self, filter_failed:str):
+		line = self.to_line(self.fail_out_fields()[:-1])
 
 		line += f'\t{filter_failed}'
 		
@@ -231,15 +258,7 @@ class ReadHeadAlignment():
 
 
 	def write_temp_switch_out(self):
-		line = self.read_id[:-6] # Remove the '/X_XXX' suffix
-		for col in TEMP_SWITCH_COLS[1:-1]:
-			val = getattr(self, col)
-			if col in ('fivep_sites', ):
-				val = functions.str_join(val)
-			elif col == 'read_bp_pos':
-				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
-
-			line += f'\t{val}'
+		line = self.to_line(TEMP_SWITCH_COLS[:-1])
 
 		temp_switch_site = self.chrom + ';' + str(self.bp_pos) + ';' + self.strand
 		line += f'\t{temp_switch_site}'
@@ -250,20 +269,7 @@ class ReadHeadAlignment():
 
 
 	def write_circle_out(self):
-		line = self.read_id[:-6] # Remove the '/X_XXX' suffix
-		for col in CIRCULARS_COLS[1:]:
-			if col in ('head_end_pos', 'head_end_dist_to_threep', 'read_head_end_pos', 
-						'read_head_end_nt','genomic_head_end_nt', 'genomic_head_end_context'):
-				val = getattr(self, col.replace('head_end', 'bp'))
-			elif col in ('gene_id',):
-				val = functions.str_join(getattr(self, col))		
-			else:
-				val = getattr(self, col)
-
-			if col == 'read_head_end_pos':
-				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
-
-			line += f'\t{val}'
+		line = self.to_line(CIRCULARS_COLS)
 
 		with circle_lock:
 			with open(CIRCULARS_FILE, 'a') as a:
@@ -271,15 +277,7 @@ class ReadHeadAlignment():
 
 
 	def write_lariat_out(self):
-		line = self.read_id
-		for col in PUTATITVE_LARIATS_COLS[1:]:
-			val = getattr(self, col)
-			if col in ('gene_id',):
-				val = functions.str_join(val)
-			elif col == 'read_bp_pos':
-				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
-				
-			line += f'\t{val}'
+		line = self.to_line(PUTATITVE_LARIATS_COLS)
 
 		with filtered_out_lock:
 			with open(PUTATITVE_LARIATS_FILE, 'a') as a:
@@ -580,27 +578,73 @@ def post_processing(log):
 	Perform post-processing on template-switching and circularized reads data.
 	This function performs the following steps:
 	1. Load data tables from specified files.
-	2. Remove template-switching reads from the circularized reads table.
-	3. Collapse the template-switching and circularized reads tables to one row per read.
-	4. Overwrite the original files with the corrected tables.
+	2. Move template-switching reads that are in the circularized reads table to failed output.
+	3. Collapse the template-switching reads table to one row per read.
+	4. Choose one alignment for circularized intron reads that have multiple alignments.
+	5. Overwrite the original files with the corrected tables.
 	"""
 	log.debug('Post-processing...')
 
 	# Load data tables
 	temp_switches = pd.read_csv(TEMP_SWITCH_FILE, sep='\t', na_filter=False)
 	circulars = pd.read_csv(CIRCULARS_FILE, sep='\t', na_filter=False)
-	
-	# Remove template-switching reads from circularized reads
-	circulars = circulars.loc[~circulars.read_id.isin(temp_switches.read_id.values)]
 
-	# Collapse temp switch and circular tables to one row per read
-	temp_switches = (temp_switches
-					.groupby('read_id', as_index=False)
-					.agg({col: lambda c: functions.str_join(sorted(c)) for col in TEMP_SWITCH_COLS[1:]})
+	# Load putative lariat read ids
+	lariat_rids = pd.read_csv(PUTATITVE_LARIATS_FILE, sep='\t', na_filter=False, usecols=['read_id'])
+	lariat_rids = set(lariat_rids.read_id.str.slice(0,-6))
+		
+	# Add read_id_base columns to both tables
+	temp_switches['read_id_base'] = temp_switches.read_id.str.slice(0,-6)
+	circulars['read_id_base'] = circulars.read_id.str.slice(0,-6)
+
+	# Mark template-switching reads that are in the circularized reads table
+	temp_switches['in_circulars'] = temp_switches.read_id_base.isin(circulars.read_id_base)
+	# Write template-switching reads that are in the circularized reads table to failed output
+	# We have to re-calculate the read_seq for write_failed_out()
+	if temp_switches.in_circulars.sum() > 0:
+		temp_in_circs = temp_switches[temp_switches.in_circulars].copy()
+		temp_in_circs = [ReadHeadAlignment.from_row(row) for i, row in temp_in_circs.iterrows()]
+		for align in temp_in_circs:
+			align.write_failed_out('temp_switch_but_also_circular')
+
+	# Mark template-switching reads that are in the putative lariat reads table
+	temp_switches['in_lariats'] = temp_switches.read_id_base.isin(lariat_rids)
+	# Write template-switching reads that are in the circularized reads table to failed output
+	# We have to re-calculate the read_seq for write_failed_out()
+	if temp_switches.in_lariats.sum() > 0:
+		temp_in_lariats = temp_switches[temp_switches.in_lariats].copy()
+		temp_in_lariats = [ReadHeadAlignment.from_row(row) for i, row in temp_in_lariats.iterrows()]
+		for align in temp_in_lariats:
+			align.write_failed_out('temp_switch_but_also_lariat')
+
+	# Collapse temp switch table to one row per read
+	temp_switches = (
+		temp_switches
+			[~temp_switches.in_circulars]
+			[~temp_switches.in_lariats]
+			.assign(read_id = temp_switches.read_id_base)
+			.groupby('read_id', as_index=False)
+			.agg({col: lambda c: functions.str_join(sorted(c)) for col in TEMP_SWITCH_COLS[1:]})
 	)
-	circulars = (circulars
-					.groupby('read_id', as_index=False)
-					.agg({col: lambda c: functions.str_join(sorted(c)) for col in CIRCULARS_COLS[1:]})
+
+	# Choose one alignment for circularized intron reads that have multiple alignments
+	# and write the other alignments to failed output
+	circulars = circulars.sort_values(['read_id_base', 'read_orient_to_gene'])
+	circulars['read_dup'] = circulars.duplicated('read_id_base', keep='first')
+	dup_circs = circulars[circulars.read_dup].copy()
+	if len(dup_circs) > 0:
+		dup_circs = [ReadHeadAlignment.from_row(row) for i, row in dup_circs.iterrows()]
+		for align in dup_circs:
+			align.write_failed_out('not_chosen')
+
+	# Choose one alignment for each read
+	circulars = (
+		circulars
+			[~circulars.read_dup]
+			.assign(read_id = circulars.read_id_base)
+			.drop(columns=['read_dup', 'read_id_base'])
+			# Remame circulars column names "bp" -> "head_end"
+			.rename(columns=CIRCULARS_COL_RENAMES)
 	)
 
 	# Overwrite files with the corrected tables
