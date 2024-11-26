@@ -1,6 +1,7 @@
 require(Biostrings)
 require(magrittr)
 require(GenomicRanges)
+require(GenomicFeatures)
 
 shift_matching <- function(bp_gr, pattern_l, offset, genome, correct_upstream = T, debug = T){
 
@@ -299,8 +300,10 @@ model_based_search <- function(bp_gr, cbp_prob, offset, correct_upstream = T, de
 
     og_bp_gr$bp_pos <- og_bp_gr
     og_bp_gr$status <- "uncorrected"
+    og_bp_gr$adjust_loc <- 0
     bp_gr$bp_pos <- bp_gr
     bp_gr$status <- "uncorrected"
+    bp_gr$adjust_loc <- 0
 
     mapped_res <- bp_map2_cbp(cbp_prob, bp_gr_extend)
 
@@ -312,6 +315,7 @@ model_based_search <- function(bp_gr, cbp_prob, offset, correct_upstream = T, de
 
     bp_gr$bp_pos[mapped_res$transcriptsHits] <- shiftStranded(bp_gr$bp_pos[mapped_res$transcriptsHits], shift_pos)
     bp_gr$status[start(bp_gr) != start(bp_gr$bp_pos)] <- "corrected"
+    bp_gr$adjust_loc[mapped_res$transcriptsHits] <- shift_pos
 
     if(debug){
         if(is.null(mapped_res)){
@@ -358,6 +362,7 @@ model_based_search <- function(bp_gr, cbp_prob, offset, correct_upstream = T, de
 
     og_bp_gr$bp_pos[toDO_index] <- bp_gr$bp_pos
     og_bp_gr$status[toDO_index] <- bp_gr$status
+    og_bp_gr$adjust_loc[toDO_index] <- bp_gr$adjust_loc
     return(og_bp_gr)
 
 }
