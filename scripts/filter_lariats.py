@@ -15,7 +15,6 @@ import functions
 # =============================================================================#
 # In files
 OUTPUT_BAM_FILE = "{}output.bam"
-TEMP_SWITCH_FILE = "{}template_switching_reads.tsv"
 CIRCULARS_FILE = "{}circularized_intron_reads.tsv"
 PUTATITVE_LARIATS_FILE = "{}putative_lariats.tsv"
 # Out files
@@ -63,7 +62,7 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
 
 		sys.exit(4)
-	
+
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
 	lariat_reads[['read_id', 'read_num']] = lariat_reads.read_id.str.split('/', expand=True)
 	lariat_reads.read_num = lariat_reads.read_num.astype(int)
@@ -117,7 +116,7 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str, log) 
 	return repeat_rids
 
 
-def filter_lariats(row:pd.Series, repeat_rids:set, temp_switch_rids:set, circular_rids:set):
+def filter_lariats(row:pd.Series, repeat_rids:set, circular_rids:set):
 	'''
 	Filter the candidate lariat reads to EXCLUDE any that meet the following criteria:
 			- Read maps to UBB or UBC (likely false positive due to the repetitive nature of the genes)
@@ -127,9 +126,6 @@ def filter_lariats(row:pd.Series, repeat_rids:set, temp_switch_rids:set, circula
 	if row['head_align_quality'] < row['max_quality']:
 		return 'align_quality'
 
-	if row['read_id'] in temp_switch_rids:
-		return 'template_switching'
-	
 	if row['read_id'] in circular_rids:
 		return 'circularized_intron'
 
@@ -200,15 +196,13 @@ if __name__ == '__main__':
 	log.debug('Checking repeat regions')
 	repeat_rids = check_repeat_overlap(lariat_reads, ref_repeatmasker, log)
 
-	# Check for reads which were probably created from the reverse-transcriptase switching RNA templates at the branchpoint
 	# Check for circularized intron reads
-	log.debug('Getting template-switching and circularized intron reads')
-	temp_switch_rids = set(pd.read_csv(TEMP_SWITCH_FILE.format(output_base), sep='\t', usecols=['read_id'], na_filter=False).read_id)
+	log.debug('Getting circularized intron read ids')
 	circular_rids = set(pd.read_csv(CIRCULARS_FILE.format(output_base), sep='\t', usecols=['read_id'], na_filter=False).read_id)
 
 	# Filter lariat reads
 	log.debug('Filtering lariat reads')
-	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, temp_switch_rids=temp_switch_rids, circular_rids=circular_rids, axis=1).astype('object')
+	lariat_reads['filter_failed'] = lariat_reads.apply(filter_lariats, repeat_rids=repeat_rids, circular_rids=circular_rids, axis=1).astype('object')
 
 	# Choose 1 lariat mapping per read id 
 	lariat_reads = choose_read_mapping(lariat_reads)
