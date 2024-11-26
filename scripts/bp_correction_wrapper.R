@@ -89,9 +89,9 @@ source(utils_R)
 
 ### Running the step
 if(correction_method == "PWM"){
-  corrected_gr <- pwm_l_search(gr, pwm_l, offset, genome, correct_upstream, debug = T)
+  corrected_gr <- pwm_l_search(gr, pwm_l, offset, genome, correct_upstream, debug = T, make_plot = F)
 } else if (correction_method == "Model-based") {
-  corrected_gr <- model_based_search(gr, cbp_prob, offset, correct_upstream, debug = T)
+  corrected_gr <- model_based_search(gr, cbp_prob, offset, correct_upstream, debug = T, make_plot = F)
 }
 ###
 
