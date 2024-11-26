@@ -124,10 +124,10 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 
 			# If we've reached the first alignment for a new read...
 			else:
-				# Then yield the forward-aligning 5'ss for filtering
-				yield current_read_id, "Forward", fivep_sites["Forward"]
 				# Yield the reverse-aligning 5'ss for filtering
 				yield current_read_id, "Reverse", fivep_sites["Reverse"]
+				# Then yield the forward-aligning 5'ss for filtering
+				yield current_read_id, "Forward", fivep_sites["Forward"]
 
 				# Set to processing next read's alignments
 				current_read_id = align_rid
@@ -142,8 +142,8 @@ def yield_read_aligns(fivep_to_reads:str, chunk_start:int, chunk_end:int, n_alig
 
 		# Yield the last read's alignments
 		if align_num == n_aligns:
-			yield current_read_id, "Forward", fivep_sites["Forward"]
 			yield current_read_id, "Reverse", fivep_sites["Reverse"]
+			yield current_read_id, "Forward", fivep_sites["Forward"]
 
 
 def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:dict, fivep_upstream_seqs:dict, strand:str, output_base:str, log_level:str) -> None:

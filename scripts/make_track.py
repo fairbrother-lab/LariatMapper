@@ -41,7 +41,7 @@ if __name__ == '__main__':
 		sys.exit(0)
 
 
-	lariat_reads['head_len'] = lariat_reads.apply(lambda row: row['read_bp_pos']+1 if row['read_is_reverse'] is False else len(row['read_seq']) - (row['read_bp_pos']+1), axis=1)
+	lariat_reads['head_len'] = lariat_reads.apply(lambda row: row['read_bp_pos']+1 if row['read_orient_to_gene']=='Forward' else len(row['read_seq_forward']) - (row['read_bp_pos']+1), axis=1)
 	lariat_reads['head_start'] = lariat_reads.apply(lambda row: row['bp_pos']-row['head_len'] if row['strand']=='+' else row['bp_pos'], axis=1)
 	lariat_reads['head_end'] = lariat_reads.apply(lambda row: row['bp_pos']+1 if row['strand']=='+' else row['bp_pos']+row['head_len']+1, axis=1)
 

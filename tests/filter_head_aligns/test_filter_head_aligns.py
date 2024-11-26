@@ -46,6 +46,12 @@ def test_filter_head_aligns(threads, prefix, tmp_path):
 					(FILTER_HEAD_ALIGNS_DIR/'outputs'/'template_switching_reads.tsv', tmp_path/f'{prefix}template_switching_reads.tsv'),
 					(FILTER_HEAD_ALIGNS_DIR/'outputs'/'circularized_intron_reads.tsv', tmp_path/f'{prefix}circularized_intron_reads.tsv'),
 					(FILTER_HEAD_ALIGNS_DIR/'outputs'/'putative_lariats.tsv', tmp_path/f'{prefix}putative_lariats.tsv')):
+		
+		if ref.name == 'putative_lariats.tsv':
+			test_utils.check_read_bp_pos(ref)
+		elif ref.name == 'circularized_intron_reads.tsv':
+			test_utils.check_read_bp_pos(ref, True)
+		
 		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 		if ref_lines == out_lines:
 			continue

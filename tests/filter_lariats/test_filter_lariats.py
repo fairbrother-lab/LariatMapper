@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 
+import pandas as pd
 import pytest
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -44,6 +45,9 @@ def test_filter_lariats(prefix, seq_type, tmp_path):
 	# Check output
 	for ref, out in ((FILTER_LARIATS_DIR/'outputs'/'failed_lariat_alignments.tsv', tmp_path/f'{prefix}failed_lariat_alignments.tsv'),
 					(FILTER_LARIATS_DIR/'outputs'/'lariat_reads.tsv', tmp_path/f'{prefix}lariat_reads.tsv')):
+		
+		test_utils.check_read_bp_pos(ref)
+
 		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 		if ref_lines == out_lines:
 			continue

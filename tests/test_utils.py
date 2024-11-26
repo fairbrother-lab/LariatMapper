@@ -79,3 +79,30 @@ def vscode_compare(file_a, file_b):
 	subprocess.run(['code', '--diff', file_a, file_b])
 
 
+def check_read_bp_pos(file:pathlib.Path, circularized_introns:bool=False):
+	"""
+	Checks the base pair position in a read sequence from a given file.
+	This function reads a tab-separated values (TSV) file into a DataFrame and checks if the base pair 
+	position in the read sequence matches the expected nucleotide. If the `circularized_introns` flag 
+	is set to True, it checks the 'read_head_end_nt' and 'read_head_end_pos' columns; otherwise, it 
+	checks the 'read_bp_nt' and 'read_bp_pos' columns. If any mismatches are found, the function 
+	raises a pytest failure with details of the mismatched rows.
+	Args:
+		file (pathlib.Path): The path to the TSV file containing the read sequences and positions.
+		circularized_introns (bool, optional): Flag indicating whether to check for circularized introns. 
+												Defaults to False.
+	Raises:
+		pytest.fail: If any mismatches are found between the expected and actual base pair positions.
+	"""
+	df = pd.read_csv(file, sep='\t')
+	if circularized_introns is True:
+		nt_name = 'read_head_end_nt'
+		pos_name = 'read_head_end_pos'
+	else:
+		nt_name = 'read_bp_nt'
+		pos_name = 'read_bp_pos'
+
+	read_bp_wrong = df.apply(lambda row: row[nt_name] != row['read_seq_forward'][row[pos_name]], 
+								axis=1)
+	if read_bp_wrong.any():
+		pytest.fail(f'Wrong read_bp_nt in {file}: {df.loc[read_bp_wrong].index}')

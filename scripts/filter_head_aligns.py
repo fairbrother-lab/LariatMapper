@@ -181,8 +181,10 @@ class ReadHeadAlignment():
 	def read_seq_forward(self):
 		if self.read_orient_to_gene == 'Reverse':
 			return functions.reverse_complement(self.read_seq) 
+		elif self.read_orient_to_gene == 'Forward':
+			return self.read_seq
 		else:
-			self.read_seq
+			raise ValueError(f'Invalid read_orient_to_gene value: {self.read_orient_to_gene}')
 
 
 	def from_pysam(pysam_align:pysam.AlignedSegment):
@@ -211,11 +213,13 @@ class ReadHeadAlignment():
 	def write_failed_out(self, filter_failed:str):
 		out_fields = ReadHeadAlignment.fail_out_fields()
 		line = self.read_id
-		for attr in out_fields[1:-1]:
-			val = getattr(self, attr)
+		for col in out_fields[1:-1]:
+			val = getattr(self, col)
 			val = '' if val is None else val
-			if attr in ('gaps', 'fivep_sites', 'introns', 'gene_id'):
+			if col in ('gaps', 'fivep_sites', 'introns', 'gene_id'):
 				val = functions.str_join(val)
+			elif col == 'read_bp_pos':
+				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
 
 			line += f'\t{val}'
 
@@ -228,10 +232,12 @@ class ReadHeadAlignment():
 
 	def write_temp_switch_out(self):
 		line = self.read_id[:-6] # Remove the '/X_XXX' suffix
-		for attr in TEMP_SWITCH_COLS[1:-1]:
-			val = getattr(self, attr)
-			if attr in ('fivep_sites', ):
+		for col in TEMP_SWITCH_COLS[1:-1]:
+			val = getattr(self, col)
+			if col in ('fivep_sites', ):
 				val = functions.str_join(val)
+			elif col == 'read_bp_pos':
+				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
 
 			line += f'\t{val}'
 
@@ -250,9 +256,12 @@ class ReadHeadAlignment():
 						'read_head_end_nt','genomic_head_end_nt', 'genomic_head_end_context'):
 				val = getattr(self, col.replace('head_end', 'bp'))
 			elif col in ('gene_id',):
-				val = functions.str_join(getattr(self, col))				
+				val = functions.str_join(getattr(self, col))		
 			else:
 				val = getattr(self, col)
+
+			if col == 'read_head_end_pos':
+				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
 
 			line += f'\t{val}'
 
@@ -263,10 +272,12 @@ class ReadHeadAlignment():
 
 	def write_lariat_out(self):
 		line = self.read_id
-		for attr in PUTATITVE_LARIATS_COLS[1:]:
-			val = getattr(self, attr)
-			if attr in ('gene_id',):
+		for col in PUTATITVE_LARIATS_COLS[1:]:
+			val = getattr(self, col)
+			if col in ('gene_id',):
 				val = functions.str_join(val)
+			elif col == 'read_bp_pos':
+				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
 				
 			line += f'\t{val}'
 

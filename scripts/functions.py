@@ -85,7 +85,7 @@ def align_orient(flag:int) -> bool:
 	Return True if the reverse flag bit 0x10 is 1, else False
 	'''
 	bit_flags = bin(int(flag))
-	orient = "Forward" if len(bit_flags)>=7 and bit_flags[-5]=='1' else "Reverse"
+	orient = "Reverse" if len(bit_flags)>=7 and bit_flags[-5]=='1' else "Forward"
 	return orient
 
 
