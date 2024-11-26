@@ -1,4 +1,5 @@
 suppressPackageStartupMessages(require(optparse))
+suppressPackageStartupMessages(require(gt))
 suppressPackageStartupMessages(require(ggplot2))
 
 
@@ -28,7 +29,7 @@ output_base <- opts$output_base
 # Variable paths
 lariats_file = paste(output_base, "lariat_reads.tsv", sep='')
 plots_dir = paste0(output_base, "plots/")
-pie_path = paste0(plots_dir, "Branchpoint_base_composition.png")
+base_table_path = paste0(plots_dir, "Branchpoint_base_composition.html")
 dists_path = paste0(plots_dir, "Branchpoint_threep_distance.png")
 
 # Setup
@@ -57,44 +58,46 @@ if (nrow(lariats) == 0){
 
 
 ### Plots
-# Pie chart of branchpoint base composition
-# Calculate the frequencies for read_bp_nt
-read_bp_freqs = as.data.frame(table(lariats$read_bp_nt))
-read_bp_freqs$prop = read_bp_freqs$Freq / sum(read_bp_freqs$Freq)
-read_bp_freqs$group = "In Read"
+# Table of base composition of branchpoints in read vs genome
+# Make table dataframe with read bases on x axis and genomic bases on y axis
+df = table(lariats[, c("read_bp_nt", "genomic_bp_nt")]) / nrow(lariats)
+df = as.data.frame.matrix(df)
+for (col in colnames(df)) {
+	df[col] = as.character(apply(df[col], 2, function(x) sprintf("%.0f%%", x * 100)))
+}
+df$type = "In Read"
 
-# Calculate the frequencies for genomic_bp_nt
-genomic_bp_freqs = as.data.frame(table(lariats$genomic_bp_nt))
-genomic_bp_freqs$prop = genomic_bp_freqs$Freq / sum(genomic_bp_freqs$Freq)
-genomic_bp_freqs$group = "In Genome"
-
-# Combine the two data frames
-nt_freqs = rbind(read_bp_freqs, genomic_bp_freqs)
-colnames(nt_freqs) = c("base", "freq", "prop", "group")
-nt_freqs = nt_freqs[nt_freqs$freq>0,]
-nt_freqs$base = factor(nt_freqs$base, levels=BASES, ordered=TRUE)
-nt_freqs$group = factor(nt_freqs$group, levels=c("In Read", "In Genome"), ordered=TRUE)
-nt_freqs$label = sprintf("%.0f%%", nt_freqs$prop * 100)
-# nt_freqs$label = format(nt_freqs$freq, big.mark=',')
-# nt_freqs$label = paste0(format(nt_freqs$freq, big.mark=','), " (", sprintf("%.0f%%", nt_freqs$prop * 100), ")")
-
-pie = (
-	ggplot(nt_freqs, aes(x="", y=freq, fill=base))
-		+ geom_col(color="black")
-		+ geom_text(aes(x=1.2, label=label), position=position_stack(vjust=0.5), size=6, color="White", fontface="bold") 
-		+ coord_polar(theta='y') 
-		+ scale_x_discrete(breaks=NULL) 
-		+ scale_y_continuous(breaks=NULL) 
-		+ scale_fill_manual(values=BASE_COLORS, guide=guide_legend(position='bottom')) 
-		+ facet_wrap(~group) 
-		+ labs(title="Branchpoint base composition", x="", y="", fill="") 
-		+ theme(plot.title=element_text(hjust=0.5, size=24),
-				strip.text=element_text(size=18),
-				legend.text=element_text(size=18),
-				panel.border=element_rect(color="black", fill=NA)
-				)
-)
-suppressMessages(ggsave(pie_path, dpi=PLOT_DPI))
+# Create gt table
+base_table <- gt(df, rownames_to_stub=TRUE, groupname_col = "type") %>%
+	tab_header(md("Branchpoint base composition")) %>%
+	# Spanner and column labels
+	tab_spanner(label = md("In Genome"), columns = everything(),) %>%
+	tab_style(style = cell_text(align="center", weight="bold", size=px(18)), locations = list(cells_column_spanners())) %>%
+	tab_style(style = cell_text(align="center", weight="bold"), locations = list(cells_column_labels())) %>%
+	# Stub and row labels
+	tab_options(row_group.as_column = TRUE) %>%
+	tab_style(style = cell_fill("#004D80"), locations = list(cells_stub(), cells_row_groups())) %>%
+	tab_style(style = cell_text(align="center", v_align="middle", color="white", weight="bold"), locations = list(cells_stub())) %>%
+    tab_style(style = cell_text(align="center", v_align="middle", color="white", weight="bold", size=px(18)),locations = list(cells_row_groups())) %>%
+	# Fix row borders to match columns
+    tab_style(style = cell_borders(sides="top", style="hidden"), locations = list(cells_stub(), cells_row_groups())) %>%
+    tab_style(style = cell_borders(sides="right", style="solid", color='#89D3FE'), locations = list(cells_stub())) %>%
+	# Whiten cells
+	tab_style(style=cell_fill(color = "White"), locations = cells_body()) %>%
+	# Table-wide formatting
+	cols_width(
+		c(A, C, G, T) ~ px(60),
+		stub() ~ px(30),
+		row_group() ~ px(90)
+	) %>%
+  	opt_stylize(style=2) %>%
+	tab_options(
+		heading.title.font.size=px(24),
+		heading.background.color="#003760",
+		data_row.padding=px(20)
+	)
+# Save plot to file
+suppressMessages(gtsave(base_table, base_table_path))
 
 
 # Density plot of branchpoint distance to 3'ss
@@ -135,4 +138,5 @@ dists = (
 		+ annotate("segment", x = 0, xend = 0, y = dist_limit_height*0.98, yend = dist_limit_height)
 		+ annotate("text", x = -DIST_LIMIT/2, y = dist_limit_height*1.02, label = dist_limit_label, size = 5, hjust=0.5, vjust=0)
 )
+# Save plot to file
 suppressMessages(ggsave(dists_path, dpi=PLOT_DPI))
