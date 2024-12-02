@@ -56,16 +56,20 @@ if (nrow(lariats) == 0){
 }
 
 
-
-### Plots
-# Table of base composition of branchpoints in read vs genome
-# Make table dataframe with read bases on x axis and genomic bases on y axis
-df = table(lariats[, c("read_bp_nt", "genomic_bp_nt")]) / nrow(lariats)
+# Derive base composition table 
+df = table(lariats[, c("read_bp_nt", "genomic_bp_nt")]) 
 df = as.data.frame.matrix(df)
-for (col in colnames(df)) {
-	df[col] = as.character(apply(df[col], 2, function(x) sprintf("%.0f%%", x * 100)))
-}
 df$type = "In Read"
+
+# Format values in table for gt
+# Output will be <COUNT> \n <PERCENT>
+cell_val = function(x) {
+	perc = sprintf("%.0f%%", x / nrow(lariats) * 100)
+	paste(x, perc, sep='<br>')
+}
+for (col in colnames(df)) {
+	df[col] = as.character(apply(df[col], 2, cell_val))
+}
 
 # Create gt table
 base_table <- gt(df, rownames_to_stub=TRUE, groupname_col = "type") %>%
@@ -91,11 +95,12 @@ base_table <- gt(df, rownames_to_stub=TRUE, groupname_col = "type") %>%
 		row_group() ~ px(90)
 	) %>%
   	opt_stylize(style=2) %>%
+	fmt_markdown() %>%
 	tab_options(
 		heading.title.font.size=px(24),
 		heading.background.color="#003760",
-		data_row.padding=px(20)
-	)
+		data_row.padding=px(12)
+	) 
 # Save plot to file
 suppressMessages(gtsave(base_table, base_table_path))
 
@@ -116,27 +121,26 @@ dists = (
 )
 # Get peak height for placing bracket relative to peak
 peak_height = max(ggplot_build(dists)$data[[1]]$y)
-dist_70_height = peak_height * 1.1
-dist_limit_height = peak_height * 1.2
+within_70_height = peak_height * 1.1
+# within_limit_height = peak_height * 1.2
+distal_height = peak_height * 1.25
 
-dist_70_prop = sum(abs(lariats$bp_dist_to_threep)<=70)/nrow(lariats)
-dist_70_label = paste0(sprintf("%.1f%%", dist_70_prop * 100), ' of lariat reads')
-dist_limit_prop = sum(abs(lariats$bp_dist_to_threep)<=DIST_LIMIT)/nrow(lariats)
-dist_limit_label = paste0(sprintf("%.1f%%", dist_limit_prop * 100), ' of lariat reads')
+dist_70 = sum(abs(lariats$bp_dist_to_threep)<=70)
+dist_70_label = sprintf("%s lariat reads (%.0f%%) within 70nt", dist_70, dist_70 / nrow(lariats) * 100)
+distal = sum(abs(lariats$bp_dist_to_threep)>DIST_LIMIT)
+distal_label = sprintf("%s lariat reads (%.0f%%) beyond %snt", distal, distal / nrow(lariats) * 100, DIST_LIMIT)
 
 # Add brackets
 dists = (
 	dists 
 	# dist 70 bracket
-		+ annotate("segment", x = -70, xend = 0, y = dist_70_height, yend = dist_70_height) 
-		+ annotate("segment", x = -70, xend = -70, y = dist_70_height*0.98, yend = dist_70_height) 
-		+ annotate("segment", x = 0, xend = 0, y = dist_70_height*0.98, yend = dist_70_height)
-		+ annotate("text", x = -35, y = dist_70_height*1.02, label = dist_70_label, size = 5, hjust=0.5, vjust=0) 
-	# dist limit bracket
-		+ annotate("segment", x = -DIST_LIMIT, xend = 0, y = dist_limit_height, yend = dist_limit_height) 
-		+ annotate("segment", x = -DIST_LIMIT, xend = -DIST_LIMIT, y = dist_limit_height*0.98, yend = dist_limit_height) 
-		+ annotate("segment", x = 0, xend = 0, y = dist_limit_height*0.98, yend = dist_limit_height)
-		+ annotate("text", x = -DIST_LIMIT/2, y = dist_limit_height*1.02, label = dist_limit_label, size = 5, hjust=0.5, vjust=0)
+		+ annotate("segment", x = -70, xend = 0, y = within_70_height, yend = within_70_height) 
+		+ annotate("segment", x = -70, xend = -70, y = within_70_height*0.98, yend = within_70_height) 
+		+ annotate("segment", x = 0, xend = 0, y = within_70_height*0.98, yend = within_70_height)
+		+ annotate("text", x = -35, y = within_70_height*1.02, label = dist_70_label, size = 5, hjust=0.5, vjust=0) 
+	# distal branchpoints arrow
+		+ annotate("segment", x = -DIST_LIMIT*0.9, xend = -DIST_LIMIT, y = distal_height, yend = distal_height, arrow=arrow())
+		+ annotate("text", x = -DIST_LIMIT*0.89, y = distal_height, label = distal_label, size = 5, hjust=0, vjust=0.5)
 )
 # Save plot to file
 suppressMessages(ggsave(dists_path, dpi=PLOT_DPI))
