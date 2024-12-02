@@ -32,7 +32,7 @@ OUTPUTS_DIR = PACKAGE_DIR/'tests'/'outputs'
 						 ['paired'])
 def test_filter_lariats(prefix, seq_type, tmp_path):
 	# Link files needed in working dir
-	for file in ('output.bam', 'template_switching_reads.tsv', 'circularized_intron_reads.tsv', 'putative_lariats.tsv'):
+	for file in ('output.bam', 'circularized_intron_reads.tsv', 'putative_lariats.tsv'):
 		os.symlink(FILTER_LARIATS_DIR/'inputs'/file, tmp_path/f'{prefix}{file}')
 
 	# Run script
