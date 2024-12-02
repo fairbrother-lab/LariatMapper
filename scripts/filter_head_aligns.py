@@ -94,19 +94,23 @@ class FivepSite():
 	chrom: str
 	pos: int
 	strand: str
-	gene_ids: set[str]
+	gene_ids: frozenset[str] = dataclasses.field(default_factory=frozenset)
 
 
 	def __str__(self):
 		return f'{self.chrom};{self.pos};{self.strand}'
 	
 
-	def from_compact_str(compact_str:str, fivep_genes:dict) -> list:
+	def from_compact_str(compact_str:str, fivep_genes:dict=None) -> list:
 		out = []
 		for site_str in compact_str.split(','):
 			chrom, pos, strand = site_str.split(';')
 			pos = int(pos)
-			gene_ids = fivep_genes[site_str]
+			if fivep_genes is None:
+				gene_ids = frozenset()
+			else:
+				gene_ids = fivep_genes[site_str]
+
 			fivep_site = FivepSite(chrom, pos, strand, gene_ids)
 			out.append(fivep_site)
 
@@ -178,12 +182,7 @@ class ReadHeadAlignment():
 	gene_id: str = None				# Included in output
 	fivep_pos: int = None			# Included in output
 
-
-	@classmethod
-	def fail_out_fields(cls):
-		return tuple(cls.__annotations__.keys()) + ('read_seq_forward', 'filter_failed',)
 	
-
 	@property
 	def read_seq_forward(self):
 		if self.read_seq is None:
@@ -195,6 +194,11 @@ class ReadHeadAlignment():
 			return self.read_seq
 		else:
 			raise ValueError(f'Invalid read_orient_to_gene value: {self.read_orient_to_gene}')
+
+
+	@classmethod
+	def fail_out_fields(cls):
+		return tuple(cls.__annotations__.keys()) + ('read_seq_forward', 'filter_failed',)
 
 
 	def from_pysam(pysam_align:pysam.AlignedSegment):
@@ -224,6 +228,19 @@ class ReadHeadAlignment():
 			else:
 				attr_dict[attr] = None
 
+		if 'fivep_sites' in row:
+			attr_dict['fivep_sites'] = FivepSite.from_compact_str(row['fivep_sites'])
+
+		# If the row is missing 'read_seq' but has 'read_seq_forward' and 'read_orient_to_gene'
+		# we can infer 'read_seq' from the other two
+		if 'read_seq_forward' in row and 'read_orient_to_gene' in row and 'read_seq' not in row:
+			if row['read_orient_to_gene'] == 'Forward':
+				attr_dict['read_seq'] = row['read_seq_forward']
+			elif row['read_orient_to_gene'] == 'Reverse':
+				attr_dict['read_seq'] = functions.reverse_complement(row['read_seq_forward'])
+			else:
+				raise ValueError(f'Invalid read_orient_to_gene value: {row["read_orient_to_gene"]}')
+
 		return ReadHeadAlignment(**attr_dict)
 
 
@@ -241,6 +258,9 @@ class ReadHeadAlignment():
 				val = functions.str_join(val)
 			elif col == 'read_bp_pos' and self.read_seq is not None:
 				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
+			elif col == 'fivep_pos' and val == '' and self.fivep_sites is not None:
+				val = [site.pos for site in self.fivep_sites]
+				val = functions.str_join(val)
 
 			line += f'\t{val}'
 			
