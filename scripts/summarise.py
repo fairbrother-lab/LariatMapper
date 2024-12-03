@@ -99,8 +99,6 @@ READ_COUNTS_TEMPLATE = (
 						"Linearly_mapped\tExon_only\t{exon_only}\n"
 						"Linearly_mapped\tIntron_only\t{intron_only}\n"
 						"Linearly_mapped\tIntergenic_or_ambiguous\t{intergenic_ambiguous}\n"
-						"Linearly_mapped\tTotal_spliced\t{spliced}\n"
-						"Linearly_mapped\tTotal_unspliced\t{unspliced}\n"
 						"Not_linearly_mapped\tTotal\t{not_linear}\n"
 						"Not_linearly_mapped\tNo_alignment\t{No_alignment}\n"
 						"Not_linearly_mapped\tFivep_alignment\t{Fivep_alignment}\n"
