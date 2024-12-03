@@ -38,12 +38,6 @@ if (!dir.exists(plots_dir)){
 	dir.create(plots_dir)
 }
 
-# Check if lariats file exists
-# If not, just exit
-if (!file.exists(lariats_file)){
-	quit(status=0)
-}
-
 # Load lariat datatable
 lariats = read.table(lariats_file, sep='\t', header=TRUE)
 lariats$read_bp_nt = factor(lariats$read_bp_nt, levels=BASES, ordered=TRUE)
@@ -59,7 +53,6 @@ if (nrow(lariats) == 0){
 # Derive base composition table 
 df = table(lariats[, c("read_bp_nt", "genomic_bp_nt")]) 
 df = as.data.frame.matrix(df)
-df$type = "In Read"
 
 # Format values in table for gt
 # Output will be <COUNT> \n <PERCENT>
@@ -70,6 +63,9 @@ cell_val = function(x) {
 for (col in colnames(df)) {
 	df[col] = as.character(apply(df[col], 2, cell_val))
 }
+
+# Add "In Read" column to act as the gt table row group label
+df$type = "In Read"
 
 # Create gt table
 base_table <- gt(df, rownames_to_stub=TRUE, groupname_col = "type") %>%
