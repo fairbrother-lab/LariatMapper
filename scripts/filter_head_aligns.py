@@ -629,7 +629,7 @@ def post_processing(log):
 
 	# Mark template-switching reads that are in the putative lariat reads table
 	temp_switches['in_lariats'] = temp_switches.read_id_base.isin(lariat_rids)
-	# Write template-switching reads that are in the circularized reads table to failed output
+	# Write template-switching reads that are in the putative lariat reads table to failed output
 	# We have to re-calculate the read_seq for write_failed_out()
 	if temp_switches.in_lariats.sum() > 0:
 		temp_in_lariats = temp_switches[temp_switches.in_lariats].copy()
@@ -637,15 +637,17 @@ def post_processing(log):
 		for align in temp_in_lariats:
 			align.write_failed_out('temp_switch_but_also_lariat')
 
-	# Collapse temp switch table to one row per read
-	temp_switches = (
-		temp_switches
-			[~temp_switches.in_circulars]
-			[~temp_switches.in_lariats]
-			.assign(read_id = temp_switches.read_id_base)
-			.groupby('read_id', as_index=False)
-			.agg({col: lambda c: functions.str_join(sorted(c)) for col in TEMP_SWITCH_COLS[1:]})
-	)
+	# Drop template-switiching reads that are in either other table
+	temp_switches = temp_switches[(~temp_switches.in_circulars) & (~temp_switches.in_lariats)]
+
+	# If temp_switch reads remain, collapse the table to one row per read
+	if len(temp_switches) > 0:
+			temp_switches = (
+				temp_switches
+				.assign(read_id = temp_switches.read_id_base)
+				.groupby('read_id', as_index=False)
+				.agg({col: lambda c: functions.str_join(sorted(c)) for col in TEMP_SWITCH_COLS[1:]})
+			)
 
 	# Choose one alignment for circularized intron reads that have multiple alignments
 	# and write the other alignments to failed output
@@ -657,10 +659,12 @@ def post_processing(log):
 		for align in dup_circs:
 			align.write_failed_out('not_chosen')
 
-	# Choose one alignment for each read
+	# Drop duplicate circulars
+	circulars = circulars[~circulars.read_dup]
+
+	# Prepare circulars table for output
 	circulars = (
 		circulars
-			[~circulars.read_dup]
 			.assign(read_id = circulars.read_id_base)
 			.drop(columns=['read_dup', 'read_id_base'])
 			# Remame circulars column names "bp" -> "head_end"
