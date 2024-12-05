@@ -57,7 +57,7 @@ SUMMARY_TEMPLATE = (
 					"Linear, exon-intron junction:\t{exon_intron_junc}\n"
 					"Linear, exon only:\t{exon_only}\n"
 					"Linear, intron only:\t{intron_only}\n"
-					"Linear, intergenic or ambiguous:\t{intergenic_ambiguous}\n"
+					"Linear, other:\t{linear_other}\n"
 					"No alignment:\t{No_alignment}\n"
 					"Fivep alignment:\t{Fivep_alignment}\n"
 					"Template-switching:\t{Template_switching}\n"
@@ -98,7 +98,7 @@ READ_COUNTS_TEMPLATE = (
 						"Linearly_mapped\tExon-intron_junction\t{exon_intron_junc}\n"
 						"Linearly_mapped\tExon_only\t{exon_only}\n"
 						"Linearly_mapped\tIntron_only\t{intron_only}\n"
-						"Linearly_mapped\tIntergenic_or_ambiguous\t{intergenic_ambiguous}\n"
+						"Linearly_mapped\tOther\t{linear_other}\n"
 						"Not_linearly_mapped\tTotal\t{not_linear}\n"
 						"Not_linearly_mapped\tNo_alignment\t{No_alignment}\n"
 						"Not_linearly_mapped\tFivep_alignment\t{Fivep_alignment}\n"
@@ -175,6 +175,9 @@ if __name__ == '__main__':
 	# Add linear read class counts
 	linear_counts = pd.read_csv(LINEAR_COUNTS_FILE.format(output_base), sep='\t')
 	stats.update(linear_counts.iloc[0].to_dict())
+	
+	# Add the linear other class
+	stats['linear_other'] = stats['Linear'] - stats['exon_exon_junc'] - stats['exon_intron_junc'] - stats['exon_only'] - stats['intron_only']
 
 	# Add nonlinear read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
