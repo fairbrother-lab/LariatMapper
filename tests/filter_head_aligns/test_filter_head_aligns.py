@@ -39,7 +39,8 @@ def test_filter_head_aligns(threads, prefix, tmp_path):
 			  f" {FILTER_HEAD_ALIGNS_DIR/'inputs'/'introns.tsv'} {FILTER_HEAD_ALIGNS_DIR/'inputs'/'genome.fa'} {tmp_path}/{prefix} DEBUG"  
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr
-	assert response.returncode == 0, response_text
+	if response.returncode != 0:
+		pytest.fail(response_text)
 
 	# Check output
 	for ref, out in ((FILTER_HEAD_ALIGNS_DIR/'outputs'/'failed_head_alignments.tsv', tmp_path/f'{prefix}failed_head_alignments.tsv'),

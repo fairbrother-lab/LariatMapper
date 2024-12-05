@@ -239,6 +239,10 @@ if __name__ == '__main__':
 	log_levels = parser.add_mutually_exclusive_group()
 	log_levels.add_argument('-q', '--quiet', action='store_true', help="Don't print any status messages")
 	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages")
+	# Just for development
+	# We use this to skip the build_r_refs.R call when testing the python script
+	# since the custom-made test annotation files just don't work in the R script
+	parser.add_argument('--skip_r', action='store_true', help=argparse.SUPPRESS)
 
 	# Parse args
 	args = parser.parse_args()
@@ -301,13 +305,14 @@ if __name__ == '__main__':
 	log.info("Processing five-prime splice sites...")
 	build_fivep(introns, genome_fasta, threads, out_dir, log)
 
-	log.info("Building GRanges objects...")
-	cmd = f"Rscript {pipeline_dir}/scripts/build_R_refs.R" +\
-			f" -a {genome_anno} -g {g_attr} -t {t_attr} -o {out_dir}"
-	functions.run_command(cmd, log=log)
-
 	log.info('Building FASTA indices...')
 	pyfaidx.Faidx(f'{out_dir}/{REF_GENOME_FILE}')
 	pyfaidx.Faidx(f'{out_dir}/{REF_FIVEP_FILE}')
+
+	if not args.skip_r:
+		log.info('Building R objects...')
+		cmd = f"Rscript {pipeline_dir}/scripts/build_R_refs.R" +\
+				f" --anno {genome_anno} --g_attr {g_attr} --t_attr {t_attr} --output {out_dir}"
+		functions.run_command(cmd, log=log)
 
 	log.info('Reference building complete.')

@@ -40,7 +40,8 @@ def test_filter_lariats(prefix, seq_type, tmp_path):
 			  f" {seq_type} {FILTER_LARIATS_DIR/'inputs'/'genome.fa'} {FILTER_LARIATS_DIR/'inputs'/'repeatmasker.bed'}" 
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr
-	assert response.returncode == 0, response_text
+	if response.returncode != 0:
+		pytest.fail(response_text)
 
 	# Check output
 	for ref, out in ((FILTER_LARIATS_DIR/'outputs'/'failed_lariat_alignments.tsv', tmp_path/f'{prefix}failed_lariat_alignments.tsv'),
