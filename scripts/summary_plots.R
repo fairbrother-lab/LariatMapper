@@ -1,6 +1,6 @@
 suppressPackageStartupMessages(require(optparse))
-suppressPackageStartupMessages(require(gt))
 suppressPackageStartupMessages(require(ggplot2))
+suppressPackageStartupMessages(require(gt))
 
 
 
@@ -108,6 +108,7 @@ dists = (
 	ggplot(df, aes(x=bp_dist_to_threep)) 
 		+ geom_density(alpha=0.5, adjust=0.75) 
 		+ scale_x_continuous(limits=c(-DIST_LIMIT,0), breaks=seq(-DIST_LIMIT, 0, 10))
+		+ scale_y_continuous(labels=scales::percent)
 		+ labs(x="Branchpoint distance to 3'ss (nt)", 
 				y='Density')
 		+ theme(plot.title = element_text(hjust=0.5, size=24),
