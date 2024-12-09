@@ -12,6 +12,8 @@ import functions
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
+MIN_HEAD_LEN = 20
+
 # In files
 UNMAPPED_READS_FILE = "{}unmapped_reads.fa"
 FIVEP_TO_READS_FILE = "{}fivep_to_reads.sam"
@@ -182,6 +184,14 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 			# 	if read_num=='2' and read_orient_to_gene == 'Reverse':
 			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
 
+			# 
+			if read_orient_to_gene == "Forward" and read_fivep_start<MIN_HEAD_LEN:
+				failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'enough_head_seq'))
+				continue
+			elif read_orient_to_gene == "Reverse" and len(read_seq)-read_fivep_end<MIN_HEAD_LEN:
+				failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'enough_head_seq'))
+				continue
+
 			# Check if the 5bp upstream of the alignment in the read matches the 5bp upstream of the 5'ss in the genome. 
 			# If it does NOT, add the read alignment to fivep_pass
 			# If it does, add the read alignment to failed_alignments
@@ -233,12 +243,6 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 				fivep_pass_sub.append(fp)
 			else:
 				failed_alignments.append((read_id, read_seq, *fp, read_orient_to_gene, 'furthest_upstream'))
-
-		# Check if less than 20bp is left in the read
-		if len(head_seq) < 20:
-			for fp in fivep_pass_sub:
-				failed_alignments.append((read_id, read_seq, *fp, read_orient_to_gene, 'enough_head_seq'))
-			continue
 		
 		# Add reads + alignment(s) that passed filtering to out_reads 
 		out_rid = read_id + '_' + read_orient_to_gene[:3].lower()
