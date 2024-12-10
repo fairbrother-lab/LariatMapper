@@ -1,8 +1,5 @@
-import gzip
 import hashlib
-import os
 import pathlib
-import shutil
 import subprocess
 import sys
 
@@ -16,21 +13,19 @@ import test_utils
 #                                  Globals                                     #
 # =============================================================================#
 PACKAGE_DIR = pathlib.Path(__file__).parent.parent.parent.resolve()
-BUILD_REFERENCES_DIR = PACKAGE_DIR/'tests'/'build_references'
-INPUTS_DIR = PACKAGE_DIR/'tests'/'inputs'
-OUTPUTS_DIR = PACKAGE_DIR/'tests'/'outputs'
+TEST_DIR = PACKAGE_DIR/'tests'/'build_references'
 
 # =============================================================================#
 #                                   Tests                                      #
 # =============================================================================#
 # Required anno arg + the transcript attribute and gene attribute args since their values depend on the anno file
 @pytest.mark.parametrize('anno',
-					[f"--genome_anno {BUILD_REFERENCES_DIR/'inputs'/'anno.gtf'} --t_attr tid --g_attr gid", 
-					f"--genome_anno {BUILD_REFERENCES_DIR/'inputs'/'anno.gff'} --t_attr tid --g_attr gid"])
+					[f"--genome_anno {TEST_DIR/'inputs'/'anno.gtf'} --t_attr tid --g_attr gid", 
+					f"--genome_anno {TEST_DIR/'inputs'/'anno.gff'} --t_attr tid --g_attr gid"])
 # Optional args
 @pytest.mark.parametrize('repeatmasker_bed',
 					[None, 
-	  				f"--repeatmasker_bed {BUILD_REFERENCES_DIR/'inputs'/'repeatmasker.bed'}"])
+	  				f"--repeatmasker_bed {TEST_DIR/'inputs'/'repeatmasker.bed'}"])
 @pytest.mark.parametrize('threads',
 					[None, 
 	  				'--threads 1',
@@ -44,8 +39,8 @@ OUTPUTS_DIR = PACKAGE_DIR/'tests'/'outputs'
 					'--debug'])
 def test_build_references(anno, repeatmasker_bed, threads, copy, verbosity, tmp_path):
 	command = f"python {PACKAGE_DIR/'build_references.py'} --skip_r" +\
-			f" --genome_fasta {BUILD_REFERENCES_DIR/'inputs'/'genome.fa'}" +\
-			f" --hisat2_index {BUILD_REFERENCES_DIR/'inputs'/'hisat2_index'}" +\
+			f" --genome_fasta {TEST_DIR/'inputs'/'genome.fa'}" +\
+			f" --hisat2_index {TEST_DIR/'inputs'/'hisat2_index'}" +\
 			f" {anno} -o {tmp_path}"
 	for optional_arg in (repeatmasker_bed, threads, copy):
 		if optional_arg is not None:
@@ -57,8 +52,8 @@ def test_build_references(anno, repeatmasker_bed, threads, copy, verbosity, tmp_
 
 	# Check output
 	for ref, out in (
-					(BUILD_REFERENCES_DIR/'outputs'/'introns.tsv', tmp_path/'introns.tsv.gz'),
-					(BUILD_REFERENCES_DIR/'outputs'/'fivep_sites.fa', tmp_path/'fivep_sites.fa')
+					(TEST_DIR/'outputs'/'introns.tsv', tmp_path/'introns.tsv.gz'),
+					(TEST_DIR/'outputs'/'fivep_sites.fa', tmp_path/'fivep_sites.fa')
 					):
 		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 		if ref_lines == out_lines:
@@ -80,7 +75,7 @@ def test_build_references(anno, repeatmasker_bed, threads, copy, verbosity, tmp_
 					'--debug'])
 def test_build_R_refs(verbosity, tmp_path):
 	command = f"Rscript {PACKAGE_DIR}/scripts/build_R_refs.R" +\
-			f" --anno {BUILD_REFERENCES_DIR/'inputs'/'hg38.gencode.v44.sample.gtf'}" +\
+			f" --anno {TEST_DIR/'inputs'/'hg38.gencode.v44.sample.gtf'}" +\
 			f" --g_attr gene_id --t_attr transcript_id --output {tmp_path}"
 	for optional_arg in (verbosity,):
 		if optional_arg is not None:
@@ -91,9 +86,9 @@ def test_build_R_refs(verbosity, tmp_path):
 		pytest.fail(response_text)
 			
 	for ref, out in (
-					(BUILD_REFERENCES_DIR/'outputs'/'exon_gr.rds', tmp_path/'exon_gr.rds'),
-					(BUILD_REFERENCES_DIR/'outputs'/'intron_gr.rds', tmp_path/'intron_gr.rds'),
-					(BUILD_REFERENCES_DIR/'outputs'/'gene_gr.rds', tmp_path/'gene_gr.rds'),
+					(TEST_DIR/'outputs'/'exon_gr.rds', tmp_path/'exon_gr.rds'),
+					(TEST_DIR/'outputs'/'intron_gr.rds', tmp_path/'intron_gr.rds'),
+					(TEST_DIR/'outputs'/'gene_gr.rds', tmp_path/'gene_gr.rds'),
 					):
 		
 		with open(ref, 'rb') as rb:
