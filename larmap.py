@@ -211,7 +211,7 @@ if __name__ == '__main__':
 	optional_args.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns (Default = REF_DIR/introns.tsv.gz)')
 	bp_correction = optional_args.add_mutually_exclusive_group()
 	bp_correction.add_argument('--pwm_correction', help='.rds file with a position weight matrix (PWM) to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See <PWM_BUILDING_SCRIPT_HERE> to <INSTRUCTIONS> (Default = no correction)')
-	bp_correction.add_argument('--model_correction', help='.rds file with <DESCRIPTION>. Mutually exclusive with --pwm_correction. <HOW_TO_OBTAIN_THIS> (Default = no correction)')
+	bp_correction.add_argument('--model_correction', help='.rds file with predictions from <MODEL_NAME>, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. <HOW_TO_OBTAIN_THIS> (Default = no correction)')
 		# Output options
 	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	optional_args.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')

@@ -244,14 +244,18 @@ if ! [ "$PWM_FILES" == "" ]; then
 		--file $PIPELINE_DIR/scripts/bp_correction.R \
 		--method PWM \
 		--PWM_path $PWM_FILES \
-		--output_base $OUTPUT_BASE
+		--log_level $LOG_LEVEL \
+		--output_base $OUTPUT_BASE 
+	check_exitcode
 elif ! [ "$MODEL_FILE" == "" ]; then
 	Rscript $PIPELINE_DIR/scripts/bp_correction_wrapper.R \
 		--input "$OUTPUT_BASE"lariat_reads.tsv \
 		--file $PIPELINE_DIR/scripts/bp_correction.R \
 		--method Model-based \
 		--model_path $MODEL_FILE \
+		--log_level $LOG_LEVEL \
 		--output_base $OUTPUT_BASE
+	check_exitcode
 fi
 
 
