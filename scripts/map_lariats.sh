@@ -5,38 +5,41 @@
 #=============================================================================#
 #                                  Arguments                                  #
 #=============================================================================#
-# Reference directory
-REF_DIR="${1}"
-# hisat2 index of reference genome
-GENOME_INDEX="${2}"
-# Reference genome FASTA file
-GENOME_FASTA="${3}"
-# FASTA file of 5' splice sites (first 20nts of all introns)
-FIVEP_FASTA="${4}"
-# Annotated introns
-INTRONS_TSV="${5}"
-# Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
-STRAND="${6}"
-# Annotated repeat regions
-REPEATS_BED="${7}"
-# Run make_track.py after filter_lariats.py. true or false, default false
-UCSC_TRACK="${8}"
-# Keep read_classes.tsv.gz. true or false, default false
-KEEP_CLASSES="${9}"
-# Keep the temp files created during the run. true or false, default false
-KEEP_TEMP="${10}"
-# Number of threads to use
-THREADS="${11}"
 # RNA-seq fastq read file(s)
-INPUT_FILES="${12}"
+INPUT_FILES="${1}"
+# Reference directory
+REF_DIR="${2}"
+# hisat2 index of reference genome
+GENOME_INDEX="${3}"
+# Reference genome FASTA file
+GENOME_FASTA="${4}"
+# FASTA file of 5' splice sites (first 20nts of all introns)
+FIVEP_FASTA="${5}"
+# Annotated introns
+INTRONS_TSV="${6}"
+# Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
+STRAND="${7}"
+# Annotated repeat regions
+REPEATS_BED="${8}"
+# A comma-seperated list of PWM files or a single model file
+PWM_FILES="${9}"
+MODEL_FILE="${10}"
+# Run make_track.py after filter_lariats.py. true or false, default false
+UCSC_TRACK="${11}"
+# Keep read_classes.tsv.gz. true or false, default false
+KEEP_CLASSES="${12}"
+# Keep the temp files created during the run. true or false, default false
+KEEP_TEMP="${13}"
+# Number of threads to use
+THREADS="${14}"
 # Type of sequencing data. "single" or "paired"
-SEQ_TYPE="${13}"
+SEQ_TYPE="${15}"
 # Output directory 
-OUTPUT_BASE="${14}"
+OUTPUT_BASE="${16}"
 # Level for python logging. "DEBUG", "INFO", "WARNING", or "ERROR"
-LOG_LEVEL="${15}"
+LOG_LEVEL="${17}"
 # Directory containing lariat mapping pipeline files
-PIPELINE_DIR="${16}"
+PIPELINE_DIR="${18}"
 
 
 
@@ -232,6 +235,24 @@ check_exitcode
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Filtering putative lariat alignments...\n"
 python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED
 check_exitcode
+
+
+### Correct branchpoint positions, if extra files are provided
+if ! [ "$PWM_FILES" == "" ]; then
+	Rscript $PIPELINE_DIR/scripts/bp_correction_wrapper.R \
+		--input "$OUTPUT_BASE"lariat_reads.tsv \
+		--file $PIPELINE_DIR/scripts/bp_correction.R \
+		--method PWM \
+		--PWM_path $PWM_FILES \
+		--output_base $OUTPUT_BASE
+elif ! [ "$MODEL_FILE" == "" ]; then
+	Rscript $PIPELINE_DIR/scripts/bp_correction_wrapper.R \
+		--input "$OUTPUT_BASE"lariat_reads.tsv \
+		--file $PIPELINE_DIR/scripts/bp_correction.R \
+		--method Model-based \
+		--model_path $MODEL_FILE \
+		--output_base $OUTPUT_BASE
+fi
 
 
 ### Make a custom track BED file of identified lariats 
