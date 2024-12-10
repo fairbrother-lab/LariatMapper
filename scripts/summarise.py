@@ -28,67 +28,70 @@ SUMMARY_TEMPLATE = (
 					"----------------------------------------\n"
 					"                Metadata                \n"
 					"----------------------------------------\n"
-					"Version:\t{version}\n"
+					"Version: {version}\n"
 					#TODO: Time and resources
 					"\n"
 					"----------------------------------------\n"
 					"                Settings                \n"
 					"----------------------------------------\n"
-					"Input reads:\t{input_reads}\n"
-					"Input type:\t{seq_type}\n"
-					"Input strandedness:\t{strand}\n"
-					"Reference directory:\t{ref_dir}\n"
-					"Reference HISAT2 index:\t{ref_h2index}\n"
-					"Reference genome FASTA:\t{ref_fasta}\n"
-					"Reference 5'ss FASTA:\t{ref_5p_fasta}\n"
-					"Reference introns:\t{ref_introns}\n"
-					"Reference RepeatMasker:\t{ref_repeatmasker}\n"
-					"Output path:\t{output_base}\n"
-					"Threads:\t{threads}\n"
-					"Make UCSC track:\t{ucsc_track}\n"
-					"Keep read classes file:\t{keep_classes}\n"
-					"Keep temporary files:\t{keep_temp}\n"
-					"Log level:\t{log_level}\n"
+					"Input reads: {input_reads}\n"
+					"Input type: {seq_type}\n"
+					"Input strandedness: {strand}\n"
+					"Reference directory: {ref_dir}\n"
+					"Reference HISAT2 index: {ref_h2index}\n"
+					"Reference genome FASTA: {ref_fasta}\n"
+					"Reference 5'ss FASTA: {ref_5p_fasta}\n"
+					"Reference introns: {ref_introns}\n"
+					"Reference RepeatMasker: {ref_repeatmasker}\n"
+					"BP position correction: {bp_correction}\n"
+					"BP position correction files: {bp_correction_files}\n"
+					"Output path: {output_base}\n"
+					"Threads: {threads}\n"
+					"Make UCSC track: {ucsc_track}\n"
+					"Keep read classes file: {keep_classes}\n"
+					"Keep temporary files: {keep_temp}\n"
+					"Log level: {log_level}\n"
 					"\n"
 					"----------------------------------------\n"
 					"              Read classes              \n"
 					"----------------------------------------\n"
-					"Linear, exon-exon junction:\t{exon_exon_junc}\n"
-					"Linear, exon-intron junction:\t{exon_intron_junc}\n"
-					"Linear, exon only:\t{exon_only}\n"
-					"Linear, intron only:\t{intron_only}\n"
-					"Linear, other:\t{linear_other}\n"
-					"No alignment:\t{No_alignment}\n"
-					"Fivep alignment:\t{Fivep_alignment}\n"
-					"Template-switching:\t{Template_switching}\n"
-					"Circularized intron:\t{Circularized_intron}\n"
-					"In repetitive region:\t{In_repetitive_region}\n"
-					"Lariat:\t{Lariat}\n"
+					"Linear, exon-exon junction: {exon_exon_junc}\n"
+					"Linear, exon-intron junction: {exon_intron_junc}\n"
+					"Linear, exon only: {exon_only}\n"
+					"Linear, intron only: {intron_only}\n"
+					"Linear, other: {linear_other}\n"
+					"No alignment: {No_alignment}\n"
+					"Fivep alignment: {Fivep_alignment}\n"
+					"Template-switching: {Template_switching}\n"
+					"Circularized intron: {Circularized_intron}\n"
+					"In repetitive region: {In_repetitive_region}\n"
+					"Lariat: {Lariat}\n"
 					"\n"
 					"----------------------------------------\n"
 					"      Read count after each stage       \n"
 					"----------------------------------------\n"
-					"Input:\t{input_count}\n"
-					"Linear mapping:\t{Linear_mapping}\n"
-					"Fivep mapping:\t{5ss_mapping}\n"
-					"Fivep alignment filtering:\t{5ss_alignment_filtering}\n"
-					"Head mapping:\t{Head_mapping}\n"
-					"Head alignment filtering:\t{Head_alignment_filtering}\n"
-					"Lariat filtering:\t{Lariat_filtering}\n"
+					"Input: {input_count}\n"
+					"Linear mapping: {Linear_mapping}\n"
+					"Fivep mapping: {5ss_mapping}\n"
+					"Fivep alignment filtering: {5ss_alignment_filtering}\n"
+					"Head mapping: {Head_mapping}\n"
+					"Head alignment filtering: {Head_alignment_filtering}\n"
+					"Lariat filtering: {Lariat_filtering}\n"
 					"\n"
 					"----------------------------------------\n"
 					"          Additional statistics         \n"
 					"----------------------------------------\n"
-					"Exon-exon/exon-intron ratio:\t{pre_ratio}\n"
-					"Lariat RPM:\t{lariat_rpm}\n"
-					"Circularized intron RPM:\t{circ_rpm}\n"
-					"Lariat reads, genomic_bp_nt = A:\t{A:.1%}\n"
-					"Lariat reads, genomic_bp_nt = C:\t{C:.1%}\n"
-					"Lariat reads, genomic_bp_nt = G:\t{G:.1%}\n"
-					"Lariat reads, genomic_bp_nt = T:\t{T:.1%}\n"
-					"Lariat reads, genomic_bp_nt = N:\t{N:.1%}\n"
-					"Lariat reads, genomic_bp_nt ≠ read_bp_nt:\t{bp_mismatch:.1%}\n"
-					"Lariat reads, |bp_dist_to_threep| ≤ 70:\t{within_70:.1%}\n"
+					"Exon-exon/exon-intron ratio: {pre_ratio}\n"
+					"Lariat RPM: {lariat_rpm}\n"
+					"Circularized intron RPM: {circ_rpm}\n"
+					"Lariat reads, genomic_bp_nt = A: {A:.1%}\n"
+					"Lariat reads, genomic_bp_nt = C: {C:.1%}\n"
+					"Lariat reads, genomic_bp_nt = G: {G:.1%}\n"
+					"Lariat reads, genomic_bp_nt = T: {T:.1%}\n"
+					"Lariat reads, genomic_bp_nt = N: {N:.1%}\n"
+					"Lariat reads, genomic_bp_nt ≠ read_bp_nt: {bp_mismatch:.1%}\n"
+					"Lariat reads, |bp_dist_to_threep| ≤ 70: {within_70:.1%}\n"
+					"Lariat reads, branchpoint position corrected: {bp_corrected_prop:.1%}\n"
 )
 READ_COUNTS_TEMPLATE = (
 						"Category\tSubcategory\tReads\n"
@@ -164,6 +167,15 @@ if __name__ == '__main__':
 	with open(ARGS_FILE.format(output_base), 'r') as json_file:
 		settings = json.load(json_file)
 	stats.update(settings)
+	if settings['pwm_correction'] != "":
+		stats['bp_correction'] = "Position weight matrix"
+		stats['bp_correction_files'] = settings['pwm_correction']
+	elif settings['bp_correction'] != "":
+		stats['bp_correction'] = "Machine-learning model"
+		stats['bp_correction_files'] = settings['model_correction']
+	else:
+		stats['bp_correction'] = "False"
+		stats['bp_correction_files'] = ""
 
 	# Add input read count
 	r1 = pysam.FastxFile(settings['input_reads'].split(',')[0])
@@ -258,11 +270,13 @@ if __name__ == '__main__':
 		stats.update({bp: 0 for bp in ['A', 'C', 'G', 'T', 'N']})
 		stats['within_70'] = 0
 		stats['bp_mismatch'] = 0
+		stats['bp_corrected_prop'] = 0
 	else:
 		lariat_reads.genomic_bp_nt = pd.Categorical(lariat_reads.genomic_bp_nt, categories=['A', 'C', 'G', 'T', 'N'])
 		stats.update(lariat_reads.genomic_bp_nt.value_counts(normalize=True).to_dict())
 		stats['within_70'] = lariat_reads.bp_dist_to_threep.abs().le(70).sum()/lariat_reads.shape[0]
 		stats['bp_mismatch'] = lariat_reads.genomic_bp_nt.ne(lariat_reads.read_bp_nt).sum()/lariat_reads.shape[0]
+		stats['bp_corrected_prop'] = lariat_reads.corrected.sum()/lariat_reads.shape[0]
 	
 
 	# Write summary info to file
