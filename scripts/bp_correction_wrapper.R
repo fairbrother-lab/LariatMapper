@@ -111,9 +111,11 @@ corrected_genomic_bp_nt <- sapply(seq_along(shift_loc), function(x){
   context_seq[x, c_loc + shift_loc[x]]
 })
 file <- as.data.frame(append(file, list("corrected_genomic_bp_nt" = corrected_genomic_bp_nt), after = 15))
+corrected_bp_mismatch = ifelse(file$read_bp_nt != file$corrected_genomic_bp_nt, "True", "False")
+file <- as.data.frame(append(file, list("corrected_bp_mismatch" = corrected_bp_mismatch), after = 17))
 
-file$correction_status <- corrected_gr$status
+file$corrected <- ifelse(corrected_gr$status == "corrected", "True", "False")
 
-write.table(file, file.path(output_dir, "lariat_reads_corrected.tsv"),
+write.table(file, file.path(output_dir, "lariat_reads.tsv"),
             sep = "\t", quote = FALSE, row.names = FALSE)
 ###
