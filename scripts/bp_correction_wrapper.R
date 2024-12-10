@@ -23,7 +23,9 @@ option_list <- list(
     make_option(c("-e", "--model_path"), type = "character", default = NULL, 
                 help = "Path to pre-computed model file, when Model-based is enabled for --method", metavar = "MODEL_PATH"),
     make_option(c("-o", "--output_base"), type = "character", default = NULL, 
-                help = "Path to output", metavar = "OUT_PATH")
+                help = "Path to output", metavar = "OUT_PATH"),
+	make_option(c("-l", "--log_level"), type = "character", default = "INFO", 
+                help = "Log level (DEBUG, INFO, WARNING, or ERROR)")
 )
 
 parser <- OptionParser(option_list = option_list)
@@ -37,6 +39,7 @@ correction_method <- opts$method
 pwm_path <- opts$PWM_path
 model_path <- opts$model_path
 output_dir <- opts$output_base
+log_level <- opts$log_level
 
 # Process paths
 if(correction_method == "PWM"){
@@ -57,10 +60,14 @@ if(correction_method == "PWM"){
     }
     
     # Print valid paths
-    cat("Valid PWM provided:\n")
-    print(paths)
+    if (log_level == "DEBUG") {
+      cat("Valid PWM provided:\n")
+      print(paths)
+    }
   } else {
-    cat("No PWM provided.\n")
+	if (log_level == "DEBUG") {
+      cat("No PWM provided.\n")
+	}
   }
 } else if (correction_method == "Model-based") {
 
@@ -69,9 +76,10 @@ if(correction_method == "PWM"){
         } else{
             cbp_prob <- readRDS(model_path)
         } 
-   
-    cat("Valid pre-computed model file provided:\n")
-    print(model_path)
+	if (log_level == "DEBUG") {
+	  cat("Valid pre-computed model file provided:\n")
+	  print(model_path)
+	}
 
 } else{
   stop("The correction method can either be PWM or Model-based")
@@ -88,10 +96,11 @@ source(utils_R)
 ###
 
 ### Running the step
+debug = ifelse(log_level %in% c("DEBUG", "INFO"), T, F)
 if(correction_method == "PWM"){
-  corrected_gr <- pwm_l_search(gr, pwm_l, offset, genome, correct_upstream, debug = T, make_plot = F)
+  corrected_gr <- pwm_l_search(gr, pwm_l, offset, genome, correct_upstream, debug, make_plot = F)
 } else if (correction_method == "Model-based") {
-  corrected_gr <- model_based_search(gr, cbp_prob, offset, correct_upstream, debug = T, make_plot = F)
+  corrected_gr <- model_based_search(gr, cbp_prob, offset, correct_upstream, debug, make_plot = F)
 }
 ###
 
@@ -113,6 +122,8 @@ corrected_genomic_bp_nt <- sapply(seq_along(shift_loc), function(x){
 file <- as.data.frame(append(file, list("corrected_genomic_bp_nt" = corrected_genomic_bp_nt), after = 15))
 corrected_bp_mismatch = ifelse(file$read_bp_nt != file$corrected_genomic_bp_nt, "True", "False")
 file <- as.data.frame(append(file, list("corrected_bp_mismatch" = corrected_bp_mismatch), after = 17))
+corrected_genomic_bp_context <- mapply(trim_string, file$genomic_bp_context, shift_loc)
+file <- as.data.frame(append(file, list("corrected_genomic_bp_context" = corrected_genomic_bp_context), after = 19))
 
 file$corrected <- ifelse(corrected_gr$status == "corrected", "True", "False")
 

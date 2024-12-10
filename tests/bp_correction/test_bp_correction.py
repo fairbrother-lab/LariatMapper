@@ -3,6 +3,7 @@ import pathlib
 import subprocess
 import sys
 
+import pandas as pd
 import pytest
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -33,12 +34,13 @@ Method_Combo = collections.namedtuple('Method_Combo', ['method_arg', 'path_arg',
 									output=f'{TEST_DIR}/outputs/lariat_reads_pwm_U2_U12.tsv'),
 					]
 )
-# # Optional args
-# @pytest.mark.parametrize('verbosity',
-# 					[None, 
-# 	  				'--quiet',
-# 					'--debug'])
-def test_bp_correction(method_combo, tmp_path):
+# Optional args
+@pytest.mark.parametrize('log_level',
+					[None, 
+	  				'--log_level DEBUG',
+					'--log_level ERROR',]
+)
+def test_bp_correction(method_combo, log_level, tmp_path):
 # def test_bp_correction(method_combo, verbosity, tmp_path):
 	command = f"Rscript {PACKAGE_DIR/'scripts'/'bp_correction_wrapper.R'}" +\
 				f" --input {TEST_DIR/'inputs'/'lariat_reads.tsv'}" +\
@@ -46,17 +48,20 @@ def test_bp_correction(method_combo, tmp_path):
 				' ' + method_combo.method_arg +\
 				' ' + method_combo.path_arg +\
 				f" --output_base {tmp_path}/"
-	# for optional_arg in (verbosity,):
-	# 	if optional_arg is not None:
-	# 		command += ' ' + optional_arg
+	for optional_arg in (log_level,):
+		if optional_arg is not None:
+			command += ' ' + optional_arg
 
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr
 	assert response.returncode == 0, response_text
 
 	# Check output
+	# ref = pd.read_csv(method_combo.output, sep='\t')
+	# out = pd.read_csv(tmp_path/'lariat_reads.tsv', sep='\t')
+	# test_utils.compare_tables(ref, out)
 	ref = method_combo.output
-	out = tmp_path/'lariat_reads_corrected.tsv'		
+	out = tmp_path/'lariat_reads.tsv'
 	ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 	if ref_lines == out_lines:
 		return
@@ -67,3 +72,4 @@ def test_bp_correction(method_combo, tmp_path):
 		pytest.fail(f'Output file differs from expected output: {out.name}')
 	else:
 		assert ref_lines == out_lines
+

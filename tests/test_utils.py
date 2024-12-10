@@ -60,6 +60,43 @@ def load_file_lines(file_a:str, file_b:str, sort:bool=True) -> tuple[list, list]
 	return lines_a, lines_b
 
 
+PRINT_MISMATCHS = 50
+def compare_dataframes(table_a:pd.DataFrame, table_b:pd.DataFrame, sort:bool=True) -> bool:
+	if sort is True:
+		table_a = table_a.sort_values(by=table_a.columns.tolist()).reset_index(drop=True)
+		table_b = table_b.sort_values(by=table_b.columns.tolist()).reset_index(drop=True)
+
+	# Check col names
+	assert table_a.columns.tolist() == table_b.columns.tolist()
+
+	# Check lengths
+	assert len(table_a) == len(table_b)
+
+	# Check values
+	unequals = table_a != table_b
+	unequal_cols = unequals.columns[unequals.any()].tolist()
+	if len(unequal_cols) > 0:
+		pytest.fail(f'Unequal columns: {unequal_cols}')
+	# for i, col in enumerate(unequals.columns):
+	# 	mismatch_indices = unequals.loc[unequals[col], col].index.tolist()
+	# 	if len(mismatch_indices) > 0:
+	# 		fail_print = f'Column #{i} | {col} | {len(mismatch_indices):,} mismatches of {len(table_a):,} rows\n'
+	# 		longest_val = table_a.loc[mismatch_indices, col].transform(lambda x: len(repr(x))).max()
+	# 		for n in range(PRINT_MISMATCHS):
+	# 			ind = mismatch_indices[n]
+	# 			fail_print += f"{ind}: {repr(table_a.at[ind, col]).ljust(longest_val)}"
+	# 			fail_print += f"   vs   {repr(table_b.at[ind, col])}\n"
+			
+	# 		if len(mismatch_indices) > PRINT_MISMATCHS:
+	# 			fail_print += '...\n'
+
+	# 		pytest.fail(fail_print)
+		
+
+
+	
+
+
 def vscode_available() -> bool:
 	"""
 	Check if the Visual Studio Code executable is available by running shutil.which('code')
