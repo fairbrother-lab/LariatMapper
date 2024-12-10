@@ -27,11 +27,12 @@ class Settings:
 				('ref_5p_fasta', 'fivep_sites.fa'),
 				('ref_introns', 'introns.tsv.gz'))
 	PATH_SETTINGS = ('read_file', 'read_one', 'read_two', 'ref_dir', 'ref_h2index', 'ref_fasta', 
-					'ref_5p_fasta', 'ref_introns', 'output_dir', 'ref_repeatmasker',
+					'ref_5p_fasta', 'ref_introns', 'output_dir', 'ref_repeatmasker', 'model_correction',
 					'pipeline_dir')
-	ARGS_TO_MAP_LARIATS = ('ref_dir', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 'ref_introns', 
-						'strand', 'ref_repeatmasker', 'ucsc_track', 'keep_classes', 'keep_temp', 
-						'threads', 'input_reads', 'seq_type', 'output_base', 'log_level', 'pipeline_dir')
+	ARGS_TO_MAP_LARIATS = ('input_reads', 'ref_dir', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 'ref_introns', 
+						'strand', 'ref_repeatmasker', 'pwm_correction', 'model_correction', 
+						'ucsc_track', 'keep_classes', 'keep_temp', 'threads', 'seq_type', 
+						'output_base', 'log_level', 'pipeline_dir')
 
 	# Supplied argument attributes
 	# If an argument is not supplied, it will be None
@@ -46,6 +47,8 @@ class Settings:
 	output_dir: pathlib.Path
 	strand: str
 	ref_repeatmasker: pathlib.Path	# If ref_dir is supplied and this is not, will be set to {ref_dir}/repeatmasker.bed
+	pwm_correction: str
+	model_correction: str
 	output_prefix: str
 	ucsc_track: bool
 	keep_classes: bool
@@ -89,16 +92,6 @@ class Settings:
 		else:
 			raise ValueError('Provide either -f/--read_file (for single-end read) OR -1/--read_one and -2/--read_two (for paired-end reads)')
 		
-		# log_level
-		if self.quiet is True:
-			self.log_level = 'ERROR'
-		elif self.warning is True:
-			self.log_level = 'WARNING'
-		elif self.debug is True:
-			self.log_level = 'DEBUG'
-		else:
-			self.log_level = 'INFO'
-		
 		# output_base
 		# All output files will be formatted like f"{output_base}file.ext"
 		if self.output_prefix is None:
@@ -108,6 +101,22 @@ class Settings:
 				if char in str(self.output_prefix):
 					parser.error(f'Illegal character in output prefix: {char}')
 			self.output_base = f'{self.output_dir/self.output_prefix}_'
+
+		# pwm_correction and model_correction
+		if self.pwm_correction is None:
+			self.pwm_correction = ''
+		if self.model_correction is None:
+			self.model_correction = ''
+
+		# log_level
+		if self.quiet is True:
+			self.log_level = 'ERROR'
+		elif self.warning is True:
+			self.log_level = 'WARNING'
+		elif self.debug is True:
+			self.log_level = 'DEBUG'
+		else:
+			self.log_level = 'INFO'
 
 
 	def validate_args(self):
@@ -135,6 +144,15 @@ class Settings:
 		for char in FORBIDDEN_CHARS:
 			if char in str(self.output_dir):
 				raise ValueError(f'Illegal character in output directory: "{char}"')
+			
+		# Confirm the pwm correction files exist OR model correction file exists, if supplied
+		if self.pwm_correction != '':
+			for file in self.pwm_correction.split(','):
+				if pathlib.Path(file).is_file() is False:
+					raise ValueError(f'"{file}" is not an existing file')
+		if self.model_correction != '':
+			if pathlib.Path(self.model_correction).is_file() is False:
+				raise ValueError(f'"{self.model_correction}" is not an existing file')
 
 		# Validate threads arg
 		if not self.threads>0:
@@ -191,6 +209,9 @@ if __name__ == '__main__':
 	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome (Default = REF_DIR/genome.fa)')
 	optional_args.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help='FASTA file with sequences of first 20nt of annotated introns (Default = REF_DIR/fivep_sites.fa)')
 	optional_args.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns (Default = REF_DIR/introns.tsv.gz)')
+	bp_correction = optional_args.add_mutually_exclusive_group()
+	bp_correction.add_argument('--pwm_correction', help='.rds file with a position weight matrix (PWM) to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See <PWM_BUILDING_SCRIPT_HERE> to <INSTRUCTIONS> (Default = no correction)')
+	bp_correction.add_argument('--model_correction', help='.rds file with <DESCRIPTION>. Mutually exclusive with --pwm_correction. <HOW_TO_OBTAIN_THIS> (Default = no correction)')
 		# Output options
 	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	optional_args.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
