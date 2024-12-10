@@ -50,7 +50,7 @@ shift_matching <- function(bp_gr, pattern_l, offset, genome, correct_upstream = 
     if(debug){
         adjusted_pos <- adjusted_pos[order(names(adjusted_pos) %>% as.numeric())]
         adjusted_pos <- adjusted_pos[-which(names(adjusted_pos) == "0")]
-
+		
         cat("Count of correction for each position relvant to the potential BP:", "\n")
         print(adjusted_pos)
 
@@ -409,4 +409,22 @@ subset_seq <- function(string, win_size, pwm_len, bp_pos, offset, correct_upstre
     }
     return(genome_seq)
 
+}
+
+trim_string <- function(input_string, shift_loc) {
+  # Calculate the number of characters to trim
+  trim_length <- abs(shift_loc) * 2
+  
+  if (shift_loc > 0) {
+    # Trim off the left shift_loc * 2 characters
+    result <- substr(input_string, trim_length + 1, nchar(input_string))
+  } else if (shift_loc < 0) {
+    # Trim off the right shift_loc * 2 characters
+    result <- substr(input_string, 1, nchar(input_string) - trim_length)
+  } else {
+    # If shift_loc is 0, return the original string
+    result <- input_string
+  }
+  
+  return(result)
 }
