@@ -42,6 +42,7 @@ SUMMARY_TEMPLATE = (
 					"Reference genome FASTA: {ref_fasta}\n"
 					"Reference 5'ss FASTA: {ref_5p_fasta}\n"
 					"Reference introns: {ref_introns}\n"
+					"Strandedness: {strand}\n"
 					"Reference RepeatMasker: {ref_repeatmasker}\n"
 					"BP position correction: {bp_correction}\n"
 					"BP position correction files: {bp_correction_files}\n"
@@ -59,7 +60,7 @@ SUMMARY_TEMPLATE = (
 					"Linear, exon-intron junction: {exon_intron_junc}\n"
 					"Linear, exon only: {exon_only}\n"
 					"Linear, intron only: {intron_only}\n"
-					"Linear, other: {linear_other}\n"
+					"Linear, intergenic or ambiguous: {intergenic_ambiguous}\n"
 					"No alignment: {No_alignment}\n"
 					"Fivep alignment: {Fivep_alignment}\n"
 					"Template-switching: {Template_switching}\n"
@@ -101,7 +102,7 @@ READ_COUNTS_TEMPLATE = (
 						"Linearly_mapped\tExon-intron_junction\t{exon_intron_junc}\n"
 						"Linearly_mapped\tExon_only\t{exon_only}\n"
 						"Linearly_mapped\tIntron_only\t{intron_only}\n"
-						"Linearly_mapped\tOther\t{linear_other}\n"
+						"Linearly_mapped\tIntergenic_or_ambiguous\t{intergenic_ambiguous}\n"
 						"Not_linearly_mapped\tTotal\t{not_linear}\n"
 						"Not_linearly_mapped\tNo_alignment\t{No_alignment}\n"
 						"Not_linearly_mapped\tFivep_alignment\t{Fivep_alignment}\n"
@@ -181,15 +182,9 @@ if __name__ == '__main__':
 	r1 = pysam.FastxFile(settings['input_reads'].split(',')[0])
 	stats['input_count'] = sum(1 for read in r1)
 
-	# Add linear mapping count
-	stats['Linear'] = add_mapped_reads(output_base, seq_type, log)
-
 	# Add linear read class counts
 	linear_counts = pd.read_csv(LINEAR_COUNTS_FILE.format(output_base), sep='\t')
 	stats.update(linear_counts.iloc[0].to_dict())
-	
-	# Add the linear other class
-	stats['linear_other'] = stats['Linear'] - stats['exon_exon_junc'] - stats['exon_intron_junc'] - stats['exon_only'] - stats['intron_only']
 
 	# Add nonlinear read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
