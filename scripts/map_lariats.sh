@@ -95,6 +95,7 @@ end_run() {
 
 	### Create a subdir named "plots" and make summary plots in it
 	Rscript $PIPELINE_DIR/scripts/summary_plots.R -o $OUTPUT_BASE
+	check_exitcode
 
 	### Delete the temporary files 
 	if ! $KEEP_TEMP; then
@@ -141,6 +142,7 @@ check_exitcode() {
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping reads to genome...\n"
 if [ "$SEQ_TYPE" == "single" ]; then
+	# Map
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 	       $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -U $INPUT_FILES \
 		> $output_sam
