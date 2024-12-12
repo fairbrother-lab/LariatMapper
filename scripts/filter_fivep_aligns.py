@@ -173,16 +173,16 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 		for fivep_site, read_fivep_start, read_fivep_end in fivep_sites:
 			# If the sequencing data is strand-specific, we can rule out alignments on 
 			# the wrong strand for the read mate
-			# if strand == 'First':
-			# 	if read_num=='1' and read_orient_to_gene == 'Reverse':
-			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
-			# 	if read_num=='2' and read_orient_to_gene == 'Forward':
-			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
-			# elif strand == 'Second':
-			# 	if read_num=='1' and read_orient_to_gene == 'Forward':
-			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
-			# 	if read_num=='2' and read_orient_to_gene == 'Reverse':
-			# 		failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
+			if strand == 'First':
+				if read_num=='1' and read_orient_to_gene == 'Reverse':
+					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
+				if read_num=='2' and read_orient_to_gene == 'Forward':
+					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
+			elif strand == 'Second':
+				if read_num=='1' and read_orient_to_gene == 'Forward':
+					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
+				if read_num=='2' and read_orient_to_gene == 'Reverse':
+					failed_alignments.append((read_id, read_seq, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene, 'wrong_strand'))
 
 			# 
 			if read_orient_to_gene == "Forward" and read_fivep_start<MIN_HEAD_LEN:
