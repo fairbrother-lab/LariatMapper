@@ -43,13 +43,15 @@ intron_gr <- readRDS(file.path(ref_dir, "intron_gr.rds"))
 
 ### Run counting step
 singleEnd_mode <- ifelse(read_layout == "paired", F, T)
+unmapped_mate <- ifelse(!singleEnd_mode, F, NA)
 bam_res <- linear_map_integrate(input_bam,
                                 gene_gr = gene_gr, exon_gr = exon_gr, intron_gr = intron_gr,
                                 singleEnd = singleEnd_mode)
 
 n_reads <- total_reads_bam(input_bam, 
                            isPaired = !singleEnd_mode, 
-                           isFirstMateRead = ifelse(!singleEnd_mode, T, NA))
+                           isFirstMateRead = ifelse(!singleEnd_mode, T, NA),
+                           hasUnmappedMate = unmapped_mate)
 summary_table <- bam_res[,-1] %>% colSums()
 summary_table <- cbind("total_reads" = n_reads,
                        summary_table %>% data.frame() %>% t, 
