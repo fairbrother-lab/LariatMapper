@@ -4,7 +4,7 @@ require(stringr)
 
 total_reads_bam <- function(file, ...){
 
-    param <- ScanBamParam(flag = scanBamFlag(...), what = c("qname"))
+    param <- ScanBamParam(flag = scanBamFlag(isUnmappedQuery = F, ...), what = c("qname"))
     bam <- scanBam(file, param = param)
     return(length(bam[[1]]$qname))
 
