@@ -98,6 +98,7 @@ delete_temp_files(){
 
 end_run() {
 	### Classify reads
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | Classifying reads...\n"
 	Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE
 	check_exitcode
 	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL 
@@ -105,6 +106,7 @@ end_run() {
 
 	### Summarise results
 	### Also create lariat, circ, and temp-switch output files if they don't exist
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | Summarising results...\n"
 	python -u $PIPELINE_DIR/scripts/summarise.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE
 	check_exitcode
 
@@ -254,6 +256,7 @@ if ! [ "$PWM_FILES" == "" ]; then
 	Rscript $PIPELINE_DIR/scripts/bp_correction_wrapper.R \
 		--input "$OUTPUT_BASE"lariat_reads.tsv \
 		--file $PIPELINE_DIR/scripts/bp_correction.R \
+		--both_upstream_downstream \
 		--method PWM \
 		--PWM_path $PWM_FILES \
 		--log_level $LOG_LEVEL \
@@ -263,6 +266,7 @@ elif ! [ "$MODEL_FILE" == "" ]; then
 	Rscript $PIPELINE_DIR/scripts/bp_correction_wrapper.R \
 		--input "$OUTPUT_BASE"lariat_reads.tsv \
 		--file $PIPELINE_DIR/scripts/bp_correction.R \
+		--both_upstream_downstream \
 		--method Model-based \
 		--model_path $MODEL_FILE \
 		--log_level $LOG_LEVEL \
