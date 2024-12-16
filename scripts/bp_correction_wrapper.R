@@ -87,7 +87,7 @@ if(correction_method == "PWM"){
 
 file <- read.csv(input_lariat, sep = "\t")
 gr <- GRanges(seqnames = file$chrom,
-              IRanges(file$bp_pos + 1),
+              IRanges(file$bp_pos + 1, width = 1),
               strand = file$strand)
 genome <- file$genomic_bp_context
 
