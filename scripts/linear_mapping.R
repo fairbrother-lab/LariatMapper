@@ -59,7 +59,7 @@ linear_map <- function(file, gene_gr, exon_gr, intron_gr, ...){
     premrna_counts[premrna_counts < 0] <- 0
     exon_junc_counts[exon_junc_counts < 0] <- 0
 
-    return(list(gene_counts = gene_counts,
+    return(list(gene_counts = premrna_counts + exon_only_counts_by_gene + exon_junc_counts + intron_counts,
                 premrna_counts = premrna_counts,
                 exon_counts = exon_only_counts_by_gene, 
                 exon_junc_counts = exon_junc_counts,
