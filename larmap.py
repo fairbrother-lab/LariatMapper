@@ -31,7 +31,7 @@ class Settings:
 					'pipeline_dir')
 	ARGS_TO_MAP_LARIATS = ('input_reads', 'ref_dir', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 'ref_introns', 
 						'strand', 'ref_repeatmasker', 'pwm_correction', 'model_correction', 
-						'ucsc_track', 'keep_classes', 'keep_temp', 'threads', 'seq_type', 
+						'ucsc_track', 'keep_bam', 'keep_classes', 'keep_temp', 'threads', 'seq_type', 
 						'output_base', 'log_level', 'pipeline_dir')
 
 	# Supplied argument attributes
@@ -51,6 +51,7 @@ class Settings:
 	model_correction: str
 	output_prefix: str
 	ucsc_track: bool
+	keep_bam: bool
 	keep_classes: bool
 	keep_temp: bool
 	threads: str
@@ -215,8 +216,9 @@ if __name__ == '__main__':
 		# Output options
 	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
 	optional_args.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
+	optional_args.add_argument('-b', '--keep_bam', action='store_true', help='Keep the BAM file produced in the initial linear mapping step (Default = delete)')
 	optional_args.add_argument('-c', '--keep_classes', action='store_true', help='Keep a file with per-read classification named "read_classes.tsv.gz" in the output (Default = delete)')
-	optional_args.add_argument('-k', '--keep_temp', action='store_true', help='Keep all temporary files created while running the pipeline. Forces -c/--keep_classes (Default = delete)')
+	optional_args.add_argument('-k', '--keep_temp', action='store_true', help='Keep all temporary files created while running the pipeline. Forces -c/--keep_classes and -b/--keep_bam (Default = delete)')
 		# Technical options
 	optional_args.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (Default = 1)')
 	log_levels = optional_args.add_mutually_exclusive_group()
