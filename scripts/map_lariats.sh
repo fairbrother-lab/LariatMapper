@@ -26,20 +26,22 @@ PWM_FILES="${9}"
 MODEL_FILE="${10}"
 # Run make_track.py after filter_lariats.py. true or false, default false
 UCSC_TRACK="${11}"
+# Keep output.bam
+KEEP_BAM="${12}"
 # Keep read_classes.tsv.gz. true or false, default false
-KEEP_CLASSES="${12}"
+KEEP_CLASSES="${13}"
 # Keep the temp files created during the run. true or false, default false
-KEEP_TEMP="${13}"
+KEEP_TEMP="${14}"
 # Number of threads to use
-THREADS="${14}"
+THREADS="${15}"
 # Type of sequencing data. "single" or "paired"
-SEQ_TYPE="${15}"
+SEQ_TYPE="${16}"
 # Output directory 
-OUTPUT_BASE="${16}"
+OUTPUT_BASE="${17}"
 # Level for python logging. "DEBUG", "INFO", "WARNING", or "ERROR"
-LOG_LEVEL="${17}"
+LOG_LEVEL="${18}"
 # Directory containing lariat mapping pipeline files
-PIPELINE_DIR="${18}"
+PIPELINE_DIR="${19}"
 
 
 
@@ -72,7 +74,7 @@ temp_files=(
 	$unmapped_fasta.1.bt* $unmapped_fasta.2.bt* $unmapped_fasta.3.bt* $unmapped_fasta.4.bt* 
 	$unmapped_fasta.rev.1.bt* $unmapped_fasta.rev.2.bt* $fivep_to_reads $fivep_to_reads.tmp 
 	$heads_fasta $heads_to_genome $heads_to_genome.tmp "$OUTPUT_BASE"tails.tsv "$OUTPUT_BASE"putative_lariats.tsv
-	$OUTPUT_BASE"settings.json" $OUTPUT_BASE"output.bam_summary_count.tsv"
+	$OUTPUT_BASE"settings.json" $OUTPUT_BASE"read_classes.tsv.gz" $OUTPUT_BASE"output.bam_summary_count.tsv"
 	"$OUTPUT_BASE"failed_fivep_alignments.tsv "$OUTPUT_BASE"failed_head_alignments.tsv "$OUTPUT_BASE"failed_lariat_alignments.tsv
 )
 
@@ -81,6 +83,19 @@ temp_files=(
 #=============================================================================#
 #                                  Functions                                  #
 #=============================================================================#
+delete_temp_files(){
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | Deleting temporary files...\n"
+	for file in "${temp_files[@]}"; do
+		if [ $file == $OUTPUT_BASE"read_classes.tsv.gz" ] & $KEEP_CLASSES; then
+			continue
+		elif [ $file == $OUTPUT_BASE"output.bam" ] & $KEEP_BAM; then
+			continue
+		else
+			rm $file
+		fi
+	done
+}
+
 end_run() {
 	### Classify reads
 	Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE
@@ -95,17 +110,13 @@ end_run() {
 
 	### Create a subdir named "plots" and make summary plots in it
 	Rscript $PIPELINE_DIR/scripts/summary_plots.R -o $OUTPUT_BASE
+	check_exitcode
 
 	### Delete the temporary files 
 	if ! $KEEP_TEMP; then
-		printf "$(date +'%d/%b/%Y %H:%M:%S') | Deleting temporary files...\n"
-		for file in "${temp_files[@]}"; do
-			rm $file
-		done
-		if ! $KEEP_CLASSES; then
-			rm $OUTPUT_BASE"read_classes.tsv.gz"
-		fi
-	fi 
+		delete_temp_files
+	fi
+	check_exitcode
 
 	### Print completion message
 	if [ "${OUTPUT_BASE: -1}" == "/" ];then
@@ -141,6 +152,7 @@ check_exitcode() {
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Mapping reads to genome...\n"
 if [ "$SEQ_TYPE" == "single" ]; then
+	# Map
 	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
 	       $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -U $INPUT_FILES \
 		> $output_sam
