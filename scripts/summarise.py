@@ -121,19 +121,6 @@ READ_COUNTS_TEMPLATE = (
 
 NONLINEAR_READ_CLASSES = ("No_alignment", "Fivep_alignment", 'In_repetitive_region', 
 						'Template_switching', 'Circularized_intron', 'Lariat')
-#=============================================================================#
-#                               Functions                                     #
-#=============================================================================#
-def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
-	'''
-	Get the number of reads that mapped to the reference genome
-	'''
-	command = f'samtools view --count --exclude-flags 12 {OUTPUT_BAM_FILE.format(output_base)}'
-	count = int(functions.run_command(command, log=log))
-	if seq_type == 'paired':
-		count = count//2
-
-	return count
 
 
 
@@ -185,7 +172,8 @@ if __name__ == '__main__':
 	# Add linear read class counts
 	linear_counts = pd.read_csv(LINEAR_COUNTS_FILE.format(output_base), sep='\t')
 	stats.update(linear_counts.iloc[0].to_dict())
-
+	stats['Linear'] = stats['total_reads']
+	
 	# Add nonlinear read class counts
 	read_classes = pd.read_csv(READ_CLASSES_FILE.format(output_base), sep='\t', na_filter=False)
 	read_classes.read_class = (read_classes.read_class
