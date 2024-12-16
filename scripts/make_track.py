@@ -62,19 +62,18 @@ if __name__ == '__main__':
  	# start and end are currently float type, must correct so that 12345.0 -> 12345
 	lariat_reads.start = lariat_reads.start.astype(int)
 	lariat_reads.end = lariat_reads.end.astype(int)
-	lariat_reads.thick_start = lariat_reads.thick_start.astype(int)
 	
 	# Set the remaining column values 
 	lariat_reads['score'] = 0
 	lariat_reads['thick_start'] = lariat_reads.bp_pos
-	lariat_reads['thick_end'] = lariat_reads['thick_start'] + 1
+	lariat_reads['thick_end'] = lariat_reads.thick_start + 1
 	lariat_reads['rgb'] = COLOR
 	lariat_reads['n_blocks'] = 2
 
 	# Write bed to file
 	lariat_reads = lariat_reads[['chrom', 'start', 'end', 'read_id', 'score', 'strand', 'thick_start', 'thick_end', 'rgb', 'n_blocks', 'block_sizes', 'block_starts']]
 	with open(f'{output_base}lariat_reads.bed', 'w') as w:
-		w.write(f'track name=Lariats itemRgb=On visibility="squish"\n')
+		w.write(f'track name=Lariats itemRgb=On visibility="full"\n')
 	lariat_reads.to_csv(f'{output_base}lariat_reads.bed', mode='a', sep='\t', index=False, header=False)
 
 	log.debug('End of script')
