@@ -44,6 +44,7 @@ def test_bp_correction(method_combo, log_level, tmp_path):
 # def test_bp_correction(method_combo, verbosity, tmp_path):
 	command = f"Rscript {PACKAGE_DIR/'scripts'/'bp_correction_wrapper.R'}" +\
 				f" --input {TEST_DIR/'inputs'/'lariat_reads.tsv'}" +\
+				f" --ref_fasta {TEST_DIR/'inputs'/'hg38.demo.fa.gz'}" +\
 				f" --file {PACKAGE_DIR/'scripts'/'bp_correction.R'}" +\
 				' ' + method_combo.method_arg +\
 				' ' + method_combo.path_arg +\

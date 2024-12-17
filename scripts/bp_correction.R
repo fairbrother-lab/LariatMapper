@@ -2,6 +2,7 @@ require(Biostrings)
 require(magrittr)
 require(GenomicRanges)
 require(GenomicFeatures)
+require(bedtoolsr)
 
 shift_matching <- function(bp_gr, pattern_l, offset, genome, correct_upstream = T, debug = T, make_plot = T){
 
@@ -411,20 +412,27 @@ subset_seq <- function(string, win_size, pwm_len, bp_pos, offset, correct_upstre
 
 }
 
-trim_string <- function(input_string, shift_loc) {
-  # Calculate the number of characters to trim
-  trim_length <- abs(shift_loc) * 2
-  
-  if (shift_loc > 0) {
-    # Trim off the left shift_loc * 2 characters
-    result <- substr(input_string, trim_length + 1, nchar(input_string))
-  } else if (shift_loc < 0) {
-    # Trim off the right shift_loc * 2 characters
-    result <- substr(input_string, 1, nchar(input_string) - trim_length)
-  } else {
-    # If shift_loc is 0, return the original string
-    result <- input_string
-  }
-  
-  return(result)
+get_context_seq <- function(file, ref_fasta, correction_context_size){
+	context_bed = data.frame(
+		'chrom' = file$chrom,
+		'start' = c(file$bp_pos - correction_context_size),
+		'end' = c(file$bp_pos + correction_context_size + 1),
+		'id' = file$read_id,
+		'score' = rep(0, nrow(file)),
+		'strand' = file$strand
+	)
+
+	context_seq <- bt.getfasta(ref_fasta, 
+							context_bed,
+							bedOut=T,
+							s=T)
+	
+	context_seq <- context_seq[[7]] %>% DNAStringSet() %>% as.matrix()
+	
+	return(context_seq)
+}
+
+trim_context <- function(context_seq, shift_loc, out_context_size){
+
+
 }

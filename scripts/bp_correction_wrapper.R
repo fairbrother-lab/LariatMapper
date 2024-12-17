@@ -9,6 +9,8 @@ args <- commandArgs(trailingOnly = TRUE)
 option_list <- list(
     make_option(c("-i", "--input"), type = "character", default = NULL, 
                 help = "Input file: lariat_read.tsv", metavar = "INPUT_PATH"),
+    make_option(c("-r", "--ref_fasta"), type = "character", default = NULL, 
+                help = "m"),
     make_option(c("-f", "--file"), type = "character", default = NULL, 
                 help = "Path to utils R file", metavar = "FILE_PATH"),
     make_option(c("-s", "--window_size"), type = "numeric", default = 2, 
@@ -22,6 +24,8 @@ option_list <- list(
                 help = "Path to PWM matrix file, when PWM is enabled for --method. Multiple paths can be provided separated by commas", metavar = "PWM_PATH"),
     make_option(c("-e", "--model_path"), type = "character", default = NULL, 
                 help = "Path to pre-computed model file, when Model-based is enabled for --method", metavar = "MODEL_PATH"),
+    make_option(c("-c", "--out_context_size"), type = "numeric", default = 8, 
+                help = "k"),
     make_option(c("-o", "--output_base"), type = "character", default = NULL, 
                 help = "Path to output", metavar = "OUT_PATH"),
 	make_option(c("-l", "--log_level"), type = "character", default = "INFO", 
@@ -32,12 +36,14 @@ parser <- OptionParser(option_list = option_list)
 opts <- parse_args(parser)
 
 input_lariat <- opts$input
+ref_fasta <- opts$ref_fasta
 utils_R <- opts$file
 offset <- opts$window_size
 correct_upstream <- opts$both_upstream_downstream
 correction_method <- opts$method
 pwm_path <- opts$PWM_path
 model_path <- opts$model_path
+out_context_size <- opts$out_context_size
 output_dir <- opts$output_base
 log_level <- opts$log_level
 
@@ -113,16 +119,26 @@ corrected_bp_dist_to_threep <- ifelse(file$strand == "+",
                                       file$threep_pos - file$corrected_bp_pos)
 file <- as.data.frame(append(file, list("corrected_bp_dist_to_threep" = corrected_bp_dist_to_threep), after = 9))
 
-context_seq <- file$genomic_bp_context %>% DNAStringSet() %>% as.matrix()
+# context_seq <- file$genomic_bp_context %>% DNAStringSet() %>% as.matrix()
+correction_context_size = out_context_size + offset
+if(correction_method == "PWM"){
+  max_pwm_size = max(sapply(pwm_l, function(x) {ncol(x$pwm)}))
+  correction_context_size = max(correction_context_size, max_pwm_size+offset-1)
+}
+context_seq <- get_context_seq(file, ref_fasta, correction_context_size)
+
 shift_loc <- corrected_gr$adjust_loc
 c_loc <- ((ncol(context_seq) - 1)/2)+1
+corrected_genomic_bp_nt <- sapply(seq_along(shift_loc), function(x){
+  context_seq[x, c_loc + shift_loc[x]: c_loc+shift_loc[x]]
+})
 corrected_genomic_bp_nt <- sapply(seq_along(shift_loc), function(x){
   context_seq[x, c_loc + shift_loc[x]]
 })
 file <- as.data.frame(append(file, list("corrected_genomic_bp_nt" = corrected_genomic_bp_nt), after = 15))
 corrected_bp_mismatch = ifelse(file$read_bp_nt != file$corrected_genomic_bp_nt, "True", "False")
 file <- as.data.frame(append(file, list("corrected_bp_mismatch" = corrected_bp_mismatch), after = 17))
-corrected_genomic_bp_context <- mapply(trim_string, file$genomic_bp_context, shift_loc)
+corrected_genomic_bp_context <- mapply(trim_context, context_seq, shift_loc, out_context_size)
 file <- as.data.frame(append(file, list("corrected_genomic_bp_context" = corrected_genomic_bp_context), after = 19))
 
 file$corrected <- ifelse(corrected_gr$status == "corrected", "True", "False")
