@@ -1,8 +1,8 @@
-require(Biostrings)
-require(magrittr)
-require(GenomicRanges)
-require(GenomicFeatures)
-require(bedtoolsr)
+suppressPackageStartupMessages(require(Biostrings))
+suppressPackageStartupMessages(require(magrittr))
+suppressPackageStartupMessages(require(GenomicRanges))
+suppressPackageStartupMessages(require(GenomicFeatures))
+suppressPackageStartupMessages(require(bedtoolsr))
 
 shift_matching <- function(bp_gr, pattern_l, offset, genome, correct_upstream = T, debug = T, make_plot = T){
 
