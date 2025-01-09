@@ -4,6 +4,7 @@ suppressPackageStartupMessages(require(GenomicRanges))
 suppressPackageStartupMessages(require(Biostrings))
 suppressPackageStartupMessages(require(GenomicFeatures))
 
+
 args <- commandArgs(trailingOnly = TRUE)
 
 option_list <- list(
@@ -46,6 +47,10 @@ model_path <- opts$model_path
 out_context_size <- opts$out_context_size
 output_dir <- opts$output_base
 log_level <- opts$log_level
+
+### Source utils
+source(utils_R)
+###
 
 # Process paths
 if(correction_method == "PWM"){
@@ -95,11 +100,8 @@ file <- read.csv(input_lariat, sep = "\t")
 gr <- GRanges(seqnames = file$chrom,
               IRanges(file$bp_pos + 1, width = 1),
               strand = file$strand)
-genome <- file$genomic_bp_context
-
-### Source utils
-source(utils_R)
-###
+# genome <- file$genomic_bp_context
+genome <- get_context_seq(file, ref_fasta, out_context_size, offset, correction_method, pwm_l)
 
 ### Running the step
 debug = ifelse(log_level %in% c("DEBUG", "INFO"), T, F)
@@ -110,37 +112,30 @@ if(correction_method == "PWM"){
 }
 ###
 
-### Modify lariat_reads.tsv
+### Add <corrected_XXX> columns to lariat_reads.tsv
+context_seq <- genome %>% DNAStringSet() %>% as.matrix()
+shift_loc <- corrected_gr$adjust_loc
+c_loc <- ((ncol(context_seq) - 1)/2)+1
+
 corrected_bp_pos <- start(corrected_gr$bp_pos) - 1
 file <- as.data.frame(append(file, list("corrected_bp_pos" = corrected_bp_pos), after = 6))
-
 corrected_bp_dist_to_threep <- ifelse(file$strand == "+", 
                                       file$corrected_bp_pos - file$threep_pos, 
                                       file$threep_pos - file$corrected_bp_pos)
 file <- as.data.frame(append(file, list("corrected_bp_dist_to_threep" = corrected_bp_dist_to_threep), after = 9))
-
-# context_seq <- file$genomic_bp_context %>% DNAStringSet() %>% as.matrix()
-correction_context_size = out_context_size + offset
-if(correction_method == "PWM"){
-  max_pwm_size = max(sapply(pwm_l, function(x) {ncol(x$pwm)}))
-  correction_context_size = max(correction_context_size, max_pwm_size+offset-1)
-}
-context_seq <- get_context_seq(file, ref_fasta, correction_context_size)
-
-shift_loc <- corrected_gr$adjust_loc
-c_loc <- ((ncol(context_seq) - 1)/2)+1
 corrected_genomic_bp_nt <- sapply(seq_along(shift_loc), function(x){
-  context_seq[x, c_loc + shift_loc[x]: c_loc+shift_loc[x]]
-})
-corrected_genomic_bp_nt <- sapply(seq_along(shift_loc), function(x){
-  context_seq[x, c_loc + shift_loc[x]]
+  context_seq[x, c_loc+shift_loc[x]]
 })
 file <- as.data.frame(append(file, list("corrected_genomic_bp_nt" = corrected_genomic_bp_nt), after = 15))
+corrected_genomic_bp_context <- sapply(seq_along(shift_loc), function(x){
+  start <- c_loc + shift_loc[x] - out_context_size
+  end <- c_loc + shift_loc[x] + out_context_size
+  trimmed_seq <- context_seq[x, start:end]
+  paste(trimmed_seq, collapse="")
+})
+file <- as.data.frame(append(file, list("corrected_genomic_bp_context" = corrected_genomic_bp_context), after = 19))
 corrected_bp_mismatch = ifelse(file$read_bp_nt != file$corrected_genomic_bp_nt, "True", "False")
 file <- as.data.frame(append(file, list("corrected_bp_mismatch" = corrected_bp_mismatch), after = 17))
-corrected_genomic_bp_context <- mapply(trim_context, context_seq, shift_loc, out_context_size)
-file <- as.data.frame(append(file, list("corrected_genomic_bp_context" = corrected_genomic_bp_context), after = 19))
-
 file$corrected <- ifelse(corrected_gr$status == "corrected", "True", "False")
 
 write.table(file, file.path(output_dir, "lariat_reads.tsv"),
