@@ -3,7 +3,6 @@ import pathlib
 import subprocess
 import sys
 
-import pandas as pd
 import pytest
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -57,19 +56,15 @@ def test_bp_correction(method_combo, log_level, tmp_path):
 	assert response.returncode == 0, response_text
 
 	# Check output
-	# ref = pd.read_csv(method_combo.output, sep='\t')
-	# out = pd.read_csv(tmp_path/'lariat_reads.tsv', sep='\t')
-	# test_utils.compare_tables(ref, out)
 	ref = method_combo.output
 	out = tmp_path/'lariat_reads.tsv'
 	ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 	if ref_lines == out_lines:
 		return
-
-	# If file contents differ, decide how to report
+	
+	# If the lines don't match, report the differences
+	# If in vscode, open the files for comparison
 	if test_utils.vscode_available():
-		test_utils.vscode_compare(ref, out)
-		pytest.fail(f'Output file differs from expected output: {out.name}')
-	else:
-		assert ref_lines == out_lines
-
+		test_utils.vscode_compare_sorted(ref, out)
+		
+	assert ref_lines == out_lines

@@ -116,6 +116,42 @@ def vscode_compare(file_a, file_b):
 	subprocess.run(['code', '--diff', file_a, file_b])
 
 
+def vscode_compare_sorted(ref_file:pathlib.Path, out_file:pathlib.Path):
+	"""
+	Compare two tab-separated files after sorting the output file by specific columns.
+
+	This function reads the output file into a DataFrame, sorts it by columns that are present
+	in both the DataFrame and the POSSIBLE_COLS list, and then writes the sorted DataFrame back
+	to the output file. Finally, it calls the vscode_compare function to compare the reference
+	file with the sorted output file.
+
+	Args:
+		ref_file (pathlib.Path): The path to the reference file.
+		out_file (pathlib.Path): The path to the output file to be sorted and compared.
+
+	Returns:
+		None
+	"""
+	try:
+		POSSIBLE_COLS = ('chrom', 'strand', 'read_orient_to_gene', 'align_is_reverse')
+		if out_file.suffix in ('.tsv', '.tsv.gz'):
+			out_df = pd.read_csv(out_file, sep='\t')
+			sort_cols = [col for col in POSSIBLE_COLS if col in out_df.columns]
+			out_df = out_df.sort_values(sort_cols)
+			out_df.to_csv(out_file, sep='\t', index=False)
+		else:
+			with open(out_file) as r:
+				lines = r.readlines()
+			lines.sort()
+			with open(out_file, 'w') as w:
+				w.writelines(lines)
+	except Exception as e:
+		print('WARNING! Error while sorting the output file in vscode_compare_sorted:', e)
+		print('Proceeding with unsorted output file.')
+
+	vscode_compare(ref_file, out_file)
+
+
 def check_read_bp_pos(file:pathlib.Path, circularized_introns:bool=False):
 	"""
 	Checks the base pair position in a read sequence from a given file.

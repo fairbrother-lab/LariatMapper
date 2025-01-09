@@ -1,7 +1,5 @@
-import gzip
 import os
 import pathlib
-import shutil
 import subprocess
 import sys
 
@@ -50,9 +48,9 @@ def test_filter_fivep_aligns(threads, prefix, strand, tmp_path):
 		if ref_lines == out_lines:
 			continue
 
-		# If file contents differ, decide how to report
+		# If the lines don't match, report the differences
+		# If in vscode, open the files for comparison
 		if test_utils.vscode_available():
-			test_utils.vscode_compare(ref, out)
-			pytest.fail(f'Output file differs from expected output: {out.name}')
-		else:
-			assert ref_lines == out_lines
+			test_utils.vscode_compare_sorted(ref, out)
+			
+		assert ref_lines == out_lines
