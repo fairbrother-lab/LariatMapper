@@ -100,7 +100,6 @@ file <- read.csv(input_lariat, sep = "\t")
 gr <- GRanges(seqnames = file$chrom,
               IRanges(file$bp_pos + 1, width = 1),
               strand = file$strand)
-# genome <- file$genomic_bp_context
 genome <- get_context_seq(file, ref_fasta, out_context_size, offset, correction_method, pwm_l)
 
 ### Running the step
@@ -133,7 +132,7 @@ corrected_genomic_bp_context <- sapply(seq_along(shift_loc), function(x){
   trimmed_seq <- context_seq[x, start:end]
   paste(trimmed_seq, collapse="")
 })
-file <- as.data.frame(append(file, list("corrected_genomic_bp_context" = corrected_genomic_bp_context), after = 19))
+file <- as.data.frame(append(file, list("corrected_genomic_bp_context" = corrected_genomic_bp_context), after = 18))
 corrected_bp_mismatch = ifelse(file$read_bp_nt != file$corrected_genomic_bp_nt, "True", "False")
 file <- as.data.frame(append(file, list("corrected_bp_mismatch" = corrected_bp_mismatch), after = 17))
 file$corrected <- ifelse(corrected_gr$status == "corrected", "True", "False")

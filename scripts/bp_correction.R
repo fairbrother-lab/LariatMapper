@@ -423,8 +423,8 @@ get_context_seq <- function(file, ref_fasta, out_context_size, offset, correctio
 	#     (i.e. the PWM length + <offset> bases on either side of the PWM)
 	correction_context_size = out_context_size + offset
 	if(correction_method == "PWM"){
-		max_pwm_size = max(sapply(pwm_l, function(x) {ncol(x$pwm)}))
-		correction_context_size = max(correction_context_size, max_pwm_size+offset-1)
+		max_pwm_size <- max(sapply(pwm_l, function(x) {ncol(x$pwm)}))
+		correction_context_size <- max(correction_context_size, max_pwm_size+offset-1)
 	}
 
 	# Make a .bed format dataframe to input into bedtools getfasta
@@ -448,9 +448,4 @@ get_context_seq <- function(file, ref_fasta, out_context_size, offset, correctio
 	context_seq <- context_seq[[7]]
 	
 	return(context_seq)
-}
-
-trim_context <- function(context_seq, shift_loc, out_context_size){
-
-
 }
