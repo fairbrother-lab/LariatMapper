@@ -44,7 +44,7 @@ def test_bp_correction(method_combo, log_level, tmp_path):
 # def test_bp_correction(method_combo, verbosity, tmp_path):
 	command = f"Rscript {PACKAGE_DIR/'scripts'/'bp_correction_wrapper.R'}" +\
 				f" --input {TEST_DIR/'inputs'/'lariat_reads.tsv'}" +\
-				f" --ref_fasta {TEST_DIR/'inputs'/'hg38.demo.fa.gz'}" +\
+				f" --ref_fasta {TEST_DIR/'inputs'/'hg38.demo.fa'}" +\
 				f" --file {PACKAGE_DIR/'scripts'/'bp_correction.R'}" +\
 				' ' + method_combo.method_arg +\
 				' ' + method_combo.path_arg +\
@@ -52,7 +52,7 @@ def test_bp_correction(method_combo, log_level, tmp_path):
 	for optional_arg in (log_level,):
 		if optional_arg is not None:
 			command += ' ' + optional_arg
-
+	print(command)
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr
 	assert response.returncode == 0, response_text
