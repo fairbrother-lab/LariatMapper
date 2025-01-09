@@ -255,6 +255,7 @@ check_exitcode
 if ! [ "$PWM_FILES" == "" ]; then
 	Rscript $PIPELINE_DIR/scripts/bp_correction_wrapper.R \
 		--input "$OUTPUT_BASE"lariat_reads.tsv \
+		--ref_fasta $GENOME_FASTA \
 		--file $PIPELINE_DIR/scripts/bp_correction.R \
 		--both_upstream_downstream \
 		--method PWM \
@@ -265,6 +266,7 @@ if ! [ "$PWM_FILES" == "" ]; then
 elif ! [ "$MODEL_FILE" == "" ]; then
 	Rscript $PIPELINE_DIR/scripts/bp_correction_wrapper.R \
 		--input "$OUTPUT_BASE"lariat_reads.tsv \
+		--ref_fasta $GENOME_FASTA \
 		--file $PIPELINE_DIR/scripts/bp_correction.R \
 		--both_upstream_downstream \
 		--method Model-based \

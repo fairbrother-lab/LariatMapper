@@ -15,6 +15,7 @@ pyfaidx
 pysam
 python>=3.9, <=3.11
 r-base
+r-bedtoolsr
 r-ggplot2
 r-gt
 r-magrittr

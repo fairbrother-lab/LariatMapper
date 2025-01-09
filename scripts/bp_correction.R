@@ -1,7 +1,8 @@
-require(Biostrings)
-require(magrittr)
-require(GenomicRanges)
-require(GenomicFeatures)
+suppressPackageStartupMessages(require(Biostrings))
+suppressPackageStartupMessages(require(magrittr))
+suppressPackageStartupMessages(require(GenomicRanges))
+suppressPackageStartupMessages(require(GenomicFeatures))
+suppressPackageStartupMessages(require(bedtoolsr))
 
 shift_matching <- function(bp_gr, pattern_l, offset, genome, correct_upstream = T, debug = T, make_plot = T){
 
@@ -411,20 +412,40 @@ subset_seq <- function(string, win_size, pwm_len, bp_pos, offset, correct_upstre
 
 }
 
-trim_string <- function(input_string, shift_loc) {
-  # Calculate the number of characters to trim
-  trim_length <- abs(shift_loc) * 2
-  
-  if (shift_loc > 0) {
-    # Trim off the left shift_loc * 2 characters
-    result <- substr(input_string, trim_length + 1, nchar(input_string))
-  } else if (shift_loc < 0) {
-    # Trim off the right shift_loc * 2 characters
-    result <- substr(input_string, 1, nchar(input_string) - trim_length)
-  } else {
-    # If shift_loc is 0, return the original string
-    result <- input_string
-  }
-  
-  return(result)
+get_context_seq <- function(file, ref_fasta, out_context_size, offset, correction_method, pwm_l){
+	# Use bedtools implementation from bedtoolsr to get the context sequence 
+	# (branchpoint ± correction_context_size) for each row in lariat_reads.tsv
+
+	# Calculate the correction context size to ensure that 
+	#  1) The context window is wide enough to include <out_context_size> bases on either side of the corrected branchpoint position,
+	#     even if the branchpoint shifts by the max <offset> bases
+	#  2) If the correction method is PWM, the context window is wide enough to include the whole PWM
+	#     (i.e. the PWM length + <offset> bases on either side of the PWM)
+	correction_context_size = out_context_size + offset
+	if(correction_method == "PWM"){
+		max_pwm_size <- max(sapply(pwm_l, function(x) {ncol(x$pwm)}))
+		correction_context_size <- max(correction_context_size, max_pwm_size+offset-1)
+	}
+
+	# Make a .bed format dataframe to input into bedtools getfasta
+	context_bed <- data.frame(
+		'chrom' = file$chrom,
+		'start' = c(file$bp_pos - correction_context_size),
+		'end' = c(file$bp_pos + correction_context_size + 1),
+		'id' = file$read_id,
+		'score' = rep(0, nrow(file)),
+		'strand' = file$strand
+	)
+	# print(context_bed)
+	# Run bedtools getfasta
+	context_seq <- bt.getfasta(ref_fasta, 
+							context_bed,
+							bedOut=T,
+							s=T)
+					
+	# Extract the sequence from the bedtools output
+	# context_seq <- context_seq[[7]] %>% DNAStringSet() %>% as.matrix()
+	context_seq <- context_seq[[7]]
+	
+	return(context_seq)
 }
