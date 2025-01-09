@@ -1,11 +1,8 @@
-import gzip
 import os
 import pathlib
-import shutil
 import subprocess
 import sys
 
-import pandas as pd
 import pytest
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -51,10 +48,9 @@ def test_filter_lariats(prefix, seq_type, tmp_path):
 		if ref_lines == out_lines:
 			continue
 
-		# File contents differ, decide how to report
+		# If the lines don't match, report the differences
+		# If in vscode, open the files for comparison
 		if test_utils.vscode_available():
-			test_utils.vscode_compare(ref, out)
-			print(response_text)
-			pytest.fail(f'Output file differs from expected output: {out.name}')
-		else:
-			assert ref_lines == out_lines, response_text
+			test_utils.vscode_compare_sorted(ref, out)
+			
+		assert ref_lines == out_lines

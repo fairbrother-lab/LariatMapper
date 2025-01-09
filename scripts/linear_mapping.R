@@ -59,7 +59,7 @@ linear_map <- function(file, gene_gr, exon_gr, intron_gr, ...){
     premrna_counts[premrna_counts < 0] <- 0
     exon_junc_counts[exon_junc_counts < 0] <- 0
 
-    return(list(gene_counts = premrna_counts + exon_only_counts_by_gene + exon_junc_counts + intron_counts,
+    return(list(gene_counts = gene_counts,
                 premrna_counts = premrna_counts,
                 exon_counts = exon_only_counts_by_gene, 
                 exon_junc_counts = exon_junc_counts,
@@ -67,7 +67,7 @@ linear_map <- function(file, gene_gr, exon_gr, intron_gr, ...){
 
 }
 
-linear_map_integrate <- function(file, gene_gr, exon_gr, intron_gr, ...){
+linear_map_integrate <- function(file, gene_gr, exon_gr, intron_gr, gene_sum_corrected = T, ...){
 
     map_res <- linear_map(file, gene_gr = gene_gr, exon_gr = exon_gr, intron_gr = intron_gr,
                           ...)
@@ -96,6 +96,10 @@ linear_map_integrate <- function(file, gene_gr, exon_gr, intron_gr, ...){
     merge(intron_counts, by = "gene_id", all = T) 
 
     count_df[is.na(count_df)] <- 0
+
+    if(gene_sum_corrected){
+        count_df$gene <- count_df[c("exon_intron_junc", "exon_only", "exon_exon_junc", "intron_only")] %>% rowSums()
+    }
 
     return(count_df)
 
