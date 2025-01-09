@@ -61,7 +61,7 @@ def test_build_references(anno, repeatmasker_bed, threads, copy, verbosity, tmp_
 
 		# If file contents differ, decide how to report
 		if test_utils.vscode_available():
-			test_utils.vscode_compare(ref, out)
+			test_utils.vscode_compare_sorted(ref, out)
 			pytest.fail(f'Output file differs from expected output: {out.name}')
 		else:
 			assert ref_lines == out_lines
