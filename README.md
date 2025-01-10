@@ -56,67 +56,24 @@ For paired-end sequencing data, run
 
 LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers (UMIs) for reliable results. 
 
+## Options
+### Putative branchpoint correction
+Content
 
-### All arguments
-```
-Input read files:
-  Provide either two paired-end read files or one single-end read file. Files can be uncompressed or gzip-compressed
-	-1 READ_ONE, --read_one READ_ONE
-                        Read 1 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f
-	-2 READ_TWO, --read_two READ_TWO
-                        Read 2 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f
-	-f READ_FILE, --read_file READ_FILE
-                        Input FASTQ file when processing single-end RNA-seq data. Mutually exclusive with -1 and -2
+### Specifying refs
+Content
 
-Reference files:
-	-r REF_DIR, --ref_dir REF_DIR
-                        Directory with reference files created by build_references.py
-
-Output:
-	-o OUTPUT_DIR, --output_dir OUTPUT_DIR
-                        Directory for output files. Will be created if it does not exist
-
-Optional arguments:
-	-s {Unstranded,First,Second}, --strand {Unstranded,First,Second}
-                        WARNING, EXPERIMENTAL FEATURE STILL IN DEVELOPMENT! Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)
-	-m REF_REPEATMASKER, --ref_repeatmasker REF_REPEATMASKER
-                        BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering
-	-i REF_H2INDEX, --ref_h2index REF_H2INDEX
-                        hisat2 index of the reference genome (Default = REF_DIR/hisat2_index)
-	-g REF_FASTA, --ref_fasta REF_FASTA
-                        FASTA file of the reference genome (Default = REF_DIR/genome.fa)
-	-5 REF_5P_FASTA, --ref_5p_fasta REF_5P_FASTA
-                        FASTA file with sequences of first 20nt of annotated introns (Default = REF_DIR/fivep_sites.fa)
-	-n REF_INTRONS, --ref_introns REF_INTRONS
-                        TSV file of all annotated introns (Default = REF_DIR/introns.tsv.gz)
-	-p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
-                        Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv)
-	-u, --ucsc_track      
-  						Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments
-	-c, --keep_classes    
-						Keep a file with per-read classification named "read_classes.tsv.gz" in the output (Default = delete)
-	-k, --keep_temp       
-						Keep all temporary files created while running the pipeline. Forces -c/--keep_classes (Default = delete)
-	-t THREADS, --threads THREADS
-                        Number of threads to use for parallel processing (Default = 1)
-	-x, --skip_version_check
-                        Don't check if LariatMapper is up-to-date with the main branch on GitHub (Default = check and warn if not up-to-date)
-	-q, --quiet           
-						Only print fatal error messages (sets logging level to ERROR, Default = INFO). Mutually exclusive with -w and -d
-	-w, --warning         
-						Print warning messages and fatal error messages (sets logging level to WARNING, Default = INFO). Mutually exclusive with -q and -d
-	-d, --debug           
-						Print extensive status messages (sets logging level to DEBUG, Default = INFO). Mutually exclusive with -q and -w
-```
 
 ## Output
 All output will be written in the directory `OUT_DIR`. This includes:
-	
+
 - `lariat_reads.tsv`: A table of lariat reads and their alignments
 - `circularized_intron_reads.tsv`: A table of circularized intron reads and their alignments
 - `template_switching_reads.tsv`: A table of template-switching reads and their alignments
 - `summary.txt`: A collection of metadata and summary statistics for the run
 
+<details>
+	<summary>Click me</summary>
 `lariat_reads.tsv` and  columns:
 
 - read_id: The read's ID (unique)
@@ -167,12 +124,37 @@ All output will be written in the directory `OUT_DIR`. This includes:
 *May be multiple comma-delimited values
 
 All position values are 0-based and inclusive. 
-
+</details>
 If a lariat's 5' splice site and branchpoint could be attributed to multiple gene annotations, the gene values will appear like so:
 
 	gene_name	gene_id	gene_type
 	PCBP2,ENSG00000257379	ENSG00000197111.16,ENSG00000257379.1	lncRNA,protein_coding
 
+## Contact
+
+
+## Software attributions
+- **bedtoolsr**: Patwardhan, Mayura; Wenger, Craig D.; Davis, Eric S.; Phanstiel, Douglas H.: "Bedtoolsr: An R package for genomic data analysis and manipulation" (in preparation).
+- **Biostrings**: Pagès H, Aboyoun P, Gentleman R, DebRoy S (2024). Biostrings: Efficient manipulation of biological strings. R package version 2.74.1, https://bioconductor.org/packages/Biostrings.
+- **Bowtie2**: Langmead, B., Salzberg, S. Fast gapped-read alignment with Bowtie 2. Nat Methods 9, 357–359 (2012). https://doi.org/10.1038/nmeth.1923
+- **fsspec**: https://github.com/fsspec/filesystem_spec
+- **GenomicAlignments**, **GenomicFeatures**, **GenomicRanges**: Lawrence M, Huber W, Pagès H, Aboyoun P, Carlson M, Gentleman R, Morgan M, Carey V (2013). “Software for Computing and Annotating Genomic Ranges.” PLoS Computational Biology, 9. doi:10.1371/journal.pcbi.1003118, http://www.ploscompbiol.org/article/info%3Adoi%2F10.1371%2Fjournal.pcbi.1003118. 
+- **ggplot2**: Wickham H (2016). ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York. ISBN 978-3-319-24277-4, https://ggplot2.tidyverse.org.
+- **gt**: Iannone R, Cheng J, Schloerke B, Hughes E, Lauer A, Seo J, Brevoort K, Roy O (2025). gt: Easily Create Presentation-Ready Display Tables. R package version 0.11.1.9000, https://github.com/rstudio/gt, https://gt.rstudio.com.
+- **HISAT2**: Kim, D., Paggi, J.M., Park, C. et al. Graph-based genome alignment and genotyping with HISAT2 and HISAT-genotype. Nat Biotechnol 37, 907–915 (2019). https://doi.org/10.1038/s41587-019-0201-4
+- **intervaltree**: https://github.com/chaimleib/intervaltree
+- **magrittr**: Bache S, Wickham H (2022). magrittr: A Forward-Pipe Operator for R. https://magrittr.tidyverse.org, https://github.com/tidyverse/magrittr.  
+- **NumPy**: Harris, C.R., Millman, K.J., van der Walt, S.J. et al. Array programming with NumPy. Nature 585, 357–362 (2020). DOI: 10.1038/s41586-020-2649-2. (Publisher link).
+- **optparse**: Davis T (2024). _optparse: Command Line Option Parser_. R package version 1.7.5, <https://CRAN.R-project.org/package=optparse>.
+- **pandas**: The pandas development team. (2024). pandas-dev/pandas: Pandas (v2.2.3). Zenodo. https://doi.org/10.5281/zenodo.13819579
+- **pyfaidx**: Shirley MD, Ma Z, Pedersen B, Wheelan S. Efficient "pythonic" access to FASTA files using pyfaidx. PeerJ PrePrints 3:e1196. 2015. 
+- **pysam**: https://github.com/pysam-developers/pysam
+- **rtracklayer**: Lawrence M, Gentleman R, Carey V (2009). “rtracklayer: an R package for interfacing with genome browsers.” Bioinformatics, 25, 1841-1842. doi:10.1093/bioinformatics/btp328, http://bioinformatics.oxfordjournals.org/content/25/14/1841.abstract.
+- **tidyverse**:   Wickham H, Averick M, Bryan J, Chang W, McGowan LD, François R, Grolemund G, Hayes A, Henry L, Hester J, Kuhn M, Pedersen TL, Miller E, Bache SM, Müller K, Ooms J, Robinson D, Seidel DP, Spinu V, Takahashi K, Vaughan D, Wilke C, Woo K, Yutani H (2019). “Welcome to the tidyverse.” _Journal of Open Source Software_, *4*(43), 1686. doi:10.21105/joss.01686 <https://doi.org/10.21105/joss.01686>.
+- **samtools**: Petr Danecek, James K Bonfield, Jennifer Liddle, John Marshall, Valeriu Ohan, Martin O Pollard, Andrew Whitwham, Thomas Keane, Shane A McCarthy, Robert M Davies, Heng Li, Twelve years of SAMtools and BCFtools, GigaScience, Volume 10, Issue 2, February 2021, giab008, https://doi.org/10.1093/gigascience/giab008
+
+LariatMapper was developed from an in-house analysis pipeline which was first publicized in "Large-scale mapping of branchpoints in human
+pre-mRNA transcripts in vivo" by Taggart et al. (2012). 
 
 ## Additional information
 See DEMO.md for a demonstration of a basic LariatMapper run.
