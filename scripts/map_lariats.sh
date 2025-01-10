@@ -98,9 +98,10 @@ delete_temp_files(){
 
 end_run() {
 	### Classify reads
-	printf "$(date +'%d/%b/%Y %H:%M:%S') | Classifying reads...\n"
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | Classifying linearly-aligned reads...\n"
 	Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE
 	check_exitcode
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | Classifying non-linearly-aligned reads...\n"
 	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL 
 	check_exitcode
 
@@ -111,6 +112,7 @@ end_run() {
 	check_exitcode
 
 	### Create a subdir named "plots" and make summary plots in it
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | Building plots...\n"
 	Rscript $PIPELINE_DIR/scripts/summary_plots.R -o $OUTPUT_BASE
 	check_exitcode
 
@@ -253,6 +255,7 @@ check_exitcode
 
 ### Correct branchpoint positions, if extra files are provided
 if ! [ "$PWM_FILES" == "" ]; then
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | Correcting branchpoints with PWMs...\n"
 	Rscript $PIPELINE_DIR/scripts/bp_correction_wrapper.R \
 		--input "$OUTPUT_BASE"lariat_reads.tsv \
 		--ref_fasta $GENOME_FASTA \
@@ -264,6 +267,7 @@ if ! [ "$PWM_FILES" == "" ]; then
 		--output_base $OUTPUT_BASE 
 	check_exitcode
 elif ! [ "$MODEL_FILE" == "" ]; then
+	printf "$(date +'%d/%b/%Y %H:%M:%S') | Correcting branchpoints with DeepEnsemble...\n"
 	Rscript $PIPELINE_DIR/scripts/bp_correction_wrapper.R \
 		--input "$OUTPUT_BASE"lariat_reads.tsv \
 		--ref_fasta $GENOME_FASTA \
