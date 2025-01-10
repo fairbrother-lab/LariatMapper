@@ -138,13 +138,13 @@ if __name__ == '__main__':
 	# Make neccesary output files if they are absent due to the run ending early
 	if not os.path.isfile(f'{output_base}lariat_reads.tsv'):
 		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
-			w.write('\t'.join(FINAL_RESULTS_COLS))
+			w.write('\t'.join(FINAL_RESULTS_COLS) + '\n')
 	if not os.path.isfile(f'{output_base}circularized_intron_reads.tsv'):
 		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
-			w.write('\t'.join(CIRCULARS_COLS))
+			w.write('\t'.join(CIRCULARS_COLS) + '\n')
 	if not os.path.isfile(f'{output_base}template_switching_reads.tsv'):
 		with open(f'{output_base}template_switching_reads.tsv', 'w') as w:
-			w.write('\t'.join(TEMP_SWITCH_COLS))
+			w.write('\t'.join(TEMP_SWITCH_COLS) + '\n')
 
 
 	# Initialise stats dict
@@ -158,7 +158,7 @@ if __name__ == '__main__':
 	if settings['pwm_correction'] != "":
 		stats['bp_correction'] = "Position weight matrix"
 		stats['bp_correction_files'] = settings['pwm_correction']
-	elif settings['bp_correction'] != "":
+	elif settings['model_correction'] != "":
 		stats['bp_correction'] = "Machine-learning model"
 		stats['bp_correction_files'] = settings['model_correction']
 	else:

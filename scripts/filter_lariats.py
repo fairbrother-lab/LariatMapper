@@ -56,11 +56,6 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	# If no reads are left, end the run early
 	if lariat_reads.empty:
 		log.info('No reads remaining')
-		with open(LARIATS_FILE.format(output_base), 'w') as w:
-			w.write('\t'.join(FINAL_RESULTS_COLS))
-		with open(FAILED_LARIATS_FILE.format(output_base), 'w') as w:
-			w.write('\t'.join(FINAL_RESULTS_COLS) + '\tfilter_failed')
-
 		sys.exit(4)
 
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
