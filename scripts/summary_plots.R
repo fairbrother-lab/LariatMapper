@@ -117,9 +117,9 @@ dists = (
 		)
 )
 # Get peak height for placing bracket relative to peak
-peak_height = max(ggplot_build(dists)$data[[1]]$y)
+densities = ggplot_build(dists)$data[[1]]$y
+peak_height = ifelse(any(is.na(densities)), 1, max(densities))
 within_70_height = peak_height * 1.1
-# within_limit_height = peak_height * 1.2
 distal_height = peak_height * 1.25
 
 dist_70 = sum(abs(lariats$bp_dist_to_threep)<=70)
