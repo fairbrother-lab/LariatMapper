@@ -13,6 +13,7 @@ pandas
 pyarrow
 pyfaidx
 pysam
+pytest
 python>=3.9, <=3.11
 r-base
 r-bedtoolsr
