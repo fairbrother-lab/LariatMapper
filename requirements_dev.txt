@@ -1,4 +1,5 @@
 ipykernel
+pytest
 pytest-xdist
 r-irkernel
 scalene
