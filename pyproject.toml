@@ -1,3 +1,5 @@
+# WORK IN PROGRESS
+
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -9,10 +11,10 @@ description = "A tool for mapping lariats in RNA-sequencing data to the genome"
 readme = "README.md"
 requires-python = ">=3.9, <=3.11"
 license = { file = "LICENSE" }
-authors = [ ]	#TODO: Fill this in before public release
-maintainers = [ ]	#TODO: Fill this in before public release
-keywords = [ ]	#TODO: Fill this in before public release
-classifiers = [ ]	#TODO: Fill this in before public release
+authors = [ ]	#TODO: Fill this in before full release
+maintainers = [ ]	#TODO: Fill this in before full release
+keywords = [ ]	#TODO: Fill this in before full release
+classifiers = [ ]	#TODO: Fill this in before full release
 # "dynamic" dependency specification for pip/conda compatibility and avoiding repetition
 # based on https://stackoverflow.com/questions/76722680/what-is-the-best-way-to-combine-conda-with-standard-python-packaging-tools-e-g
 dynamic = ["dependencies", "optional-dependencies"]
