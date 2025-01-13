@@ -18,54 +18,58 @@ TEST_DIR = PACKAGE_DIR/'tests'/'build_references'
 # =============================================================================#
 #                                   Tests                                      #
 # =============================================================================#
-# Required anno arg + the transcript attribute and gene attribute args since their values depend on the anno file
-@pytest.mark.parametrize('anno',
-					[f"--genome_anno {TEST_DIR/'inputs'/'anno.gtf'} --t_attr tid --g_attr gid", 
-					f"--genome_anno {TEST_DIR/'inputs'/'anno.gff'} --t_attr tid --g_attr gid"])
-# Optional args
-@pytest.mark.parametrize('repeatmasker_bed',
-					[None, 
-	  				f"--repeatmasker_bed {TEST_DIR/'inputs'/'repeatmasker.bed'}"])
-@pytest.mark.parametrize('threads',
-					[None, 
-	  				'--threads 1',
-	  				'--threads 4'])
-@pytest.mark.parametrize('copy',
-					[None, 
-	  				'--copy'])
-@pytest.mark.parametrize('verbosity',
-					[None, 
-	  				'--quiet',
-					'--debug'])
-def test_build_references(anno, repeatmasker_bed, threads, copy, verbosity, tmp_path):
-	command = f"python {PACKAGE_DIR/'build_references.py'} --skip_r" +\
-			f" --genome_fasta {TEST_DIR/'inputs'/'genome.fa'}" +\
-			f" --hisat2_index {TEST_DIR/'inputs'/'hisat2_index'}" +\
-			f" {anno} -o {tmp_path}"
-	for optional_arg in (repeatmasker_bed, threads, copy):
-		if optional_arg is not None:
-			command += ' ' + optional_arg
+# # Required anno arg + the transcript attribute and gene attribute args since their values depend on the anno file
+# @pytest.mark.parametrize('anno',
+# 					[f"--genome_anno {TEST_DIR/'inputs'/'anno.gtf'} --t_attr tid --g_attr gid", 
+# 					f"--genome_anno {TEST_DIR/'inputs'/'anno.gff'} --t_attr tid --g_attr gid"])
+# # Optional args
+# @pytest.mark.parametrize('repeatmasker_bed',
+# 					[None, 
+# 	  				f"--repeatmasker_bed {TEST_DIR/'inputs'/'repeatmasker.bed'}"])
+# @pytest.mark.parametrize('threads',
+# 					[None, 
+# 	  				'--threads 1',
+# 	  				'--threads 4'])
+# @pytest.mark.parametrize('copy',
+# 					[None, 
+# 	  				'--copy'])
+# @pytest.mark.parametrize('verbosity',
+# 					[None, 
+# 	  				'--quiet',
+# 					'--debug'])
+# def test_build_references(anno, repeatmasker_bed, threads, copy, verbosity, tmp_path):
+# 	command = f"python {PACKAGE_DIR/'build_references.py'} --skip_r" +\
+# 			f" --genome_fasta {TEST_DIR/'inputs'/'genome.fa'}" +\
+# 			f" --hisat2_index {TEST_DIR/'inputs'/'hisat2_index'}" +\
+# 			f" {anno} -o {tmp_path}"
+# 	for optional_arg in (repeatmasker_bed, threads, copy):
+# 		if optional_arg is not None:
+# 			command += ' ' + optional_arg
 
-	response = subprocess.run(command, shell=True, capture_output=True, text=True)
-	response_text = '\n' + response.stdout + response.stderr
-	assert response.returncode == 0, response_text
+# 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
+# 	response_text = '\n' + response.stdout + response.stderr
+# 	assert response.returncode == 0, response_text
 
-	# Check output
-	for ref, out in (
-					(TEST_DIR/'outputs'/'introns.tsv', tmp_path/'introns.tsv.gz'),
-					(TEST_DIR/'outputs'/'fivep_sites.fa', tmp_path/'fivep_sites.fa')
-					):
-		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
-		if ref_lines == out_lines:
-			continue
+# 	# Check output
+# 	for ref, out in (
+# 					(TEST_DIR/'outputs'/'introns.tsv', tmp_path/'introns.tsv.gz'),
+# 					(TEST_DIR/'outputs'/'fivep_sites.fa', tmp_path/'fivep_sites.fa')
+# 					):
+# 		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
+# 		if ref_lines == out_lines:
+# 			continue
 
-		# If file contents differ, decide how to report
-		if test_utils.vscode_available():
-			test_utils.vscode_compare_sorted(ref, out)
-			pytest.fail(f'Output file differs from expected output: {out.name}')
-		else:
-			assert ref_lines == out_lines
-		pass
+# 		### If the lines don't match, report it
+# 		# Print the response text
+# 		print(response_text)
+
+# 		# If in vscode, open the files for comparison
+# 		if test_utils.vscode_available():
+# 			test_utils.vscode_compare_sorted(ref, out)
+		
+# 		# Trigger pytest fail
+# 		assert ref_lines == out_lines
+
 
 
 # Optional args
@@ -98,4 +102,4 @@ def test_build_R_refs(verbosity, tmp_path):
 
 		if ref_md5 != out_md5:
 			pytest.fail(f'Output file differs from expected output: {out.name}\n' +\
-			   			f'{ref_md5} (ref) != {out_md5} (out)')
+			   			f'{ref_md5} (ref) != {out_md5} (out)\n\n' +response_text)

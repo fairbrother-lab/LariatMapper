@@ -48,9 +48,13 @@ def test_filter_fivep_aligns(threads, prefix, strand, tmp_path):
 		if ref_lines == out_lines:
 			continue
 
-		# If the lines don't match, report the differences
+		### If the lines don't match, report it
+		# Print the response text
+		print(response_text)
+
 		# If in vscode, open the files for comparison
 		if test_utils.vscode_available():
 			test_utils.vscode_compare_sorted(ref, out)
-			
+		
+		# Trigger pytest fail
 		assert ref_lines == out_lines
