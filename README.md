@@ -1,4 +1,4 @@
-# LariatMapper | The Fairbrother Lab
+# LariatMapper (beta) | The Fairbrother Lab
 
 ## Overview
 
@@ -56,12 +56,17 @@ For paired-end sequencing data, run
 
 LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers (UMIs) for reliable results. 
 
-## Options
-### Putative branchpoint correction
+### Options
+#### Putative branchpoint correction
 Content
 
-### Specifying refs
+#### Specifying refs
 Content
+
+#### All options
+<details>
+	<summary>Click me</summary>
+</details>
 
 
 ## Output
@@ -75,6 +80,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 <details>
 	<summary>Click me</summary>
 `lariat_reads.tsv` and  columns:
+</details>
 
 - read_id: The read's ID (unique)
 - gene_id*: The ID of the gene(s) that produced the lariat
@@ -93,7 +99,10 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - total_mapped_reads: The number of input reads that mapped linearly to the reference genome (identical across all rows)
 *May be multiple comma-delimited values
 
+<details>
+	<summary>Click me</summary>
 `circularized_intron_reads.tsv` columns:
+</details>
 - read_id: The read's ID (unique)
 - chrom: The intron's chromosome of the intron
 - strand: The intron's strand. "+" for the forward strand and "-" for the reverse strand
@@ -110,9 +119,10 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - gene_id*: The intron's gene ID(s)
 *May be multiple comma-delimited values
 
-
+<details>
+	<summary>Click me</summary>
 `template_switching_reads.tsv` columns:
-
+</details>
 - read_id: The read's ID (unique)
 - fivep_sites*: The 5' splice site(s) that mapped to the read. Format is \<chromosome>;\<strand>;\<position>,...
 - temp_switch_sites*: The possible location(s) to which the reverse transcriptase transfered. Format is \<chromosome>;\<position>,...
@@ -124,7 +134,6 @@ All output will be written in the directory `OUT_DIR`. This includes:
 *May be multiple comma-delimited values
 
 All position values are 0-based and inclusive. 
-</details>
 If a lariat's 5' splice site and branchpoint could be attributed to multiple gene annotations, the gene values will appear like so:
 
 	gene_name	gene_id	gene_type
@@ -134,6 +143,8 @@ If a lariat's 5' splice site and branchpoint could be attributed to multiple gen
 
 
 ## Software attributions
+<details>
+	<summary>Click me</summary>
 - **bedtoolsr**: Patwardhan, Mayura; Wenger, Craig D.; Davis, Eric S.; Phanstiel, Douglas H.: "Bedtoolsr: An R package for genomic data analysis and manipulation" (in preparation).
 - **Biostrings**: Pagès H, Aboyoun P, Gentleman R, DebRoy S (2024). Biostrings: Efficient manipulation of biological strings. R package version 2.74.1, https://bioconductor.org/packages/Biostrings.
 - **Bowtie2**: Langmead, B., Salzberg, S. Fast gapped-read alignment with Bowtie 2. Nat Methods 9, 357–359 (2012). https://doi.org/10.1038/nmeth.1923
@@ -155,7 +166,7 @@ If a lariat's 5' splice site and branchpoint could be attributed to multiple gen
 
 LariatMapper was developed from an in-house analysis pipeline which was first publicized in "Large-scale mapping of branchpoints in human
 pre-mRNA transcripts in vivo" by Taggart et al. (2012). 
-
+</details>
 ## Additional information
 See DEMO.md for a demonstration of a basic LariatMapper run.
 
