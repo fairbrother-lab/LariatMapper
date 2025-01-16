@@ -186,17 +186,17 @@ class Settings:
 # =============================================================================#
 if __name__ == '__main__':
 	# Argument parser
-	parser = argparse.ArgumentParser(prog='Lariat mapping', description='Performs annotation-based mapping of lariat-derived RNA-seq reads')
-	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {functions.version()}', help='Print the version id and exit')
+	parser = argparse.ArgumentParser(prog='larmap.py', description='Extracts lariats and their branchpoint positions from RNA-seq data')
+	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {functions.version()}', help='print the version id and exit')
 
 	# Required arguments
 	# We use argument groups to make the help message more readable, but we have to enforce 
 	# mutually exclusive arguments later because argparse doesn't support mutually exclusive groups
 	read_group = parser.add_argument_group(title='Input read files', 
-										description='Provide either two paired-end read files or one single-end read file. Files can be uncompressed or gzip-compressed')
-	read_group.add_argument('-1', '--read_one', type=pathlib.Path, help='Read 1 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f')
-	read_group.add_argument('-2', '--read_two', type=pathlib.Path, help='Read 2 input FASTQ file when processing paired-end RNA-seq data. Mutually exclusive with -f')
-	read_group.add_argument('-f', '--read_file', type=pathlib.Path, help='Input FASTQ file when processing single-end RNA-seq data. Mutually exclusive with -1 and -2')
+										description='Provide either two FASTQ files from paired-end RNA-seq or one FASTQ file from single-end RNA-seq. Files can be uncompressed or gzip-compressed')
+	read_group.add_argument('-1', '--read_one', type=pathlib.Path, help='FASTQ file of read mate 1. Use with paired-end RNA-seq data. Mutually exclusive with -f, requires -2')
+	read_group.add_argument('-2', '--read_two', type=pathlib.Path, help='FASTQ file of read mate 2. Use for paired-end RNA-seq data. Mutually exclusive with -f, requires -1')
+	read_group.add_argument('-f', '--read_file', type=pathlib.Path, help='FASTQ file. Use with single-end RNA-seq data. Mutually exclusive with -1 and -2')
 	reference_group = parser.add_argument_group(title='Reference data')
 	reference_group.add_argument('-r', '--ref_dir', required=True, type=pathlib.Path, help='Directory with reference files created by build_references.py')
 	out_group = parser.add_argument_group(title='Output')
@@ -204,27 +204,32 @@ if __name__ == '__main__':
 	# Optional arguments
 	optional_args = parser.add_argument_group(title='Optional arguments')
 		# Experimentally-revelant options 
-	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help="WARNING, EXPERIMENTAL FEATURE STILL IN DEVELOPMENT! Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)")
-	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help="BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering")
-	optional_args.add_argument('-i', '--ref_h2index', type=pathlib.Path, help='hisat2 index of the reference genome (Default = REF_DIR/hisat2_index)')
-	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome (Default = REF_DIR/genome.fa)')
-	optional_args.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help='FASTA file with sequences of first 20nt of annotated introns (Default = REF_DIR/fivep_sites.fa)')
-	optional_args.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns (Default = REF_DIR/introns.tsv.gz)')
+	#TODO: Test --strand arg with stranded data and verify that it works correctly
+	# Strandedness of the input reads. Choices: Unstranded = Library preparation wasn't strand-specific; 
+	# First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); 
+	# Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) 
+	# (Default = Unstranded)")
+	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help=argparse.SUPPRESS)
+	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help="BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. May be gzip-compressed. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)")
+	optional_args.add_argument('-i', '--ref_h2index', type=pathlib.Path, help='HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)')
+	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome. May be gzip-compressed. (Default = REF_DIR/genome.fa)')
+	optional_args.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help="FASTA file of 5' splice site sequences, i.e. the first 20nt of all annotated introns. (Default = REF_DIR/fivep_sites.fa)")
+	optional_args.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)')
 	bp_correction = optional_args.add_mutually_exclusive_group()
-	bp_correction.add_argument('--pwm_correction', help='.rds file with a position weight matrix (PWM) to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See <PWM_BUILDING_SCRIPT_HERE> to <INSTRUCTIONS> (Default = no correction)')
-	bp_correction.add_argument('--model_correction', help='.rds file with predictions from <MODEL_NAME>, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. <HOW_TO_OBTAIN_THIS> (Default = no correction)')
+	bp_correction.add_argument('--pwm_correction', help='RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See scripts/pwm_build.R to build a custom matrix (Default = no correction)')
+	bp_correction.add_argument('--model_correction', help='RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See <ZENODO_LINK_TO_BE_ADDED> to download predictions for specific reference genomes. (Default = no correction)')
 		# Output options
-	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv)')
-	optional_args.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed" which can be used as a custom track in the UCSC Genome Browser (https://www.genome.ucsc.edu/cgi-bin/hgCustom) to visualize lariat alignments')
+	optional_args.add_argument('-p', '--output_prefix', help='Add a prefix to output file names (-o OUT -p ABC   ->   OUT/ABC_lariat_reads.tsv). (Default = no prefix)')
+	optional_args.add_argument('-u', '--ucsc_track', action='store_true', help='Add an output file named "lariat_reads.bed". This can be used as a custom track in the UCSC Genome Browser to visualize lariat read alignments')
 	optional_args.add_argument('-b', '--keep_bam', action='store_true', help='Keep the BAM file produced in the initial linear mapping step (Default = delete)')
-	optional_args.add_argument('-c', '--keep_classes', action='store_true', help='Keep a file with per-read classification named "read_classes.tsv.gz" in the output (Default = delete)')
-	optional_args.add_argument('-k', '--keep_temp', action='store_true', help='Keep all temporary files created while running the pipeline. Forces -c/--keep_classes and -b/--keep_bam (Default = delete)')
+	optional_args.add_argument('-c', '--keep_classes', action='store_true', help='Keep a file with per-read classification of non-linearly-aligned reads named "read_classes.tsv.gz" in the output (Default = delete)')
+	optional_args.add_argument('-k', '--keep_temp', action='store_true', help='Keep all temporary files created while running the pipeline. Forces -c and -b (Default = delete)')
 		# Technical options
-	optional_args.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (Default = 1)')
+	optional_args.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use. (Default = 1)')
 	log_levels = optional_args.add_mutually_exclusive_group()
-	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages (sets logging level to ERROR, Default = INFO). Mutually exclusive with -w and -d")
-	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages (sets logging level to WARNING, Default = INFO). Mutually exclusive with -q and -d")
-	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages (sets logging level to DEBUG, Default = INFO). Mutually exclusive with -q and -w")
+	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages. Mutually exclusive with -w and -d")
+	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages. Mutually exclusive with -q and -d")
+	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages. Mutually exclusive with -q and -w")
 
 	# Parse args into a dict
 	args = vars(parser.parse_args())
