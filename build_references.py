@@ -223,22 +223,27 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 #=============================================================================#
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(prog='build_references',
-								  	description='Create a reference directory for running LariatMapper. It will contain symbolic links to the input files and custom-built reference files.')
+								  	description='Create a directory with the required reference files for running LariatMapper. A reference directory is specific to one reference genome.')
 	
 	# Required arguments
-	parser.add_argument('-f', '--genome_fasta', required=True, help='Path to reference genome fasta file')
-	parser.add_argument('-a', '--genome_anno', required=True, help='Path to reference gene annotation file in GTF or GFF format (may be gzipped with .gz extension)')
-	parser.add_argument('-i', '--hisat2_index', required=True, help='Path to base name of hisat2 index of reference genome (i.e. everything before .1.ht2 extension)')
-	parser.add_argument('-o', '--out_dir', required=True, help='Path to directory where reference files will be output (will be created if it does not exist)')
+	parser.add_argument('-f', '--genome_fasta', required=True, help='FASTA file of the reference genome. May be gzip-compressed')
+	parser.add_argument('-a', '--genome_anno', required=True, help='GTF or GFF file of the reference gene annotation. May be gzip-compressed')
+	parser.add_argument('-i', '--hisat2_index', required=True, help='HISAT2 index of the reference genome')
+	parser.add_argument('-o', '--out_dir', required=True, help='Output reference directory. Will be created if it does not exist at runtime')
 	# Optional arguments
-	parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for parallel processing (default = 1)')
-	parser.add_argument('-r', '--repeatmasker_bed', help='Path to BED file with RepeatMasker annotation of reference genome')
-	parser.add_argument('-c', '--copy', action='store_true', help='Create deep copies of the input files in out_dir (default = create symbolic links)')
-	parser.add_argument('-g', '--g_attr', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute (default=gene_id)',)
-	parser.add_argument('-x', '--t_attr', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute (default=transcript_id)',)
-	log_levels = parser.add_mutually_exclusive_group()
-	log_levels.add_argument('-q', '--quiet', action='store_true', help="Don't print any status messages")
-	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages")
+	optional_args = parser.add_argument_group(title='Optional arguments')
+		# Experimentally-revelant options 
+	optional_args.add_argument('-r', '--repeatmasker_bed', help='Path to BED file with RepeatMasker annotation of reference genome')
+	optional_args.add_argument('-g', '--g_attr', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute. (Default = gene_id)',)
+	optional_args.add_argument('-x', '--t_attr', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute. (Default = transcript_id)',)
+		# Output options
+	optional_args.add_argument('-c', '--copy', action='store_true', help='Create deep copies of the input files in out_dir (Default = create symbolic links)')
+		# Technical options
+	optional_args.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use. (Default = 1)')
+	log_levels = optional_args.add_mutually_exclusive_group()
+	log_levels.add_argument('-q', '--quiet', action='store_true', help="Only print fatal error messages. Mutually exclusive with -w and -d")
+	log_levels.add_argument('-w', '--warning', action='store_true', help="Print warning messages and fatal error messages. Mutually exclusive with -q and -d")
+	log_levels.add_argument('-d', '--debug', action='store_true', help="Print extensive status messages. Mutually exclusive with -q and -w")
 	# Just for development
 	# We use this to skip the build_r_refs.R call when testing the python script
 	# since the custom-made test annotation files just don't work in the R script
