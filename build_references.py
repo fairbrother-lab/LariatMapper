@@ -306,8 +306,8 @@ if __name__ == '__main__':
 	build_fivep(introns, genome_fasta, threads, out_dir, log)
 
 	log.info('Building FASTA indices...')
-	pyfaidx.Faidx(f'{out_dir}/{REF_GENOME_FILE}')
-	pyfaidx.Faidx(f'{out_dir}/{REF_FIVEP_FILE}')
+	functions.run_command(f'samtools faidx {out_dir}/{REF_GENOME_FILE}', log=log)
+	functions.run_command(f'samtools faidx {out_dir}/{REF_FIVEP_FILE}', log=log)
 
 	if not args.skip_r:
 		log.info('Building R objects...')
