@@ -5,8 +5,8 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "LariatMapper"
-version = "0.10.0"
+name = "LariatMapper (beta)"
+version = "0.10.1 (beta)"
 description = "A tool for mapping lariats in RNA-sequencing data to the genome"
 readme = "README.md"
 requires-python = ">=3.9, <=3.11"
