@@ -1,1 +1,2 @@
-![A flowchart of the LariatMapper pipeline](./resources/images/LariatMapper%20Flowcharts%20v3.svg)
+# Design
+*To be added*
