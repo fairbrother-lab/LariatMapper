@@ -1,0 +1,53 @@
+{% set version = "0.8.1" %}
+
+package:
+  name: lariatmapper
+  version: {{ version }}
+
+source:
+  url: https://github.com/fairbrother-lab/LariatMapper/archive/refs/tags/v{{ version }}.tar.gz
+  sha256: 97a093660775354216998b8332c35d8a909e1f77624d7f10366168b435a47cb7
+
+build:
+  number: 0
+  noarch: generic
+  additional-platforms:
+    - osx-arm64
+  run_exports:
+    - {{ pin_subpackage('lariatmapper', max_pin="x.x") }}
+
+requirements:
+  host:
+    - python >=3.9, <=3.11
+    - r-base # Explicitly define the r-base version to prevent breakage if something changes in newer versions
+  run:
+    - bedtools
+    - genomicalignments
+    - genomicfeatures
+    - rtracklayer
+    - bowtie2
+    - fsspec
+    - hisat2
+    - intervaltree
+    - git # We should remove this. Version control should be left up to the user and pulling new versions from Github doesn't make sense in the context of bioconda packages
+    - numpy
+    - pandas
+    - pyarrow
+    - pyfaidx
+    - pysam
+    - python >=3.9, <=3.11
+    - r-base
+    - r-optparse
+    - r-tidyverse
+    - samtools
+
+test:
+  commands:
+    - build_references.py --help
+    - larmap.py --help
+
+about:
+  home: https://github.com/fairbrother-lab/LariatMapper
+  license: MIT License
+  summary: 'LariatMapper: A pipeline for extracting lariats and their branchpoints from RNA-sequencing data.'
+  doc_url: https://github.com/fairbrother-lab/LariatMapper
