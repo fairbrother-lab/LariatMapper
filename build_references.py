@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-
-import os
-import subprocess
-import shutil
-import time
-import gzip
 import argparse
-import collections
-import tempfile
+import datetime
+import gzip
+import os
+import shutil
 
 import pyfaidx
 import pandas as pd
@@ -34,6 +30,31 @@ HISAT2_EXTENSIONS = ('1.ht2', '2.ht2', '.3.ht2', '.4.ht2','.5.ht2', '.6.ht2','.7
 #=============================================================================#
 #                                  Functions                                  #
 #=============================================================================#
+def write_metadata(args:argparse.Namespace, out_dir:str):
+	now = datetime.datetime.now(datetime.timezone.utc)
+	today, right_now = now.isoformat().split('T')
+
+	with open(f'{out_dir}/meta.txt', 'w') as meta_out:
+		meta_out.write(
+		"----------------------------------------\n"
+		"                Metadata                \n"
+		"----------------------------------------\n"
+		)
+		meta_out.write(f'Version: {functions.version()}\n')
+		meta_out.write(f'Date: {today}\n')
+		meta_out.write(f'Run time (UTC): {right_now}\n')
+
+		meta_out.write(
+		"\n"
+		"----------------------------------------\n"
+		"                Settings                \n"
+		"----------------------------------------\n"
+		)
+		for key, val in vars(args).items():
+			val = '' if val is None else val
+			meta_out.write(f'{key}: {val}\n')
+
+
 def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	# Confirm that input files exist
 	ref_names = ['Genome fasta', 'Reference annotation']
@@ -287,6 +308,10 @@ if __name__ == '__main__':
 	# Make dir
 	if not os.path.isdir(out_dir):
 		os.mkdir(out_dir)
+
+	# Write metadata file
+	log.info('Recording metadata...')
+	write_metadata(args, out_dir)
 
 	# Link or copy the neccesary input files
 	if copy is True:
