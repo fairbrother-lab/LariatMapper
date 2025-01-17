@@ -43,7 +43,11 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 			raise FileNotFoundError(f'{rn} file does not exist at {rf}')
 	if args.repeatmasker_bed is not None and not os.path.isfile(args.repeatmasker_bed):
 		parser.error(f'RepeatMasker file does not exist at {args.repeatmasker_bed}')
-		
+
+	# Make sure the FASTA insn't gzipped
+	if any(args.genome_fasta.endswith(suffix) for suffix in ('.gz', '.gzip', '.bgz')):
+		raise ValueError(f'Genome FASTA file must be uncompressed: {args.genome_fasta}')
+
 	# Determine the hisat2 file extensions and confirm the files exist
 	if os.path.isfile(f'{args.hisat2_index}.1.ht2'):
 		hisat2_extensions = [f'.{i}.ht2' for i in range(1,9)]
@@ -224,9 +228,10 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(prog='build_references',
 								  	description='Create a directory with the required reference files for running LariatMapper. A reference directory is specific to one reference genome.')
+	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {functions.version()}', help='print the version id and exit')
 	
 	# Required arguments
-	parser.add_argument('-f', '--genome_fasta', required=True, help='FASTA file of the reference genome. May be gzip-compressed')
+	parser.add_argument('-f', '--genome_fasta', required=True, help='FASTA file of the reference genome')
 	parser.add_argument('-a', '--genome_anno', required=True, help='GTF or GFF file of the reference gene annotation. May be gzip-compressed')
 	parser.add_argument('-i', '--hisat2_index', required=True, help='HISAT2 index of the reference genome')
 	parser.add_argument('-o', '--out_dir', required=True, help='Output reference directory. Will be created if it does not exist at runtime')
@@ -311,8 +316,8 @@ if __name__ == '__main__':
 	build_fivep(introns, genome_fasta, threads, out_dir, log)
 
 	log.info('Building FASTA indices...')
-	functions.run_command(f'samtools faidx {out_dir}/{REF_GENOME_FILE}', log=log)
-	functions.run_command(f'samtools faidx {out_dir}/{REF_FIVEP_FILE}', log=log)
+	pyfaidx.Faidx(f'{out_dir}/{REF_GENOME_FILE}')
+	pyfaidx.Faidx(f'{out_dir}/{REF_FIVEP_FILE}')
 
 	if not args.skip_r:
 		log.info('Building R objects...')
