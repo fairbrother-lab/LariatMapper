@@ -1,10 +1,21 @@
 # LariatMapper (beta) | The Fairbrother Lab
-
 ## Overview
 
 A pipeline for extracting lariats and their branchpoints from RNA-sequencing data. 
 
 NOTE: LariatMapper is currently in development, and may display unexpected or erroneous behavior. If you encounter any problems while using it, please let us know by [creating an issue on GitHub](https://github.com/fairbrother-lab/LariatMapper/issues/new?template=bug-report.md).
+
+## Table of Contents
+- [Setup](#setup)
+	- [Dependencies](#dependencies)
+	- [Reference files](#reference-files)
+- [Running the Pipeline](#running-the-pipeline)
+	- [Required arguments](#required-arguments)
+	- [Putative branchpoint correction](#putative-branchpoint-correction)
+	- [All options](#all-options)
+- [Output](#output)
+- [Additional information](#additional-information)
+	- [Software attributions](#software-attributions)
 
 ## Setup
 
