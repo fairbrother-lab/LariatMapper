@@ -71,7 +71,14 @@ class Settings:
 		# Reference files
 		for ref_attr_name, ref_file_name in Settings.REQ_REFS:
 			if getattr(self, ref_attr_name) is None:
-				setattr(self, ref_attr_name, pathlib.Path(os.path.join(self.ref_dir, ref_file_name)))
+				default_path = pathlib.Path(os.path.join(self.ref_dir, ref_file_name))
+
+				if ref_attr_name=='ref_fasta' and not default_path.is_file():
+					default_path = pathlib.Path(os.path.join(self.ref_dir, ref_file_name + '.gz'))
+				elif ref_attr_name=='ref_5p_fasta' and not default_path.is_file():
+					default_path = pathlib.Path(os.path.join(self.ref_dir, ref_file_name + '.gz'))
+
+				setattr(self, ref_attr_name, default_path)
 		
 		# If ref_repeatmasker wasn't input, set it to {ref_dir}/repeatmasker.bed
 		# If it doesn't exist that's fine, filter_lariats.py will check before trying to use it
@@ -212,7 +219,7 @@ if __name__ == '__main__':
 	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help=argparse.SUPPRESS)
 	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help="BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. May be gzip-compressed. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)")
 	optional_args.add_argument('-i', '--ref_h2index', type=pathlib.Path, help='HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)')
-	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome. May be gzip-compressed. (Default = REF_DIR/genome.fa)')
+	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome. May be gzip-compressed. (Default = REF_DIR/genome.fa.gz)')
 	optional_args.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help="FASTA file of 5' splice site sequences, i.e. the first 20nt of all annotated introns. (Default = REF_DIR/fivep_sites.fa)")
 	optional_args.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)')
 	bp_correction = optional_args.add_mutually_exclusive_group()

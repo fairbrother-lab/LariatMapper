@@ -16,12 +16,11 @@ from scripts import functions
 #                                  Globals                                     #
 # =============================================================================#
 EXON_INTRON_COLUMNS = ('chrom', 'strand', 'start', 'end', 'gene_id')
-REF_GENOME_FILE = 'genome.fa'
+REF_GENOME_FILE = 'genome'
 REF_HISAT2_INDEX = 'hisat2_index'
 REF_EXONS_FILE = 'exons.tsv.gz'
 REF_INTRONS_FILE = 'introns.tsv.gz'
-REF_FIVEP_FILE = 'fivep_sites.fa'
-REF_FIVEP_INDEX = 'fivep_sites'
+REF_FIVEP_FILE = 'fivep_sites'
 REF_REPEATMASKER_FILE = 'repeatmasker.bed'
 HISAT2_EXTENSIONS = ('1.ht2', '2.ht2', '.3.ht2', '.4.ht2','.5.ht2', '.6.ht2','.7.ht2', '.8.ht2')
 
@@ -32,7 +31,7 @@ HISAT2_EXTENSIONS = ('1.ht2', '2.ht2', '.3.ht2', '.4.ht2','.5.ht2', '.6.ht2','.7
 #=============================================================================#
 def write_metadata(args:argparse.Namespace, out_dir:str):
 	now = datetime.datetime.now(datetime.timezone.utc)
-	today, right_now = now.isoformat().split('T')
+	time = now.ctime()
 
 	with open(f'{out_dir}/meta.txt', 'w') as meta_out:
 		meta_out.write(
@@ -41,8 +40,7 @@ def write_metadata(args:argparse.Namespace, out_dir:str):
 		"----------------------------------------\n"
 		)
 		meta_out.write(f'Version: {functions.version()}\n')
-		meta_out.write(f'Date: {today}\n')
-		meta_out.write(f'Run time (UTC): {right_now}\n')
+		meta_out.write(f'Run time (UTC): {time}\n')
 
 		meta_out.write(
 		"\n"
@@ -65,9 +63,20 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	if args.repeatmasker_bed is not None and not os.path.isfile(args.repeatmasker_bed):
 		parser.error(f'RepeatMasker file does not exist at {args.repeatmasker_bed}')
 
-	# Make sure the FASTA insn't gzipped
-	if any(args.genome_fasta.endswith(suffix) for suffix in ('.gz', '.gzip', '.bgz')):
-		raise ValueError(f'Genome FASTA file must be uncompressed: {args.genome_fasta}')
+	# Determine the genome fasta file format
+	if args.genome_fasta.endswith('.gz'):
+		fasta_ext = '.fa.gz'
+	else:
+		fasta_ext = '.fa'
+
+	# Determine the annotation file format
+	prev_ext, last_ext = args.genome_anno.split('.')[-2:]
+	if last_ext == 'gz':
+		anno_type, anno_gzip = prev_ext, True
+	else:
+		anno_type, anno_gzip = last_ext, False
+	if not anno_type in ('gtf', 'gff', 'gff3'):
+		parser.error(f'Annotation file must be in .gtf or .gff format, not .{anno_type}')
 
 	# Determine the hisat2 file extensions and confirm the files exist
 	if os.path.isfile(f'{args.hisat2_index}.1.ht2'):
@@ -77,20 +86,11 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	else:
 		raise FileNotFoundError(f'hisat2 index does not exist at {args.hisat2_index}')
 	
-	# Determine the annotation file format
-	prev_ext, last_ext = args.genome_anno.split('.')[-2:]
-	if last_ext == 'gz':
-		anno_type, gunzip = prev_ext, True
-	else:
-		anno_type, gunzip = last_ext, False
-	if not anno_type in ('gtf', 'gff', 'gff3'):
-		parser.error(f'Annotation file must be in .gtf or .gff format, not .{anno_type}')
-
 	# Validate threads arg
 	if not args.threads>0:
 		parser.error(f'-t/--threads must be a positive integer. Input was "{repr(args.threads)}"')
 	
-	return hisat2_extensions, anno_type, gunzip
+	return hisat2_extensions, anno_type, anno_gzip, fasta_ext
 
 
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
@@ -114,8 +114,8 @@ def parse_attributes(attribute_string:str, file_type:str) -> dict:
 	return attributes
 
 
-def parse_transcripts(genome_anno:str, anno_type:str, gunzip:bool, t_attr:str, g_attr:str, log):
-	if gunzip:
+def parse_transcripts(genome_anno:str, anno_type:str, anno_gzip:bool, t_attr:str, g_attr:str, log):
+	if anno_gzip:
 		in_file = gzip.open(genome_anno, 'rt')
 	else:
 		in_file = open(genome_anno)
@@ -179,14 +179,6 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 			intron = (chrom, strand, intron_start, intron_end, gene_id)
 			introns.append(intron)
 	
-	# # Collapse gene ids
-	# exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
-	# exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
-	# # Sort to make debugging easier
-	# exons = exons.sort_values(['chrom', 'start', 'end'])
-	# # Write to file
-	# exons.to_csv(f'{out_dir}/exons.tsv.gz', sep='\t', index=False, compression='gzip')
-
 	# Collapse gene ids
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
 	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
@@ -233,14 +225,15 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 	fivep_seqs = fivep_seqs.sort_values(['chrom', 'pos', 'strand'])
 
 	# Write sequences to fasta file
-	with open(f'{out_dir}/{REF_FIVEP_FILE}', 'w') as fasta_out:
+	with open(f'{out_dir}/{REF_FIVEP_FILE}.fa', 'w') as fasta_out:
 		for i, row in fivep_seqs.iterrows():
 			fasta_out.write(f">{row['fivep_site']}\n{row['seq']}\n")
-	
-	# log.debug('Building fivep index')
-	# build_index_call = f'bowtie2-build --quiet --threads {threads} {out_dir}/{REF_FIVEP_FILE} {out_dir}/{REF_FIVEP_INDEX}'
-	# functions.run_command(build_index_call, log=log)
 
+	# 	print(fasta_ext)
+	# Compress
+	log.debug('Compressing five-prime splice sites FASTA...')
+	functions.run_command(f'bgzip --threads {threads} {out_dir}/{REF_FIVEP_FILE}.fa', log=log)
+	
 
 
 #=============================================================================#
@@ -301,7 +294,7 @@ if __name__ == '__main__':
 	log.info(f'Arguments: \n{arg_message}')
 
 	# Validate the args and determine additional variables
-	hisat2_extensions, anno_type, gunzip = process_args(args, parser, log)
+	hisat2_extensions, anno_type, anno_gzip, fasta_ext = process_args(args, parser, log)
 
 	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, out_dir, threads, copy, t_attr, g_attr  = args.genome_fasta, args.genome_anno, args.repeatmasker_bed, args.hisat2_index, args.out_dir, args.threads, args.copy, args.t_attr, args.g_attr
 
@@ -316,15 +309,15 @@ if __name__ == '__main__':
 	# Link or copy the neccesary input files
 	if copy is True:
 		log.info('Copying input files...')
-		shutil.copyfile(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}', follow_symlinks=False)
+		shutil.copyfile(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}{fasta_ext}', follow_symlinks=False)
 		for ext in hisat2_extensions:
 			shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}', follow_symlinks=False)
 		if repeatmasker_bed is not None:
 			shutil.copyfile(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}', follow_symlinks=False)	
 	else:
 		log.info('Creating links to input files...')
-		if not os.path.isfile(f'{out_dir}/{REF_GENOME_FILE}'):
-			os.symlink(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}')
+		if not os.path.isfile(f'{out_dir}/{REF_GENOME_FILE}{fasta_ext}'):
+			os.symlink(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}{fasta_ext}')
 		for ext in hisat2_extensions:
 			if not os.path.isfile(f'{out_dir}/{REF_HISAT2_INDEX}{ext}'):
 				os.symlink(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
@@ -332,7 +325,7 @@ if __name__ == '__main__':
 			os.symlink(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
 
 	log.info('Parsing transcripts from annotation file...')
-	transcripts = parse_transcripts(genome_anno, anno_type, gunzip, t_attr, g_attr, log)
+	transcripts = parse_transcripts(genome_anno, anno_type, anno_gzip, t_attr, g_attr, log)
 	
 	log.info('Processing exons and introns...')
 	introns = build_exons_introns(transcripts, out_dir, log)
@@ -341,8 +334,8 @@ if __name__ == '__main__':
 	build_fivep(introns, genome_fasta, threads, out_dir, log)
 
 	log.info('Building FASTA indices...')
-	pyfaidx.Faidx(f'{out_dir}/{REF_GENOME_FILE}')
-	pyfaidx.Faidx(f'{out_dir}/{REF_FIVEP_FILE}')
+	functions.run_command(f'samtools faidx {out_dir}/{REF_GENOME_FILE}{fasta_ext}', log=log)
+	functions.run_command(f'samtools faidx {out_dir}/{REF_FIVEP_FILE}.fa.gz', log=log)
 
 	if not args.skip_r:
 		log.info('Building R objects...')

@@ -54,7 +54,9 @@ def test_build_references(anno, repeatmasker_bed, threads, copy, verbosity, tmp_
 	# Check output
 	for ref, out in (
 					(TEST_DIR/'outputs'/'introns.tsv', tmp_path/'introns.tsv.gz'),
-					(TEST_DIR/'outputs'/'fivep_sites.fa', tmp_path/'fivep_sites.fa')
+					(TEST_DIR/'outputs'/'genome.fa.fai', tmp_path/'genome.fa.fai'),
+					(TEST_DIR/'outputs'/'fivep_sites.fa.gz', tmp_path/'fivep_sites.fa.gz'),
+					(TEST_DIR/'outputs'/'fivep_sites.fa.gz.fai', tmp_path/'fivep_sites.fa.gz.fai'),
 					):
 		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 		if ref_lines == out_lines:
