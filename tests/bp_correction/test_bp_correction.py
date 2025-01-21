@@ -14,7 +14,6 @@ import test_utils
 # =============================================================================#
 PACKAGE_DIR = pathlib.Path(__file__).parent.parent.parent.resolve()
 TEST_DIR = PACKAGE_DIR/'tests'/'bp_correction'
-DATA_DIR = PACKAGE_DIR/'data'
 Method_Combo = collections.namedtuple('Method_Combo', ['method_arg', 'path_arg', 'output'])
 
 # =============================================================================#
@@ -23,14 +22,14 @@ Method_Combo = collections.namedtuple('Method_Combo', ['method_arg', 'path_arg',
 # Required args
 @pytest.mark.parametrize('method_combo',
 					[Method_Combo(method_arg='--method Model-based', 
-									path_arg=f'--model_path {DATA_DIR}/gencode_v44_U2_U12_BP_pred_prob_tx.rds', 
-									output=f'{TEST_DIR}/outputs/lariat_reads_model.tsv'),
+									path_arg=f"--model_path {TEST_DIR/'inputs'/'gencode_v44_U2_U12_BP_pred_prob_tx.rds'}", 
+									output=f"{TEST_DIR}/outputs/lariat_reads_model.tsv"),
 					Method_Combo(method_arg='--method PWM',
-									path_arg=f'--PWM_path {DATA_DIR}/U2_pwm.rds',
-									output=f'{TEST_DIR}/outputs/lariat_reads_pwm_U2.tsv'),
+									path_arg=f"--PWM_path {TEST_DIR/'inputs'/'gencode_v44_U2_pwm.rds'}",
+									output=f"{TEST_DIR}/outputs/lariat_reads_pwm_U2.tsv"),
 					Method_Combo(method_arg='--method PWM',
-									path_arg=f'--PWM_path {DATA_DIR}/U2_pwm.rds,{DATA_DIR}/U12_pwm.rds',
-									output=f'{TEST_DIR}/outputs/lariat_reads_pwm_U2_U12.tsv'),
+									path_arg=f"--PWM_path {TEST_DIR/'inputs'/'gencode_v44_U2_pwm.rds'},{TEST_DIR/'inputs'/'gencode_v44_U12_pwm.rds'}",
+									output=f"{TEST_DIR}/outputs/lariat_reads_pwm_U2_U12.tsv"),
 					]
 )
 # Optional args
