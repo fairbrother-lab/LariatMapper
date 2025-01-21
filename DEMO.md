@@ -1,44 +1,44 @@
 # Demo
+Here, we take a look at running LariatMapper via the command line. To follow this demonstration, open a Linux or MacOS command line terminal. As you read, copy the blocks of code into the terminal and run them. You will need to have [LariatMapper](https://github.com/fairbrother-lab/LariatMapper) and [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) installed. 
 
-# WORK IN PROGRESS, DO NOT USE
-Here, we take a look at running LariatMapper via the command line. To follow this demonstration, open a Linux or MacOS command line terminal. As you read, copy the blocks of code into the terminal and run them.  
+First, download the demo data at https://github.com/fairbrother-lab/LariatMapper_aux.
 
-First, download the demo data at https://github.com/fairbrother-lab/LariatMapper_aux
+Next, assign the path to the LariatMapper directory to the variable `larmap_dir`, and the path to the demo directory to the variable `demo_dir`. For example:
 
+	larmap_dir="/home/me/bioinformatics/LariatMapper"
+	demo_dir="/home/me/bioinformatics/LariatMapper_aux/demo"
 
+This is the only code you'll have to edit before running – the rest of the code will work as-is.  
 
-First, assign the path to the LariatMapper directory (which this file should currently be in) to the variable `demo_dir`:
+Next, set up a dedicated mamba environment that contains all of LariatMapper's software dependencies:
 
-	demo_dir="<ENTER_PATH_HERE>"
-
-For example, `demo_dir="/home/me/bioinformatics/LariatMapper"`. This is the only code you'll have to edit before running – the rest of the code will work as-is.  
-
-Next, set up a dedicated conda environment that contains all of LariatMapper's software dependencies:
-
-	demo_env="LM_demo"
-
-	conda create --name "$demo_env" --file "????/requirements.txt" --channel conda-forge --channel bioconda
+	mamba create -y -n LariatMapper -f "$larmap_dir/requirements.txt" -c conda-forge -c bioconda
 
 and then activate it:
 
-	conda activate "$demo_env"
+	mamba activate LariatMapper
 
-Now create a directory with all the neccesary reference data by calling `build_references.py` 
+Next, create a directory with all the neccesary reference data by calling `build_references.py` 
 
-	genome_fasta="$demo_dir/genome/hg38.demo.fa.gz"
-	genome_anno="$demo_dir/genome/hg38.demo.gtf.gz"
-	hisat2_index="$demo_dir/genome/hg38.demo.index"
-	repeatmasker_bed="$demo_dir/genome/hg38.demo.repeat_masker.bed.gz"
-	ref_dir=$demo_dir/LariatMapper_references
+	genome_fasta="$demo_dir/reference_genome/genome.fa.gz"
+	genome_anno="$demo_dir/reference_genome/annotation.gtf.gz"
+	hisat2_index="$demo_dir/reference_genome/hisat2_index"
+	repeatmasker_bed="$demo_dir/reference_genome/repeatmasker.bed.gz"
+	ref_dir="$demo_dir/LariatMapper_ref_data"
 
-	python ???build_references.py -f "$genome_fasta" -a "$genome_anno" -i "$hisat2_index" -r "$repeatmasker_bed" -o "$ref_dir"
+	python "$larmap_dir/build_references.py" -f "$genome_fasta" -a "$genome_anno" -i "$hisat2_index" -r "$repeatmasker_bed" -o "$ref_dir"
 
 Finally, input the RNA-sequencing data into LariatMapper by calling `larmap.py`
 
-	r1_reads=$demo_dir/sequencing_data/demo_reads_R1.fastq.gz
-	r2_reads=$demo_dir/sequencing_data/demo_reads_R2.fastq.gz
-	output_dir=$demo_dir/demo_output
+	r1_reads="$demo_dir/sequencing_reads_R1.fastq.gz"
+	r2_reads="$demo_dir/sequencing_reads_R2.fastq.gz"
+	output_dir="$demo_dir/LariatMapper_output"
 
-	python ???larmap.py -r "$ref_dir" -1 "$r1_reads" -2 "$r2_reads" -o "$output_dir"
+	python "$larmap_dir/larmap.py" -r "$ref_dir" -1 "$r1_reads" -2 "$r2_reads" -o "$output_dir"
 
-You should now have a directory named `demo_output` in your working directory. It contains the standard output files that LariatMapper will produce. 
+You should now have a directory named `demo_out` in your working directory. It contains the standard output files that LariatMapper will produce. 
+
+# Demo data
+The files in `$demo_dir/reference_genome` were generated from the *Genome sequence, primary assembly (GRCh38)* FASTA file and *Comprehensive gene annotation* GTF file in [GENCODE Human release 44](https://www.gencodegenes.org/human/release_44.html). They only include chromosomes 20, 21, and 22 in order to reduce file sizes and processing time. 
+
+The `sequencing_reads` files were generated from an in-house total RNA-seq experiment with HEK293T cells. They contain 100,000 reads from the original FASTQ file of ~53 million reads, which were semi-randomly sampled so that the distribution of output reads in the demo would be similar the distribution observed when using the full FASTQ file and full reference genome. At least 1 read was included for each output read class.
