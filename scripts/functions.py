@@ -5,9 +5,8 @@ import json
 import subprocess
 import tempfile
 
-import fsspec
 import pandas as pd
-import pyfaidx
+import pysam
 
 
 
@@ -164,16 +163,7 @@ def get_seq(genome_fasta:str, chrom:str, start:int, end:int, rev_comp:bool) -> s
 		end (int): The end position of the sequence (0-based exclusive)
 		rev_comp (bool): Flag indicating whether to retrieve the reverse complement of the sequence.
 	"""
-	fasta = fsspec.open(genome_fasta, anon=True, mode='rb')
-	try:
-		seq = pyfaidx.Fasta(fasta, 
-							sequence_always_upper=True, 
-							rebuild=False, 
-							build_index=False,
-							as_raw=True,
-							)[chrom][start:end]
-	finally:
-		fasta.close()
+	seq = pysam.FastaFile(genome_fasta).fetch(chrom, start, end)
 
 	if rev_comp is True:
 		seq = reverse_complement(seq)
