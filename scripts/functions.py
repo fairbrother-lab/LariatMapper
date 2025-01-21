@@ -54,7 +54,7 @@ def reverse_complement(seq:str):
 	return ''.join([COMP_NTS[seq[i]] for i in range(len(seq)-1,-1,-1)])
 
 
-def str_join(items:list|tuple|set|frozenset|pd.Series, join_string:str=',', unique:bool=False) -> str:
+def str_join(items, join_string:str=',', unique:bool=False) -> str:
 	'''
 	If <items> contains only 1 unique item, return str(that item)
 	Else, return a <join_string>-delimited string of <items>
