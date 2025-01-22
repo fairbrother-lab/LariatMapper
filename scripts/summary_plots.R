@@ -101,7 +101,6 @@ dists = (
 	ggplot(df, aes(x=bp_dist_to_threep)) 
 		+ geom_density(alpha=0.5, adjust=0.75) 
 		+ scale_x_continuous(limits=c(-DIST_LIMIT,0), breaks=seq(-DIST_LIMIT, 0, 10))
-		+ scale_y_continuous(labels=scales::percent)
 		+ labs(x="Branchpoint distance to 3'ss (nt)", 
 				y='Density')
 		+ theme(plot.title = element_text(hjust=0.5, size=24),
@@ -111,7 +110,7 @@ dists = (
 )
 # Get peak height for placing bracket relative to peak
 densities = ggplot_build(dists)$data[[1]]$y
-peak_height = ifelse(any(is.na(densities)), 1, max(densities))
+peak_height = ifelse(is.null(densities) || any(is.na(densities)), 0.8, max(densities))
 within_70_height = peak_height * 1.1
 distal_height = peak_height * 1.25
 
@@ -123,6 +122,7 @@ distal_label = sprintf("%s lariat reads (%.0f%%) beyond %snt", distal, distal / 
 # Add brackets
 dists = (
 	dists 
+		+ scale_y_continuous(limits=c(0, distal_height), labels=scales::percent)
 	# dist 70 bracket
 		+ annotate("segment", x = -70, xend = 0, y = within_70_height, yend = within_70_height) 
 		+ annotate("segment", x = -70, xend = -70, y = within_70_height*0.98, yend = within_70_height) 
