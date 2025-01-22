@@ -172,7 +172,7 @@ class Settings:
 		args = []
 		for attr in Settings.ARGS_TO_MAP_LARIATS:
 			arg_val = str(getattr(self, attr))
-			if attr in ('ucsc_track', 'keep_classes', 'keep_temp'):
+			if arg_val in ('True', 'False'):
 				arg_val = arg_val.lower()
 			args.append(arg_val)
 			
