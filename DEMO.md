@@ -3,6 +3,8 @@ Here, we take a look at running LariatMapper via the command line. To follow thi
 
 First, download the demo data at https://github.com/fairbrother-lab/LariatMapper_aux.
 
+	curl 
+
 Next, assign the path to the LariatMapper directory to the variable `larmap_dir`, and the path to the demo directory to the variable `demo_dir`. For example:
 
 	larmap_dir="/home/me/bioinformatics/LariatMapper"
@@ -12,7 +14,7 @@ This is the only code you'll have to edit before running – the rest of the cod
 
 Next, set up a dedicated mamba environment that contains all of LariatMapper's software dependencies:
 
-	mamba create -y -n LariatMapper -f "$larmap_dir/requirements.txt" -c conda-forge -c bioconda
+	mamba create -y -n LariatMapper --file "$larmap_dir/requirements.txt" -c conda-forge -c bioconda
 
 and then activate it:
 
@@ -36,9 +38,10 @@ Finally, input the RNA-sequencing data into LariatMapper by calling `larmap.py`
 
 	python "$larmap_dir/larmap.py" -r "$ref_dir" -1 "$r1_reads" -2 "$r2_reads" -o "$output_dir"
 
-You should now have a directory named `demo_out` in your working directory. It contains the standard output files that LariatMapper will produce. 
+You should now have a directory named `LariatMapper_output` in the demo directory. It contains the standard output files that LariatMapper will produce. 
 
-# Demo data
+<br></br>
+# The data
 The files in `$demo_dir/reference_genome` were generated from the *Genome sequence, primary assembly (GRCh38)* FASTA file and *Comprehensive gene annotation* GTF file in [GENCODE Human release 44](https://www.gencodegenes.org/human/release_44.html). They only include chromosomes 20, 21, and 22 in order to reduce file sizes and processing time. 
 
 The `sequencing_reads` files were generated from an in-house total RNA-seq experiment with HEK293T cells. They contain 100,000 reads from the original FASTQ file of ~53 million reads, which were semi-randomly sampled so that the distribution of output reads in the demo would be similar the distribution observed when using the full FASTQ file and full reference genome. At least 1 read was included for each output read class.

@@ -1,9 +1,10 @@
 # LariatMapper (beta) | The Fairbrother Lab
 ## Overview
 
-A pipeline for extracting lariats and their branchpoints from RNA-sequencing data. 
+A pipeline for extracting lariats and their branchpoints from RNA-sequencing data.
 
 NOTE: LariatMapper is currently in development, and may display unexpected or erroneous behavior. If you encounter any problems while using it, please let us know by [creating an issue on GitHub](https://github.com/fairbrother-lab/LariatMapper/issues/new?template=bug-report.md).
+
 
 ## Table of Contents
 - [Setup](#setup)
@@ -14,14 +15,19 @@ NOTE: LariatMapper is currently in development, and may display unexpected or er
 	- [Putative branchpoint correction](#putative-branchpoint-correction)
 	- [All options](#all-options)
 - [Output](#output)
+	- [Read classes](#read-classes)
 	- [Output files](#output-files)
+	- [Output file columns](#output-file-columns)
 - [Additional information](#additional-information)
-	- [Software attributions](#software-attributions)
+- [Software attributions](#software-attributions)
+
 
 ## Setup
+LariatMapper works in a Linux or MacOS system. It does not work in Windows.
+
 
 ### Dependencies
-The software dependencies are detailed in `requirements.txt`. We recommend creating a dedicated programming environment for LariatMapper with [mamba](https://mamba.readthedocs.io/en/latest/user_guide/mamba.html) to avoid dependency-related problems during use.
+The software dependencies are detailed in `requirements.txt`. We recommend creating a dedicated programming environment for LariatMapper with [mamba](https://mamba.readthedocs.io/en/latest/user_guide/mamba.html) to avoid dependency-related problems during use. 
 
 If you have mamba installed, you can create a new environment named "larmap" by running
 
@@ -32,6 +38,7 @@ The environment can then be activated by running
 	mamba activate larmap
  
 before running scripts in the pipeline.
+
 
 ### Reference files
 LariatMapper needs a set of reference files to run. 
@@ -64,8 +71,19 @@ For paired-end sequencing data, run
 
 LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers for reliable results. 
 
-### Putative branchpoint correction
-*To be added*
+
+### Branchpoint correction
+LariatMapper includes an option to try correcting the apparent branchpoint positions of lariat reads, to account for sequencing errors. everse When applied, LariatMapper will check the 3 nucleotides downstream of the head's end position (the apparent branchpoint) to see if any of them are more likely to be the true branchpoint. This will add the following columns to `lariat_reads.tsv`:
+
+ - `corrected_bp_pos`: The genomic position of the corrected branchpoint position. Identical to `bp_pos` if `corrected` = `False`
+ - `corrected_bp_dist_to_threep`: The genomic position of the closest 3' splice site that is downstream of the branchpoint, using the corrected position. Identical to `bp_dist_to_threep` if `corrected` = `False`
+ - `corrected_genomic_bp_nt`: The nucleotide of the branchpoint in the genome, using the corrected position. Reverse-complemented if `strand` = `-`. Identical to `genomic_bp_nt` if `corrected` = `False`
+ - `corrected_genomic_bp_context`: The genomic sequence from positions -8 to +8 of the branchpoint, using the corrected position. Reverse-complemented if `strand` = `-`. Identical to `genomic_bp_context` if `corrected` = `False`
+ - `corrected_bp_mismatch `: `True` if `read_bp_nt` ≠ `corrected_genomic_bp_nt`, otherwise `False`. Identical to `bp_mismatch` if `corrected` = `False`
+ - `corrected`: `True` if a more likely candidate for the branchpoint position was discovered, otherwise `False`
+
+*To be elaborated*
+
 
 ### All options
 	-m REF_REPEATMASKER, --ref_repeatmasker REF_REPEATMASKER
@@ -113,74 +131,82 @@ LariatMapper aims to assign each input read a "read class", which denotes the ty
 	- **Linear, intergenic or ambiguous**: ... is within either zero genes or multiple overlapping genes.
 2. The read does *NOT* have a valid linear alignment to the genome, and...
 	- **No alignment**: ... no 5' splice sites map to it.
-	- **Fivep alignment**: ... at least one 5' splice site maps to it, but its head and tail alignments don't fit another read class. 
-	- **Template-switching**: ... contains a reverse-transcriptase template-switching event.
-	- **Circularized intron**: ... .
-	- **In repetitive region**: ... .
-	- **Lariat**: ... .
-
+	- **Fivep alignment**: ... at least one 5' splice site maps to it. 
+	- **Template-switching**: ... contains a reverse transcriptase template-switching event.
+	- **Circularized intron**: ... has an inverted gapped alignment with a tail that starts at a 5' splice site, and a head that ends within 2nt of a downstream 3' splice site.
+	- **Lariat**: ... has an inverted gapped alignment with a tail that starts at a 5' splice site, and a head that's within a intron and downstream of the tail.
+	- **In repetitive region**: ... has a lariat alignment to a repetitive region
 
 
 ### Output files
 All output will be written in the directory `OUT_DIR`. This includes:
 
-- `lariat_reads.tsv`: A table of the reads classified as lariats
+- `lariat_reads.tsv`: A table of the reads classified as lariats**
 - `circularized_intron_reads.tsv`: A table of the reads classified as circularized introns
-- `template_switching_reads.tsv`: A table of reads classified as template-switching
+- `template_switching_reads.tsv`: A table of reads that contain contains a reverse transcriptase template-switching event
+# AHHHHHHH
+- `output.bam_count.tsv`: 
 - `summary.txt`: A collection of metadata and summary statistics for the run
 - `read_counts.tsv`: A table of counts for various read classes in machine-friendly format
 - `plots/Branchpoint_base_composition.png`: A plot of the distribution of branchpoint nucleotides across all lariat reads
 - `plots/Branchpoint_threep_distance.png`: A plot of the distribution of distances between the branchpoint and the 3' splice site across all lariat reads
 
-<details>
-	<summary><code>lariat_reads.tsv</code> columns</summary>
+
+### Output file columns 
+`lariat_reads.tsv`
 
 - `read_id`: The read's ID (unique)
-- `gene_name`^*^: The name of the gene that produced the lariat 
-- `gene_id`^*^: The Ensembl ID of the gene that produced the lariat
-- `gene_type`^*^: The type of the gene that produced the lariat 
+- `gene_id`<sup>*</sup>: The Ensembl ID(s) of the gene(s) that produced the lariat
 - `chrom`: The chromosome of the gene that produced the lariat
-- `strand`: The strand of the gene that produced the lariat. "+" for the forward strand and "-" for the reverse strand
+- `strand`: The strand of the gene that produced the lariat. `+` for the forward strand and `-` for the reverse strand
 - `fivep_pos`: The genomic position of the lariat's 5' splice site 
-- `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the branchpoint
 - `bp_pos`: The genomic position of the lariat's branchpoint 
-- `read_bp_nt`: The nucleotide of the branchpoint according to the read's sequence. Reverse-complemented if strand is "-"
-- `bp_dist_to_threep`: The distance of the branchpoint to the 3' splice site in nucleotides
-- `read_alignment`: "forward" if the RNA-seq read's sequence matches the source intron's sequence, "reverse" if it matches the reverse-complement
+- `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the branchpoint
+- `bp_dist_to_threep`: The distance of the branchpoint to the 3' splice site
+- `read_orient_to_gene`:  `Forward` if the RNA-seq read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
 - `read_bp_pos`: The position of the branchpoint in the read
-- `read_seq`: The read's DNA sequence 
-- `read_bp_nt`: The nucleotide of the branchpoint according to the read. Reverse-complemented if read_alignment is "reverse"
-- `genomic_bp_nt`: The nucleotide of the branchpoint according to the reference genome. Reverse-complemented if strand is "-"
-- `genomic_bp_context`: The genomic sequence from positions -4 to +5 of the branchpoint. Reverse-complemented if strand is "-"
-- `total_mapped_reads`: The number of input reads that mapped linearly to the reference genome (identical across all rows)
+- `read_bp_nt`: The nucleotide of the branchpoint in the read
+- `genomic_bp_nt`: The nucleotide of the branchpoint in the genome. Reverse-complemented if `strand` = `-`
+- `bp_mismatch`: `True` if `read_bp_nt` ≠ `genomic_bp_nt`, otherwise `False`
+- `genomic_bp_context`: The genomic sequence from positions -8 to +8 of the branchpoint. Reverse-complemented if `strand` = `-`
+- `total_mapped_reads`: The total number of input reads that mapped linearly to the reference genome (identical across all rows)
 
-^*^: may be multiple comma-delimited values
+<sup>*</sup> can be multiple comma-delimited values
 
-</details>
-
-
-<details>
-	<summary><code>circularized_intron_reads.tsv</code> columns</summary>
-
-
-</details>
-
-<details>
-	<summary><code>template_switching_reads.tsv</code> columns</summary>
+`circularized_intron_reads.tsv`
 
 - `read_id`: The read's ID (unique)
-- `fivep_sites`^*^: The 5' splice sites that mapped to the read. Format is [CHROMOSOME];[STRAND];[POSITION]
-- `temp_switch_sites`^*^: The location where the reverse transcriptase transfered to. Format is [CHROMOSOME];[POSITION]
-- `read_seq`^*^: The read's DNA sequence
-- `fivep_seq`^*^: The 5' splice sites' DNA sequence
-- `genomic_bp_context`^*^: The genomic sequence from positions -4 to +5 of the branchpoint. Reverse-complemented if strand is "-"
-- `read_bp_pos`^*^: The position of the branchpoint in the read 
+- `gene_id`<sup>*</sup>: The Ensembl ID(s) of the gene(s) that produced the lariat
+- `chrom`: The chromosome of the gene that produced the lariat
+- `strand`: The strand of the gene that produced the lariat. `+` for the forward strand and `-` for the reverse strand
+- `fivep_pos`: The genomic position of the lariat's 5' splice site 
+- `head_end_pos`: The genomic position of the end of the head alignment
+- `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the branchpoint
+- `head_end_dist_to_threep`: The distance of the end of the head alignment to the 3' splice site
+- `read_orient_to_gene`:  `Forward` if the RNA-seq read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
+- `read_head_end_pos`: The end position of the head in the read
+- `read_head_end_nt`: The nucleotide of the end position of the head in the read
+- `genomic_head_end_nt`: The nucleotide of the end of the head alignment in the genome. Reverse-complemented if `strand` = `-`
+- `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
-^*^: may be multiple comma-delimited values
+<sup>*</sup> can be multiple comma-delimited values
 
-</details>
+`template_switching_reads.tsv`
 
-All position values are 0-based inclusive. 
+- `read_id`: The read's ID (unique)
+- `read_orient_to_gene`:  `Forward` if the RNA-seq read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
+- `read_bp_pos`: The position of the branchpoint in the read
+- `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
+- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
+- `genomic_bp_context`: The genomic sequence from positions -8 to +8 of the branchpoint. Reverse-complemented if `strand` = `-`
+- `temp_switch_sites`<sup>*</sup>: The genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
+
+<sup>*</sup> can be multiple comma-delimited values
+
+All position values are 0-based and inclusive. 
 
 
 ## Additional information
@@ -188,8 +214,8 @@ See DEMO.md for a short demonstration of setting up and then running LariatMappe
 
 See DESIGN.md for an overiview of LariatMapper's design and the theory behind it.
 
-<details>
-	<summary><strong>Software attributions</strong></summary>
+
+## Software attributions
 
 - **bedtoolsr**: Patwardhan, Mayura; Wenger, Craig D.; Davis, Eric S.; Phanstiel, Douglas H.: "Bedtoolsr: An R package for genomic data analysis and manipulation" (in preparation).
 
@@ -212,5 +238,3 @@ See DESIGN.md for an overiview of LariatMapper's design and the theory behind it
 - **samtools**: Petr Danecek, James K Bonfield, Jennifer Liddle, John Marshall, Valeriu Ohan, Martin O Pollard, Andrew Whitwham, Thomas Keane, Shane A McCarthy, Robert M Davies, Heng Li, Twelve years of SAMtools and BCFtools, GigaScience, Volume 10, Issue 2, February 2021, giab008, https://doi.org/10.1093/gigascience/giab008
 
 LariatMapper was developed from an in-house analysis pipeline which was first publicized in ["Large-scale mapping of branchpoints in human pre-mRNA transcripts in vivo" by Taggart et al. (2012)](https://doi.org/10.1038/nsmb.2327). 
-
-</details>
