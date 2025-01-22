@@ -92,7 +92,7 @@ SUMMARY_TEMPLATE = (
 					"Lariat reads, genomic_bp_nt = N: {N:.1%}\n"
 					"Lariat reads, genomic_bp_nt ≠ read_bp_nt: {bp_mismatch:.1%}\n"
 					"Lariat reads, |bp_dist_to_threep| ≤ 70: {within_70:.1%}\n"
-					"Lariat reads, branchpoint position corrected: {bp_corrected_prop:.1%}\n"
+					"Lariat reads, branchpoint position corrected: {bp_corrected_prop}\n"
 )
 READ_COUNTS_TEMPLATE = (
 						"Category\tSubcategory\tReads\n"
@@ -253,13 +253,17 @@ if __name__ == '__main__':
 		stats.update({bp: 0 for bp in ['A', 'C', 'G', 'T', 'N']})
 		stats['within_70'] = 0
 		stats['bp_mismatch'] = 0
-		stats['bp_corrected_prop'] = 0
+		stats['bp_corrected_prop'] = 'N/A'
 	else:
 		lariat_reads.genomic_bp_nt = pd.Categorical(lariat_reads.genomic_bp_nt, categories=['A', 'C', 'G', 'T', 'N'])
 		stats.update(lariat_reads.genomic_bp_nt.value_counts(normalize=True).to_dict())
 		stats['within_70'] = lariat_reads.bp_dist_to_threep.abs().le(70).sum()/lariat_reads.shape[0]
 		stats['bp_mismatch'] = lariat_reads.genomic_bp_nt.ne(lariat_reads.read_bp_nt).sum()/lariat_reads.shape[0]
-		stats['bp_corrected_prop'] = lariat_reads.corrected.sum()/lariat_reads.shape[0]
+		if 'corrected' in lariat_reads.columns:
+			stats['bp_corrected_prop'] = f"{lariat_reads.corrected.sum()/lariat_reads.shape[0]:.1%}"
+		else:
+			stats['bp_corrected_prop'] = 'N/A'
+		
 	
 
 	# Write summary info to file
