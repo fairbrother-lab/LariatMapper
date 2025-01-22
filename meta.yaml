@@ -1,4 +1,4 @@
-{% set version = "0.8.1" %}
+{% set version = "0.11.0" %}
 
 package:
   name: lariatmapper
@@ -6,45 +6,68 @@ package:
 
 source:
   url: https://github.com/fairbrother-lab/LariatMapper/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: 97a093660775354216998b8332c35d8a909e1f77624d7f10366168b435a47cb7
+  sha256: 3dc6dd618e695d904d5039788966571a57bb8881b5da11aa8963d949ba7b64f5
 
 build:
   number: 0
   noarch: generic
   additional-platforms:
     - osx-arm64
-  run_exports:
-    - {{ pin_subpackage('lariatmapper', max_pin="x.x") }}
+  entry_points:
+    - lariatmapper-map: larmap:main
+  # run_exports:
+  #   - {{ pin_subpackage('lariatmapper', max_pin="x.x") }}
+  pin_depends: record
+
+channels:
+  - conda-forge
+  - bioconda
 
 requirements:
   host:
     - python >=3.9, <=3.11
-    - r-base # Explicitly define the r-base version to prevent breakage if something changes in newer versions
+    - r-base >=4.1         # Explicitly define the r-base version to prevent breakage if something changes in newer versions
+    - numpy =2.2.*         # Explicitly define numpy version to address numpy-specific quirks in conda-build
   run:
+    - bcftools
     - bedtools
-    - genomicalignments
-    - genomicfeatures
-    - rtracklayer
+    - bioconductor-biostrings
+    - bioconductor-genomicalignments
+    - bioconductor-genomicfeatures
+    - bioconductor-genomicranges
+    - bioconductor-rtracklayer
+    - bioconductor-txdbmaker         # Required by GenomicFeatures makeTxDbFromGRanges function
     - bowtie2
     - fsspec
     - hisat2
     - intervaltree
-    - git # We should remove this. Version control should be left up to the user and pulling new versions from Github doesn't make sense in the context of bioconda packages
-    - numpy
     - pandas
     - pyarrow
     - pyfaidx
     - pysam
-    - python >=3.9, <=3.11
-    - r-base
+    - r-bedtoolsr
+    - r-ggplot2
+    - r-gt
+    - r-magrittr
     - r-optparse
     - r-tidyverse
     - samtools
 
 test:
+  files:
+    - pyproject.toml
+    - build_references.py
+    - larmap.py
+    - scripts/*
+    - tests/*
+  requires:
+    - pytest
+    - pytest-xdist
   commands:
-    - build_references.py --help
-    - larmap.py --help
+    - echo "dir is $SRC_DIR, Path is $PATH"
+    - python3 $SRC_DIR/build_references.py --help
+    - python3 $SRC_DIR/larmap.py --help
+    # - pytest -n auto $SRC_DIr/tests
 
 about:
   home: https://github.com/fairbrother-lab/LariatMapper

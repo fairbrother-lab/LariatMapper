@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# For conda build
 
 mkdir -p ${PREFIX}/bin/
 cp -r * ${PREFIX}/bin/
