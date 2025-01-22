@@ -78,9 +78,9 @@ LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The da
 	-n REF_INTRONS, --ref_introns REF_INTRONS
                         TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)
 		
-	--pwm_correction PWM_CORRECTION
+	-P PWM_CORRECTION, --pwm_correction PWM_CORRECTION
                         RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
-	--model_correction MODEL_CORRECTION
+	-M PWM_CORRECTION, --model_correction MODEL_CORRECTION
                         RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See <ZENODO_LINK_TO_BE_ADDED> to download predictions for specific reference genomes. (Default = no correction)
 						
 	-p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
