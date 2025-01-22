@@ -47,7 +47,6 @@ requirements:
     - pysam
     - r-bedtoolsr
     - r-ggplot2
-    - r-gt
     - r-magrittr
     - r-optparse
     - r-tidyverse

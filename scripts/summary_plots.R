@@ -1,6 +1,7 @@
 suppressPackageStartupMessages(require(optparse))
 suppressPackageStartupMessages(require(ggplot2))
-suppressPackageStartupMessages(require(gt))
+suppressPackageStartupMessages(require(tidyverse))
+suppressPackageStartupMessages(require(scales))
 
 
 
@@ -26,10 +27,13 @@ opts <- parse_args(parser)
 
 output_base <- opts$output_base
 
+
+
+
 # Variable paths
 lariats_file = paste(output_base, "lariat_reads.tsv", sep='')
 plots_dir = paste0(output_base, "plots/")
-base_table_path = paste0(plots_dir, "Branchpoint_base_composition.html")
+base_table_path = paste0(plots_dir, "Branchpoint_base_composition.png")
 dists_path = paste0(plots_dir, "Branchpoint_threep_distance.png")
 
 # Setup
@@ -50,55 +54,44 @@ if (nrow(lariats) == 0){
 }
 
 
+
 # Derive base composition table 
 df = table(lariats[, c("read_bp_nt", "genomic_bp_nt")]) 
 df = as.data.frame.matrix(df)
 
-# Format values in table for gt
-# Output will be <COUNT> \n <PERCENT>
-cell_val = function(x) {
-	perc = sprintf("%.0f%%", x / nrow(lariats) * 100)
-	paste(x, perc, sep='<br>')
-}
-for (col in colnames(df)) {
-	df[col] = as.character(apply(df[col], 2, cell_val))
-}
+# Format values in table for ggplot
+df <- df %>%
+  rownames_to_column(var = "In_Read") %>%
+  pivot_longer(cols = -In_Read, names_to = "In_Genome", values_to = "Count") %>%
+  mutate(Percent = Count / nrow(lariats),
+  		In_Read = factor(In_Read, levels = rev(BASES), ordered = T),
+		In_Genome = factor(In_Genome, levels = BASES, ordered = T)
+)
 
-# Add "In Read" column to act as the gt table row group label
-df$type = "In Read"
+# Create table like a heatmap
+base_table <- ggplot(df, aes(x = In_Genome, y = In_Read, fill = Percent)) +
+  geom_tile(color="#003760", linewidth=1.5) +
+  geom_text(aes(label = Count), color = "black", size=6) +
+  scale_x_discrete(position = "top") +
+  scale_fill_gradient(low = "white", high = "#4daf4a", labels=percent_format()) +
+  labs(x = "In Genome", y = "In Read") +
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 30, face = "bold", color = "white"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+	legend.title = element_blank(),
+	legend.text = element_text(size = 18, color = "white"),
+	legend.key.size = unit(30, 'pt'),
+	legend.key.height = unit(50, 'pt'),
+    plot.background = element_rect(fill = "#003760"),
+	plot.margin = margin(40, 40, 40, 40, "pt"),
+    axis.title = element_text(size = 48, face = "bold", color = "white"),
+  )
 
-# Create gt table
-base_table <- gt(df, rownames_to_stub=TRUE, groupname_col = "type") %>%
-	tab_header(md("Branchpoint base composition")) %>%
-	# Spanner and column labels
-	tab_spanner(label = md("In Genome"), columns = everything(),) %>%
-	tab_style(style = cell_text(align="center", weight="bold", size=px(18)), locations = list(cells_column_spanners())) %>%
-	tab_style(style = cell_text(align="center", weight="bold"), locations = list(cells_column_labels())) %>%
-	# Stub and row labels
-	tab_options(row_group.as_column = TRUE) %>%
-	tab_style(style = cell_fill("#004D80"), locations = list(cells_stub(), cells_row_groups())) %>%
-	tab_style(style = cell_text(align="center", v_align="middle", color="white", weight="bold"), locations = list(cells_stub())) %>%
-    tab_style(style = cell_text(align="center", v_align="middle", color="white", weight="bold", size=px(18)),locations = list(cells_row_groups())) %>%
-	# Fix row borders to match columns
-    tab_style(style = cell_borders(sides="top", style="hidden"), locations = list(cells_stub(), cells_row_groups())) %>%
-    tab_style(style = cell_borders(sides="right", style="solid", color='#89D3FE'), locations = list(cells_stub())) %>%
-	# Whiten cells
-	tab_style(style=cell_fill(color = "White"), locations = cells_body()) %>%
-	# Table-wide formatting
-	cols_width(
-		c(A, C, G, T) ~ px(60),
-		stub() ~ px(30),
-		row_group() ~ px(90)
-	) %>%
-  	opt_stylize(style=2) %>%
-	fmt_markdown() %>%
-	tab_options(
-		heading.title.font.size=px(24),
-		heading.background.color="#003760",
-		data_row.padding=px(12)
-	) 
 # Save plot to file
-suppressMessages(gtsave(base_table, base_table_path))
+suppressMessages(ggsave(base_table_path, base_table, height=8, width=8))
+
 
 
 # Density plot of branchpoint distance to 3'ss
