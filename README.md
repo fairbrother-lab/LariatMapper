@@ -14,6 +14,7 @@ NOTE: LariatMapper is currently in development, and may display unexpected or er
 	- [Putative branchpoint correction](#putative-branchpoint-correction)
 	- [All options](#all-options)
 - [Output](#output)
+	- [Output files](#output-files)
 - [Additional information](#additional-information)
 	- [Software attributions](#software-attributions)
 
@@ -111,8 +112,8 @@ LariatMapper aims to assign each input read a "read class", which denotes the ty
 	- **Linear, intron only**: ... only overlaps introns.
 	- **Linear, intergenic or ambiguous**: ... is within either zero genes or multiple overlapping genes.
 2. The read does *NOT* have a valid linear alignment to the genome, and...
-	- **No alignment**: ... no five-prime splice sites map to it.
-	- **Fivep alignment**: ... at least one five-prime splice site maps to it, but its head and tail alignments don't fit another read class. 
+	- **No alignment**: ... no 5' splice sites map to it.
+	- **Fivep alignment**: ... at least one 5' splice site maps to it, but its head and tail alignments don't fit another read class. 
 	- **Template-switching**: ... contains a reverse-transcriptase template-switching event.
 	- **Circularized intron**: ... .
 	- **In repetitive region**: ... .
@@ -129,15 +130,15 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `summary.txt`: A collection of metadata and summary statistics for the run
 - `read_counts.tsv`: A table of counts for various read classes in machine-friendly format
 - `plots/Branchpoint_base_composition.png`: A plot of the distribution of branchpoint nucleotides across all lariat reads
-- `plots/Branchpoint_threep_distance.png`: A plot of the distribution of distances between the branchpoint and the three prime splice site across all lariat reads
+- `plots/Branchpoint_threep_distance.png`: A plot of the distribution of distances between the branchpoint and the 3' splice site across all lariat reads
 
 <details>
 	<summary><code>lariat_reads.tsv</code> columns</summary>
 
 - `read_id`: The read's ID (unique)
-- `gene_name` [^1] : The name of the gene that produced the lariat 
-- `gene_id`[^1]: The Ensembl ID of the gene that produced the lariat
-- `gene_type`*: The type of the gene that produced the lariat 
+- `gene_name`^*^: The name of the gene that produced the lariat 
+- `gene_id`^*^: The Ensembl ID of the gene that produced the lariat
+- `gene_type`^*^: The type of the gene that produced the lariat 
 - `chrom`: The chromosome of the gene that produced the lariat
 - `strand`: The strand of the gene that produced the lariat. "+" for the forward strand and "-" for the reverse strand
 - `fivep_pos`: The genomic position of the lariat's 5' splice site 
@@ -153,14 +154,10 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `genomic_bp_context`: The genomic sequence from positions -4 to +5 of the branchpoint. Reverse-complemented if strand is "-"
 - `total_mapped_reads`: The number of input reads that mapped linearly to the reference genome (identical across all rows)
 
-
-[^1]: uhh this is a footnote
-
-*may be multiple comma-delimited values
+^*^: may be multiple comma-delimited values
 
 </details>
 
-.
 
 <details>
 	<summary><code>circularized_intron_reads.tsv</code> columns</summary>
@@ -171,16 +168,17 @@ All output will be written in the directory `OUT_DIR`. This includes:
 <details>
 	<summary><code>template_switching_reads.tsv</code> columns</summary>
 
-- `read_id: The read's ID (unique)
-- `fivep_sites*: The 5' splice sites that mapped to the read. Format is \<chromosome>;\<strand>;\<position>,...
-- `temp_switch_sites*: The location where the reverse transcriptase transfered to. Format is \<chromosome>;\<position>,...
-- `read_seq*: The read's DNA sequence
-- `fivep_seq*: The 5' splice sites' DNA sequence
-- `genomic_bp_context*: The genomic sequence from positions -4 to +5 of the branchpoint. Reverse-complemented if strand is "-"
-- `read_bp_pos*: The position of the branchpoint in the read 
+- `read_id`: The read's ID (unique)
+- `fivep_sites`^*^: The 5' splice sites that mapped to the read. Format is [CHROMOSOME];[STRAND];[POSITION]
+- `temp_switch_sites`^*^: The location where the reverse transcriptase transfered to. Format is [CHROMOSOME];[POSITION]
+- `read_seq`^*^: The read's DNA sequence
+- `fivep_seq`^*^: The 5' splice sites' DNA sequence
+- `genomic_bp_context`^*^: The genomic sequence from positions -4 to +5 of the branchpoint. Reverse-complemented if strand is "-"
+- `read_bp_pos`^*^: The position of the branchpoint in the read 
+
+^*^: may be multiple comma-delimited values
 
 </details>
-
 
 All position values are 0-based inclusive. 
 
