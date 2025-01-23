@@ -3,10 +3,11 @@
 
 A pipeline for extracting lariats and their branchpoints from RNA-sequencing data.
 
-NOTE: LariatMapper is currently in development, and may display unexpected or erroneous behavior. If you encounter any problems while using it, please let us know by [creating an issue on GitHub](https://github.com/fairbrother-lab/LariatMapper/issues/new?template=bug-report.md).
+NOTE: LariatMapper is currently in development. If you encounter any problems while using it, please let us know by [creating an issue on GitHub](https://github.com/fairbrother-lab/LariatMapper/issues/new?template=bug-report.md).
 
 
 ## Table of Contents
+- [Installation](#installation)
 - [Setup](#setup)
 	- [Dependencies](#dependencies)
 	- [Reference files](#reference-files)
@@ -22,21 +23,27 @@ NOTE: LariatMapper is currently in development, and may display unexpected or er
 - [Software attributions](#software-attributions)
 
 
+## Installation
+LariatMapper works in a Linux or MacOS system. It will not work in Windows. You can download it on the command line with `git`:
+
+```
+git clone https://github.com/fairbrother-lab/LariatMapper
+```
+
+
 ## Setup
-LariatMapper works in a Linux or MacOS system. It does not work in Windows.
-
-
 ### Dependencies
 The software dependencies are detailed in `requirements.txt`. We recommend creating a dedicated programming environment for LariatMapper with [mamba](https://mamba.readthedocs.io/en/latest/user_guide/mamba.html) to avoid dependency-related problems during use. 
 
 If you have mamba installed, you can create a new environment named "larmap" by running
-
-	mamba create --name "larmap" --file requirements.txt --channel conda-forge --channel bioconda
+```
+mamba create --name "larmap" --file requirements.txt --channel conda-forge --channel bioconda
+```
 
 The environment can then be activated by running
-
-	mamba activate larmap
- 
+```
+mamba activate larmap
+```
 before running scripts in the pipeline.
 
 
@@ -50,7 +57,9 @@ You will need:
 
 Run `build_references.py` with the paths to each file and the desired output path:
 
-	python build_references.py -f GENOME_FASTA -a <GENOME_ANNO> -i <HISAT2_INDEX> -o <OUT_DIR>
+```
+python build_references.py -f GENOME_FASTA -a GENOME_ANNO -i HISAT2_INDEX -o OUT_DIR
+```
 
 You can then use `OUT_DIR` as the reference files directory when running LariatMapper (argument `-r, --ref_dir`)
 
@@ -62,18 +71,45 @@ If a RepeatMasker file is included in a run, LariatMapper will check putative la
 ## Running the Pipeline
 ### Required arguments 
 For single-end sequencing data, run
-
-	python larmap.py -f READ_FILE -r REF_DIR -o OUTPUT_DIR
-
+```
+python larmap.py -f READ_FILE -r REF_DIR -o OUTPUT_DIR
+```
 For paired-end sequencing data, run
-
-	python larmap.py -1 READ_ONE -2 READ_TWO -r REF_DIR -o OUTPUT_DIR
-
+```
+python larmap.py -1 READ_ONE -2 READ_TWO -r REF_DIR -o OUTPUT_DIR
+```
 LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers for reliable results. 
 
 
 ### Branchpoint correction
-LariatMapper includes an option to try correcting the apparent branchpoint positions of lariat reads, to account for sequencing errors. everse When applied, LariatMapper will check the 3 nucleotides downstream of the head's end position (the apparent branchpoint) to see if any of them are more likely to be the true branchpoint. This will add the following columns to `lariat_reads.tsv`:
+LariatMapper includes an option to try correcting the apparent branchpoint positions of lariat reads to account for sequencing errors. When applied, LariatMapper will check a 3nt window downstream of the head's end position (the apparent branchpoint) to see if any of them are more likely to be the true branchpoint. 
+
+LariatMapper can use different 2 approaches to branchpoint correction:
+
+<details>
+<summary><strong>Position Weight Matrix (PWM)-based correction.</strong></summary>
+
+This uses a PWM of the expected branchpoint motif, including a mark to indicate the location of the branchpoint within the PWM. The PWM is matched against the genomic sequence of the apparent branchpoint and each other position within the 3nt window. If a position in the window gets a higher match score than the apparent branchpoint position and the score is 0.8 or greater, it is deemed the correct branchpoint position. Multiple PWMs can be used, in which case the highest-scoring position across all PWMs is chosen. 
+
+See <ZENODO_LINK_TO_BE_ADDED> to download prebuilt matrices for commonly-used reference genomes. See `scripts/pwm_build.R` to build a custom matrix from a FASTA file of branchpoint sequences.
+
+Applied with `-P, --pwm_correction`
+
+</details>
+
+<details>
+<summary><strong>Model-based correction</summary></strong>
+
+This uses predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. A 3nt window downstream of the apparent branchpoint is checked, and if the apparent branchpoint is *not* predicted to be a branchpoint but a position within the 3nt window *is*, the later is deemed the correct branchpoint. 
+
+See <ZENODO_LINK_TO_BE_ADDED> to download precalculated predictions for commonly-used reference genomes. 
+
+Applied with `-M, --model_correction`
+
+</details>
+
+
+Including branchpoint correction in a LariatMapper run will add the following columns to `lariat_reads.tsv`:
 
  - `corrected_bp_pos`: The genomic position of the corrected branchpoint position. Identical to `bp_pos` if `corrected` = `False`
  - `corrected_bp_dist_to_threep`: The genomic position of the closest 3' splice site that is downstream of the branchpoint, using the corrected position. Identical to `bp_dist_to_threep` if `corrected` = `False`
@@ -82,42 +118,48 @@ LariatMapper includes an option to try correcting the apparent branchpoint posit
  - `corrected_bp_mismatch `: `True` if `read_bp_nt` ≠ `corrected_genomic_bp_nt`, otherwise `False`. Identical to `bp_mismatch` if `corrected` = `False`
  - `corrected`: `True` if a more likely candidate for the branchpoint position was discovered, otherwise `False`
 
-*To be elaborated*
+
 
 
 ### All options
-	-m REF_REPEATMASKER, --ref_repeatmasker REF_REPEATMASKER
-                        BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)
-	-i REF_H2INDEX, --ref_h2index REF_H2INDEX
-                        HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)
-	-g REF_FASTA, --ref_fasta REF_FASTA
-                        FASTA file of the reference genome. (Default = REF_DIR/genome.fa)
-	-5 REF_5P_FASTA, --ref_5p_fasta REF_5P_FASTA
-                        FASTA file of 5' splice site sequences, i.e. the first 20nt of all annotated introns. (Default = REF_DIR/fivep_sites.fa)
-	-n REF_INTRONS, --ref_introns REF_INTRONS
-                        TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)
-		
-	-P PWM_CORRECTION, --pwm_correction PWM_CORRECTION
-                        RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See <ZENODO_LINK_TO_BE_ADDED> to download prebuilt matrices. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
-	-M PWM_CORRECTION, --model_correction MODEL_CORRECTION
-                        RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See <ZENODO_LINK_TO_BE_ADDED> to download predictions for specific reference genomes. (Default = no correction)
-						
-	-p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
-                        Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv). (Default = no prefix)
-						
-	-u, --ucsc_track    Add an output file named "lariat_reads.bed". This can be used as a custom track in the UCSC Genome Browser to visualize lariat read alignments
+<details>
+<summary> Expand </summary>
 
-	-b, --keep_bam      Keep the BAM file produced in the initial linear mapping step (Default = delete)
-	-c, --keep_classes  Keep a file with per-read classification of non-linearly-aligned reads named "read_classes.tsv.gz" in the output (Default = delete)
-	-k, --keep_temp     Keep all temporary files created while running the pipeline. Forces -c and -b (Default = delete)
+```
+-m REF_REPEATMASKER, --ref_repeatmasker REF_REPEATMASKER
+					BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)
+-i REF_H2INDEX, --ref_h2index REF_H2INDEX
+					HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)
+-g REF_FASTA, --ref_fasta REF_FASTA
+					FASTA file of the reference genome. (Default = REF_DIR/genome.fa)
+-5 REF_5P_FASTA, --ref_5p_fasta REF_5P_FASTA
+					FASTA file of 5' splice site sequences, i.e. the first 20nt of all annotated introns. (Default = REF_DIR/fivep_sites.fa)
+-n REF_INTRONS, --ref_introns REF_INTRONS
+					TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)
+	
+-P PWM_CORRECTION, --pwm_correction PWM_CORRECTION
+					RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See <ZENODO_LINK_TO_BE_ADDED> to download prebuilt matrices. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
+-M PWM_CORRECTION, --model_correction MODEL_CORRECTION
+					RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See <ZENODO_LINK_TO_BE_ADDED> to download predictions for specific reference genomes. (Default = no correction)
+					
+-p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
+					Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv). (Default = no prefix)
+					
+-u, --ucsc_track    Add an output file named "lariat_reads.bed". This can be used as a custom track in the UCSC Genome Browser to visualize lariat read alignments
 
-	-t THREADS, --threads THREADS
-                        Number of threads to use. (Default = 1)
+-b, --keep_bam      Keep the BAM file produced in the initial linear mapping step (Default = delete)
+-c, --keep_classes  Keep a file with per-read classification of non-linearly-aligned reads named "read_classes.tsv.gz" in the output (Default = delete)
+-k, --keep_temp     Keep all temporary files created while running the pipeline. Forces -c and -b (Default = delete)
 
-	-q, --quiet         Only print fatal error messages. Mutually exclusive with -w and -d
-	-w, --warning       Print warning messages and fatal error messages. Mutually exclusive with -q and -d
-	-d, --debug         Print extensive status messages. Mutually exclusive with -q and -w
+-t THREADS, --threads THREADS
+					Number of threads to use. (Default = 1)
 
+-q, --quiet         Only print fatal error messages. Mutually exclusive with -w and -d
+-w, --warning       Print warning messages and fatal error messages. Mutually exclusive with -q and -d
+-d, --debug         Print extensive status messages. Mutually exclusive with -q and -w
+```
+
+</details>
 
 ## Output
 ### Read classes
@@ -152,7 +194,8 @@ All output will be written in the directory `OUT_DIR`. This includes:
 
 
 ### Output file columns 
-`lariat_reads.tsv`
+<details>
+<summary><code> lariat_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
 - `gene_id`<sup>*</sup>: The Ensembl ID of the gene that produced the lariat
@@ -172,8 +215,10 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `total_mapped_reads`: The total number of input reads that mapped linearly to the reference genome (identical across all rows)
 
 <sup>*</sup> can be multiple comma-delimited values
+</details>
 
-`circularized_intron_reads.tsv`
+<details>
+<summary><code> circularized_intron_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
 - `gene_id`<sup>*</sup>: The Ensembl ID of the gene that produced the lariat
@@ -191,8 +236,10 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
+</details>
 
-`template_switching_reads.tsv`
+<details>
+<summary><code> template_switching_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
 - `read_orient_to_gene`:  `Forward` if the RNA-seq read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
@@ -204,8 +251,11 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `temp_switch_sites`<sup>*</sup>: The genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
 
 <sup>*</sup> can be multiple comma-delimited values
+</details>
 
-`output.bam_count.tsv`
+<details>
+<summary><code> output.bam_count.tsv </code></summary>
+
 - `gene_id`: The gene's ID (unique)
 - `gene`: The total number of reads mapped to the gene. 
 - `exon_intron_junc`: The number of reads mapped to the gene that contain an exon-intron junction 
@@ -215,12 +265,22 @@ All output will be written in the directory `OUT_DIR`. This includes:
 
 `gene` = `exon_intron_junc`+`exon_only`+`exon_exon_junc`+`intron_only`
 
+</details>
+
 All position values are 0-based and inclusive. 
+
 
 ## Additional information
 See DEMO.md for a short demonstration of setting up and then running LariatMapper.
 
 See DESIGN.md for an overiview of LariatMapper's design and the theory behind it.
+
+
+## Contact us
+You can reach us via email at 
+
+- truman_mooney@brown.edu 
+- jeremiah_buerer@brown.edu
 
 
 ## Software attributions
@@ -245,4 +305,5 @@ See DESIGN.md for an overiview of LariatMapper's design and the theory behind it
 
 - **samtools**: Petr Danecek, James K Bonfield, Jennifer Liddle, John Marshall, Valeriu Ohan, Martin O Pollard, Andrew Whitwham, Thomas Keane, Shane A McCarthy, Robert M Davies, Heng Li, Twelve years of SAMtools and BCFtools, GigaScience, Volume 10, Issue 2, February 2021, giab008, https://doi.org/10.1093/gigascience/giab008
 
-LariatMapper was developed from an in-house analysis pipeline which was first publicized in ["Large-scale mapping of branchpoints in human pre-mRNA transcripts in vivo" by Taggart et al. (2012)](https://doi.org/10.1038/nsmb.2327). 
+
+Development of the original method for alignment of lariat reads from RNA-seq data was pioneered by the Fairbrother lab ([Taggart *et al.* 2012](https://doi.org/10.1038/nsmb.2327)). The current LariatMapper algorithm was extended and refined from an in-house analysis pipeline ([Townley *et al.* 2023](https://doi.org/10.1016/j.molcel.2023.06.011)) based on the method described in [Pineda and Bradley 2018](https://doi.org/10.1101/gad.312058.118).
