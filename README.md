@@ -98,7 +98,7 @@ LariatMapper includes an option to try correcting the apparent branchpoint posit
                         TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)
 		
 	-P PWM_CORRECTION, --pwm_correction PWM_CORRECTION
-                        RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
+                        RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See <ZENODO_LINK_TO_BE_ADDED> to download prebuilt matrices. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
 	-M PWM_CORRECTION, --model_correction MODEL_CORRECTION
                         RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See <ZENODO_LINK_TO_BE_ADDED> to download predictions for specific reference genomes. (Default = no correction)
 						
@@ -144,8 +144,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `lariat_reads.tsv`: A table of the reads classified as lariats**
 - `circularized_intron_reads.tsv`: A table of the reads classified as circularized introns
 - `template_switching_reads.tsv`: A table of reads that contain contains a reverse transcriptase template-switching event
-# AHHHHHHH
-- `output.bam_count.tsv`: 
+- `output.bam_count.tsv`: A table of linearly-mapped read counts for each gene, stratified by read class
 - `summary.txt`: A collection of metadata and summary statistics for the run
 - `read_counts.tsv`: A table of counts for various read classes in machine-friendly format
 - `plots/Branchpoint_base_composition.png`: A plot of the distribution of branchpoint nucleotides across all lariat reads
@@ -156,7 +155,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 `lariat_reads.tsv`
 
 - `read_id`: The read's ID (unique)
-- `gene_id`<sup>*</sup>: The Ensembl ID(s) of the gene(s) that produced the lariat
+- `gene_id`<sup>*</sup>: The Ensembl ID of the gene that produced the lariat
 - `chrom`: The chromosome of the gene that produced the lariat
 - `strand`: The strand of the gene that produced the lariat. `+` for the forward strand and `-` for the reverse strand
 - `fivep_pos`: The genomic position of the lariat's 5' splice site 
@@ -177,7 +176,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 `circularized_intron_reads.tsv`
 
 - `read_id`: The read's ID (unique)
-- `gene_id`<sup>*</sup>: The Ensembl ID(s) of the gene(s) that produced the lariat
+- `gene_id`<sup>*</sup>: The Ensembl ID of the gene that produced the lariat
 - `chrom`: The chromosome of the gene that produced the lariat
 - `strand`: The strand of the gene that produced the lariat. `+` for the forward strand and `-` for the reverse strand
 - `fivep_pos`: The genomic position of the lariat's 5' splice site 
@@ -206,8 +205,17 @@ All output will be written in the directory `OUT_DIR`. This includes:
 
 <sup>*</sup> can be multiple comma-delimited values
 
-All position values are 0-based and inclusive. 
+`output.bam_count.tsv`
+- `gene_id`: The gene's ID (unique)
+- `gene`: The total number of reads mapped to the gene. 
+- `exon_intron_junc`: The number of reads mapped to the gene that contain an exon-intron junction 
+- `exon_exon_junc`: The number of reads mapped to the gene that contain an exon-exon splice junction 
+- `exon_only`: The number of reads mapped to the gene that only overlap exons
+- `intron_only`: The number of reads mapped to the gene that only overlap introns
 
+`gene` = `exon_intron_junc`+`exon_only`+`exon_exon_junc`+`intron_only`
+
+All position values are 0-based and inclusive. 
 
 ## Additional information
 See DEMO.md for a short demonstration of setting up and then running LariatMapper.
