@@ -20,6 +20,7 @@ NOTE: LariatMapper is currently in development. If you encounter any problems wh
 	- [Output files](#output-files)
 	- [Output file columns](#output-file-columns)
 - [Additional information](#additional-information)
+- [Contact us](#contact-us)
 - [Software attributions](#software-attributions)
 
 
