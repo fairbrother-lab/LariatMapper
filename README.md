@@ -14,9 +14,11 @@ NOTE: LariatMapper is currently in development. If you encounter any problems wh
 - [Running the Pipeline](#running-the-pipeline)
 	- [Required arguments](#required-arguments)
 	- [Putative branchpoint correction](#putative-branchpoint-correction)
-	- [All options](#all-options)
-- [Output](#output)
+	- [All optional arguments](#all-optional-arguments)
+- [Concepts](#concepts)
+	- [Head and tail](#head-and-tail)
 	- [Read classes](#read-classes)
+- [Output](#output)
 	- [Output files](#output-files)
 	- [Output file columns](#output-file-columns)
 - [Additional information](#additional-information)
@@ -25,7 +27,9 @@ NOTE: LariatMapper is currently in development. If you encounter any problems wh
 
 
 ## Installation
-LariatMapper works in a Linux or MacOS system. It will not work in Windows. You can download it on the command line with `git`:
+LariatMapper can be installed in a Linux system or a MacOS system. It will not work in Windows. 
+
+You can download it in a command line terminal with [git](https://git-scm.com/):
 
 ```
 git clone https://github.com/fairbrother-lab/LariatMapper
@@ -45,26 +49,28 @@ The environment can then be activated by running
 ```
 mamba activate larmap
 ```
-before running scripts in the pipeline.
+before using LariatMapper.
 
 
 ### Reference files
-LariatMapper needs a set of reference files to run. 
+LariatMapper needs a set of reference files to run.
 
 You will need:
-- A FASTA file of the reference genome (`GENOME_FASTA`)
-- A GTF or GFF file of annotations for the reference genome (`GENOME_ANNO`)
-- A hisat2 index of the reference genome (`HISAT2_INDEX`)
+- A FASTA file of the reference genome (`[GENOME_FASTA]`)
+- A GTF or GFF file of annotations for the reference genome (`[GENOME_ANNO]`)
+- A hisat2 index of the reference genome (`[HISAT2_INDEX]`)
 
-Run `build_references.py` with the paths to each file and the desired output path:
+Run `build_references.py` with the paths to each file and the desired output path (`[REF_DIR]`):
 
 ```
-python build_references.py -f GENOME_FASTA -a GENOME_ANNO -i HISAT2_INDEX -o OUT_DIR
+python build_references.py -f [GENOME_FASTA] -a [GENOME_ANNO] -i [HISAT2_INDEX] -o [REF_DIR]
 ```
 
-You can then use `OUT_DIR` as the reference files directory when running LariatMapper (argument `-r, --ref_dir`)
+`build_references.py` creates symbolic links to the input files by default. To copy the input files to `[REF_DIR]` instead, you can use the argument `-c, --copy`.
 
-If you have a BED file of repetitive regions from RepeatMasker, you can include the argument `-r REPEATMASKER_BED` to copy it to the reference directory. You can find RepeatMasker files for several reference genomes on the [UCSC Genome Browser](https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker". 
+You can then use `[REF_DIR]` as the reference files directory when running LariatMapper.
+
+If you have a BED file of repetitive regions from RepeatMasker, you can use the argument `-r, --repeatmasker_bed` to copy it to the reference directory. You can find RepeatMasker files for several reference genomes on the [UCSC Genome Browser](https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker". 
 
 If a RepeatMasker file is included in a run, LariatMapper will check putative lariat alignments for false positives which arise from repetitive regions. If the 5' splice site and branchpoint are both located in a reptitive region, the alignment will be filtered out.
 
@@ -73,7 +79,7 @@ If a RepeatMasker file is included in a run, LariatMapper will check putative la
 ### Required arguments 
 For single-end sequencing data, run
 ```
-python larmap.py -f READ_FILE -r REF_DIR -o OUTPUT_DIR
+python larmap.py -f [READ_FILE] -r [REF_DIR] -o [OUTPUT_DIR]
 ```
 For paired-end sequencing data, run
 ```
@@ -83,46 +89,37 @@ LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The da
 
 
 ### Branchpoint correction
-LariatMapper includes an option to try correcting the apparent branchpoint positions of lariat reads to account for sequencing errors. When applied, LariatMapper will check a 3nt window downstream of the head's end position (the apparent branchpoint) to see if any of them are more likely to be the true branchpoint. 
-
-LariatMapper can use different 2 approaches to branchpoint correction:
-
-<details>
-<summary><strong>Position Weight Matrix (PWM)-based correction.</strong></summary>
-
-This uses a PWM of the expected branchpoint motif, including a mark to indicate the location of the branchpoint within the PWM. The PWM is matched against the genomic sequence of the apparent branchpoint and each other position within the 3nt window. If a position in the window gets a higher match score than the apparent branchpoint position and the score is 0.8 or greater, it is deemed the correct branchpoint position. Multiple PWMs can be used, in which case the highest-scoring position across all PWMs is chosen. 
-
-See <ZENODO_LINK_TO_BE_ADDED> to download prebuilt matrices for commonly-used reference genomes. See `scripts/pwm_build.R` to build a custom matrix from a FASTA file of branchpoint sequences.
-
-Applied with `-P, --pwm_correction`
-
-</details>
-
-<details>
-<summary><strong>Model-based correction</summary></strong>
-
-This uses predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. A 3nt window downstream of the apparent branchpoint is checked, and if the apparent branchpoint is *not* predicted to be a branchpoint but a position within the 3nt window *is*, the later is deemed the correct branchpoint. 
-
-See <ZENODO_LINK_TO_BE_ADDED> to download precalculated predictions for commonly-used reference genomes. 
-
-Applied with `-M, --model_correction`
-
-</details>
-
+LariatMapper includes an option to try to correct the apparent branchpoint positions of lariat reads to account for sequencing errors. When applied, LariatMapper will check a 3nt window downstream of the head's end position (the apparent branchpoint) to see if any of them are more likely to be the true branchpoint position. If there *is* a more likely branchpoint position, it will record that corrected position. 
 
 Including branchpoint correction in a LariatMapper run will add the following columns to `lariat_reads.tsv`:
 
- - `corrected_bp_pos`: The genomic position of the corrected branchpoint position. Identical to `bp_pos` if `corrected` = `False`
+ - `corrected_bp_pos`: The genomic position of the corrected branchpoint. Identical to `bp_pos` if `corrected` = `False`
  - `corrected_bp_dist_to_threep`: The genomic position of the closest 3' splice site that is downstream of the branchpoint, using the corrected position. Identical to `bp_dist_to_threep` if `corrected` = `False`
  - `corrected_genomic_bp_nt`: The nucleotide of the branchpoint in the genome, using the corrected position. Reverse-complemented if `strand` = `-`. Identical to `genomic_bp_nt` if `corrected` = `False`
  - `corrected_genomic_bp_context`: The genomic sequence from positions -8 to +8 of the branchpoint, using the corrected position. Reverse-complemented if `strand` = `-`. Identical to `genomic_bp_context` if `corrected` = `False`
  - `corrected_bp_mismatch `: `True` if `read_bp_nt` ≠ `corrected_genomic_bp_nt`, otherwise `False`. Identical to `bp_mismatch` if `corrected` = `False`
  - `corrected`: `True` if a more likely candidate for the branchpoint position was discovered, otherwise `False`
 
+LariatMapper can use different 2 approaches to branchpoint correction:
+
+**1. Position Weight Matrix (PWM)-based correction**
+
+This uses a PWM of the expected branchpoint motif, including a marker for the location of the branchpoint within the PWM. The PWM is matched against the genomic sequence of the apparent branchpoint and each other position within the 3nt window. If a position in the window gets a higher match score than the apparent branchpoint position and the score is 0.8 or greater, it is deemed the correct branchpoint position. Multiple PWMs can be used, in which case the highest-scoring position across all PWMs is chosen. 
+
+See https://doi.org/10.5281/zenodo.14735947 to download prebuilt PWMs for commonly-used reference genomes. See `scripts/pwm_build.R` to build a custom PWM from a FASTA file of branchpoint sequences.
+
+Applied with `-P, --pwm_correction`
+
+**2. Model-based correction**
+
+This uses predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. A 3nt window downstream of the apparent branchpoint is checked, and if the apparent branchpoint is *not* predicted to be a branchpoint but a position within the 3nt window *is*, the later is deemed the correct branchpoint. 
+
+See https://doi.org/10.5281/zenodo.14735947 to download precalculated predictions for commonly-used reference genomes. 
+
+Applied with `-M, --model_correction`
 
 
-
-### All options
+### All optional arguments
 <details>
 <summary> Expand </summary>
 
@@ -139,9 +136,9 @@ Including branchpoint correction in a LariatMapper run will add the following co
 					TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)
 	
 -P PWM_CORRECTION, --pwm_correction PWM_CORRECTION
-					RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See <ZENODO_LINK_TO_BE_ADDED> to download prebuilt matrices. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
+					RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See https://doi.org/10.5281/zenodo.14735947 to download prebuilt PWMs. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
 -M PWM_CORRECTION, --model_correction MODEL_CORRECTION
-					RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See <ZENODO_LINK_TO_BE_ADDED> to download predictions for specific reference genomes. (Default = no correction)
+					RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. Seehttps://doi.org/10.5281/zenodo.14735947 to download predictions for precalculated predictions for commonly-used reference genomes. (Default = no correction)
 					
 -p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
 					Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv). (Default = no prefix)
@@ -162,34 +159,46 @@ Including branchpoint correction in a LariatMapper run will add the following co
 
 </details>
 
-## Output
+
+## Concepts
+### Head and tail
+![A diagram illustrating RNA-seq reads split into a head and a tail, and linear vs inverted gapped alignments](./resources/images/Linear%20vs%20Inverted%20alignments.svg)
+
+The fundamental aim of LariatMapper is to identify lariat reads by their inverted gapped alignment to the genome. To find those alignments, we split RNA-seq reads into two fragments. For practicality, we name the 5'-end fragment the **head** and the 3'-end fragment the **tail**.
+
+In the diagram above, we illustrate an mRNA read alignment as an example of a linear gapped alignment, with the head at the end of an exon and the tail at the start of a downstream exon. A lariat read alignment is used as an example of an inverted gapped alignment, with the head inside an intron and the tail at an upstream 5' splice site. 
+
+
 ### Read classes
-LariatMapper aims to assign each input read a "read class", which denotes the type of RNA template from which the read originated. Read classes are mututally exclusive, and can be divided into 2 groups:
+
+LariatMapper aims to classify all input reads by the type of RNA template from which they originated. Read classes are mututally exclusive, and can be divided into 2 groups:
 
 1. The read *does* have a valid linear alignment to the genome, and...
-	- **Linear, exon-exon junction**: ... contains an exon-exon splice junction
-	- **Linear, exon-intron junction**: ... contains and contains an exon-intron junction.
-	- **Linear, exon only**: ... only overlaps exons.
-	- **Linear, intron only**: ... only overlaps introns.
-	- **Linear, intergenic or ambiguous**: ... is within either zero genes or multiple overlapping genes.
+	- **Exon-exon junction**: ... contains an exon-exon splice junction but no exon-intron junctions.
+	- **Exon-intron junction**: ... contains an exon-intron junction.
+	- **Exon only**: ... only overlaps exons.
+	- **Intron only**: ... only overlaps introns.
+	- **Intergenic or ambiguous**: ... falls within either no genes or multiple overlapping genes.
 2. The read does *NOT* have a valid linear alignment to the genome, and...
 	- **No alignment**: ... no 5' splice sites map to it.
-	- **Fivep alignment**: ... at least one 5' splice site maps to it. 
-	- **Template-switching**: ... contains a reverse transcriptase template-switching event.
-	- **Circularized intron**: ... has an inverted gapped alignment with a tail that starts at a 5' splice site, and a head that ends within 2nt of a downstream 3' splice site.
-	- **Lariat**: ... has an inverted gapped alignment with a tail that starts at a 5' splice site, and a head that's within a intron and downstream of the tail.
+	- **Fivep alignment**: ... at least one 5' splice site maps to it.
+	- **Template-switching**: ... contains a template-switching event which occured at the transition from tail to head during reverse transcription
+	- **Circularized intron**: ... has an inverted gapped alignment with a tail that starts at a 5' splice site and a head that ends within 2nt upstream of a 3' splice site.
+	- **Lariat**: ... has an inverted gapped alignment with a tail that starts at a 5' splice site and a head that's within a intron and downstream of the tail.
 	- **In repetitive region**: ... has a lariat alignment to a repetitive region
 
 
+
+## Output
 ### Output files
 All output will be written in the directory `OUT_DIR`. This includes:
 
-- `lariat_reads.tsv`: A table of the reads classified as lariats**
+- `lariat_reads.tsv`: A table of the reads classified as lariats
 - `circularized_intron_reads.tsv`: A table of the reads classified as circularized introns
-- `template_switching_reads.tsv`: A table of reads that contain contains a reverse transcriptase template-switching event
+- `template_switching_reads.tsv`: A table of the reads classified as template-switching
 - `output.bam_count.tsv`: A table of linearly-mapped read counts for each gene, stratified by read class
-- `summary.txt`: A collection of metadata and summary statistics for the run
 - `read_counts.tsv`: A table of counts for various read classes in machine-friendly format
+- `summary.txt`: A collection of metadata and summary statistics for the run
 - `plots/Branchpoint_base_composition.png`: A plot of the distribution of branchpoint nucleotides across all lariat reads
 - `plots/Branchpoint_threep_distance.png`: A plot of the distribution of distances between the branchpoint and the 3' splice site across all lariat reads
 
@@ -205,8 +214,8 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `fivep_pos`: The genomic position of the lariat's 5' splice site 
 - `bp_pos`: The genomic position of the lariat's branchpoint 
 - `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the branchpoint
-- `bp_dist_to_threep`: The distance of the branchpoint to the 3' splice site
-- `read_orient_to_gene`:  `Forward` if the RNA-seq read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
+- `bp_dist_to_threep`: The distance from the branchpoint to the 3' splice site
+- `read_orient_to_gene`:  `Forward` if the read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
 - `read_bp_pos`: The position of the branchpoint in the read
 - `read_bp_nt`: The nucleotide of the branchpoint in the read
@@ -222,18 +231,18 @@ All output will be written in the directory `OUT_DIR`. This includes:
 <summary><code> circularized_intron_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
-- `gene_id`<sup>*</sup>: The Ensembl ID of the gene that produced the lariat
-- `chrom`: The chromosome of the gene that produced the lariat
-- `strand`: The strand of the gene that produced the lariat. `+` for the forward strand and `-` for the reverse strand
-- `fivep_pos`: The genomic position of the lariat's 5' splice site 
+- `gene_id`<sup>*</sup>: The Ensembl ID of the intron's gene
+- `chrom`: The chromosome of the intron's gene
+- `strand`: The strand of the intron's gene. `+` for the forward strand and `-` for the reverse strand
+- `fivep_pos`: The genomic position of the intron's 5' splice site 
 - `head_end_pos`: The genomic position of the end of the head alignment
-- `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the branchpoint
+- `threep_pos`: The genomic position of the intron's 3' splice site
 - `head_end_dist_to_threep`: The distance of the end of the head alignment to the 3' splice site
-- `read_orient_to_gene`:  `Forward` if the RNA-seq read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_orient_to_gene`:  `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
 - `read_head_end_pos`: The end position of the head in the read
-- `read_head_end_nt`: The nucleotide of the end position of the head in the read
-- `genomic_head_end_nt`: The nucleotide of the end of the head alignment in the genome. Reverse-complemented if `strand` = `-`
+- `read_head_end_nt`: The nucleotide at the end position of the head in the read
+- `genomic_head_end_nt`: The nucleotide at the end of the head alignment in the genome. Reverse-complemented if `strand` = `-`
 - `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
@@ -243,12 +252,12 @@ All output will be written in the directory `OUT_DIR`. This includes:
 <summary><code> template_switching_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
-- `read_orient_to_gene`:  `Forward` if the RNA-seq read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_orient_to_gene`:  `Forward` if the read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
-- `read_bp_pos`: The position of the branchpoint in the read
+- `read_head_end_pos`: The end position of the head in the read
 - `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
 - `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
-- `genomic_bp_context`: The genomic sequence from positions -8 to +8 of the branchpoint. Reverse-complemented if `strand` = `-`
+- `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 - `temp_switch_sites`<sup>*</sup>: The genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
 
 <sup>*</sup> can be multiple comma-delimited values
@@ -259,16 +268,19 @@ All output will be written in the directory `OUT_DIR`. This includes:
 
 - `gene_id`: The gene's ID (unique)
 - `gene`: The total number of reads mapped to the gene. 
-- `exon_intron_junc`: The number of reads mapped to the gene that contain an exon-intron junction 
-- `exon_exon_junc`: The number of reads mapped to the gene that contain an exon-exon splice junction 
-- `exon_only`: The number of reads mapped to the gene that only overlap exons
-- `intron_only`: The number of reads mapped to the gene that only overlap introns
+- `exon_intron_junc`: The number of exon-intron junction reads mapped to the gene
+- `exon_exon_junc`: The number of exon-exon junction reads mapped to the gene
+- `exon_only`: The number of exon-only reads mapped to the gene
+- `intron_only`: The number of intron-only reads mapped to the gene
 
 `gene` = `exon_intron_junc`+`exon_only`+`exon_exon_junc`+`intron_only`
 
 </details>
 
 All position values are 0-based and inclusive. 
+
+
+
 
 
 ## Additional information
