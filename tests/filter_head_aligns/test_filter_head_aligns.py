@@ -22,17 +22,23 @@ TEST_DIR = PACKAGE_DIR/'tests'/'filter_head_aligns'
 #                                   Tests                                      #
 # =============================================================================#
 @pytest.mark.parametrize('threads',
-						['1', '2', '3', '4', '5'])
+						['1', 
+						'3', 
+						'8'])
 @pytest.mark.parametrize('prefix',
-						['', 'prefix_'])
-def test_filter_head_aligns(threads, prefix, tmp_path):
+						['', 
+						'prefix_'])
+@pytest.mark.parametrize('verbosity',
+						['DEBUG', 
+	   					'ERROR'])
+def test_filter_head_aligns(threads, prefix, verbosity, tmp_path):
 	# Link files needed in working dir
 	for file in ('heads_to_genome.sam', 'tails.tsv'):
 		os.symlink(TEST_DIR/'inputs'/file, tmp_path/f'{prefix}{file}')
 
 	# Run script
 	command = f"python {PACKAGE_DIR/'scripts'/'filter_head_aligns.py'} {threads}" \
-			  f" {TEST_DIR/'inputs'/'introns.tsv'} {TEST_DIR/'inputs'/'genome.fa'} {tmp_path}/{prefix} DEBUG"  
+			  f" {TEST_DIR/'inputs'/'introns.tsv'} {TEST_DIR/'inputs'/'genome.fa'} {tmp_path}/{prefix} {verbosity}"  
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr
 	if response.returncode != 0:

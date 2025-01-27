@@ -22,18 +22,24 @@ TEST_DIR = PACKAGE_DIR/'tests'/'filter_fivep_aligns'
 #                                   Tests                                      #
 # =============================================================================#
 @pytest.mark.parametrize('threads',
-						['1', '2', '3', '4', '5'])
+						['1', 
+						'3', 
+						'8'])
 @pytest.mark.parametrize('prefix',
-						['', 'prefix_'])
+						['', 
+						'prefix_'])
 @pytest.mark.parametrize('strand',
 						 ['Unstranded'])
-def test_filter_fivep_aligns(threads, prefix, strand, tmp_path):
+@pytest.mark.parametrize('verbosity',
+						 ['DEBUG', 
+						'ERROR'])
+def test_filter_fivep_aligns(threads, prefix, strand, verbosity, tmp_path):
 	# Link files needed in working dir
 	for file in ('unmapped_reads.fa', 'unmapped_reads.fa.fai', 'fivep_to_reads.sam', 'fivep_sites.fa'):
 		os.symlink(TEST_DIR/'inputs'/file, tmp_path/f'{prefix}{file}')
 
 	# Run script
-	command = f"python {PACKAGE_DIR/'scripts'/'filter_fivep_aligns.py'} {tmp_path}/{prefix} DEBUG" \
+	command = f"python {PACKAGE_DIR/'scripts'/'filter_fivep_aligns.py'} {tmp_path}/{prefix} {verbosity}" \
 			  f" {TEST_DIR/'inputs'/'genome.fa'} {TEST_DIR/'inputs'/'fivep_sites.fa'} {strand} {threads}"
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr

@@ -22,16 +22,20 @@ TEST_DIR = PACKAGE_DIR/'tests'/'filter_lariats'
 #                                   Tests                                      #
 # =============================================================================#
 @pytest.mark.parametrize('prefix',
-						['', 'prefix_'])
+						['', 
+	   					'prefix_'])
 @pytest.mark.parametrize('seq_type', 
 						 ['paired'])
-def test_filter_lariats(prefix, seq_type, tmp_path):
+@pytest.mark.parametrize('verbosity',
+						 ['DEBUG', 
+						'ERROR'])
+def test_filter_lariats(prefix, seq_type, verbosity, tmp_path):
 	# Link files needed in working dir
 	for file in ('output.bam', 'circularized_intron_reads.tsv', 'putative_lariats.tsv'):
 		os.symlink(TEST_DIR/'inputs'/file, tmp_path/f'{prefix}{file}')
 
 	# Run script
-	command = f"python {PACKAGE_DIR/'scripts'/'filter_lariats.py'} {tmp_path}/{prefix} DEBUG" \
+	command = f"python {PACKAGE_DIR/'scripts'/'filter_lariats.py'} {tmp_path}/{prefix} {verbosity}" \
 			  f" {seq_type} {TEST_DIR/'inputs'/'genome.fa'} {TEST_DIR/'inputs'/'repeatmasker.bed'}" 
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr
