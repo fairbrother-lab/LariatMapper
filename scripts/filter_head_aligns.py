@@ -25,33 +25,33 @@ TEMP_SWITCH_BASES = 5
 TEMP_SWITCH_COLS = ['read_id',
 					'read_orient_to_gene',
 					'read_seq_forward', 
-					'read_bp_pos',
+					'read_head_end_pos',
 					'fivep_seq',
 					'fivep_sites',
-					'genomic_bp_context',
+					'genomic_head_end_context',
 					'temp_switch_sites',
 					]
 CIRCULARS_COLS = ['read_id',
-				'gene_id',
 				'chrom',
 				'strand',
+				'gene_id',
 				'fivep_pos',
-				'bp_pos',
+				'head_end_pos',
 				'threep_pos',
-				'bp_dist_to_threep',
+				'head_end_dist_to_threep',
 				'read_orient_to_gene',
 				'read_seq_forward',
-				'read_bp_pos',
-				'read_bp_nt',
-				'genomic_bp_nt',
-				'genomic_bp_context',
+				'read_head_end_pos',
+				'read_head_end_nt',
+				'genomic_head_end_nt',
+				'genomic_head_end_context',
 				]
-CIRCULARS_COL_RENAMES = {'bp_pos': 'head_end_pos',
-						 'bp_dist_to_threep': 'head_end_dist_to_threep',
-						 'read_bp_pos': 'read_head_end_pos',
-						 'read_bp_nt': 'read_head_end_nt',
-						 'genomic_bp_nt': 'genomic_head_end_nt',
-						 'genomic_bp_context': 'genomic_head_end_context',}
+HEAD_END_BP_RENAMES = {'head_end_pos': 'bp_pos',
+						'head_end_dist_to_threep': 'bp_dist_to_threep',
+						'read_head_end_pos': 'read_bp_pos',
+						'read_head_end_nt': 'read_bp_nt',
+						'genomic_head_end_nt': 'genomic_bp_nt',
+						'genomic_head_end_context': 'genomic_bp_context',}
 PUTATITVE_LARIATS_COLS = ['read_id', 
 						'read_orient_to_gene', 
 						'chrom', 
@@ -182,20 +182,20 @@ class ReadHeadAlignment():
 	gene_id: str = None				# Included in output
 	fivep_pos: int = None			# Included in output
 
-	
+	# Properties
 	@property
 	def read_seq_forward(self):
 		if self.read_seq is None:
 			return None
-		
 		if self.read_orient_to_gene == 'Reverse':
 			return functions.reverse_complement(self.read_seq) 
 		elif self.read_orient_to_gene == 'Forward':
 			return self.read_seq
 		else:
 			raise ValueError(f'Invalid read_orient_to_gene value: {self.read_orient_to_gene}')
+		
 
-
+	# Methods
 	@classmethod
 	def fail_out_fields(cls):
 		return tuple(cls.__annotations__.keys()) + ('read_seq_forward', 'filter_failed',)
@@ -225,6 +225,8 @@ class ReadHeadAlignment():
 		for attr in attrs:
 			if attr in row:
 				attr_dict[attr] = row[attr]
+			elif attr in HEAD_END_BP_RENAMES.values() and attr.replace('_bp_', '_head_end_') in row:
+				attr_dict[attr] = row[attr.replace('_bp_', '_head_end_')]
 			else:
 				attr_dict[attr] = None
 
@@ -252,8 +254,12 @@ class ReadHeadAlignment():
 	def to_line(self, columns:list):
 		line = self.read_id
 		for col in columns[1:]:
+			if col in HEAD_END_BP_RENAMES.keys():
+				col = HEAD_END_BP_RENAMES[col]
+
 			val = getattr(self, col)
 			val = '' if val is None else val
+			# Val fixes
 			if col in COMMA_JOIN_COLS and isinstance(val, (list, tuple, set, frozenset)):
 				val = functions.str_join(val)
 			elif col == 'read_bp_pos' and self.read_seq is not None:
@@ -667,8 +673,6 @@ def post_processing(log):
 		circulars
 			.assign(read_id = circulars.read_id_base)
 			.drop(columns=['read_dup', 'read_id_base'])
-			# Remame circulars column names "bp" -> "head_end"
-			.rename(columns=CIRCULARS_COL_RENAMES)
 	)
 
 	# Overwrite files with the corrected tables
