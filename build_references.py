@@ -16,13 +16,13 @@ from scripts import functions
 #                                  Globals                                     #
 # =============================================================================#
 EXON_INTRON_COLUMNS = ('chrom', 'strand', 'start', 'end', 'gene_id')
-REF_GENOME_FILE = 'genome'
-REF_HISAT2_INDEX = 'hisat2_index'
-REF_EXONS_FILE = 'exons.tsv.gz'
+REF_GENOME_FILE = 'genome'	# ends up as genome.fa or genome.fa.gz
+REF_FIVEP_FILE = 'fivep_sites' # ends up as fivep_sites.fa.gz, accompanied by the index files fivep_sites.fa.gz.fai and fivep_sites.fa.gz.gzi
 REF_INTRONS_FILE = 'introns.tsv.gz'
-REF_FIVEP_FILE = 'fivep_sites'
 REF_REPEATMASKER_FILE = 'repeatmasker.bed'
-HISAT2_EXTENSIONS = ('1.ht2', '2.ht2', '.3.ht2', '.4.ht2','.5.ht2', '.6.ht2','.7.ht2', '.8.ht2')
+REF_HISAT2_INDEX = 'hisat2_index'
+REF_GENOME_UNCOMPRESSED_EXTENSIONS = ('.fa', '.fasta', '.fas', '.fna', '.ffn', '.faa', '.mpfa')
+REF_GENOME_COMPRESSED_EXTENSIONS = ('.gz', '.bgzip')
 
 
 
@@ -64,10 +64,14 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 		parser.error(f'RepeatMasker file does not exist at {args.repeatmasker_bed}')
 
 	# Determine the genome fasta file format
-	if args.genome_fasta.endswith('.gz'):
-		fasta_ext = '.fa.gz'
+	last_ext = '.' + args.genome_fasta.split('.')[-1]
+	if last_ext in REF_GENOME_UNCOMPRESSED_EXTENSIONS:
+		genome_fasta_out = f"{args.out_dir}/{REF_GENOME_FILE}.fa"
+	elif last_ext in REF_GENOME_COMPRESSED_EXTENSIONS:
+		genome_fasta_out = f"{args.out_dir}/{REF_GENOME_FILE}.fa.gz"
 	else:
-		fasta_ext = '.fa'
+		parser.error(f'Genome FASTA file extension is invalid ({last_ext}), must be one of' +\
+			   f'{REF_GENOME_UNCOMPRESSED_EXTENSIONS}, {REF_GENOME_COMPRESSED_EXTENSIONS}')
 
 	# Determine the annotation file format
 	prev_ext, last_ext = args.genome_anno.split('.')[-2:]
@@ -89,8 +93,8 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	# Validate threads arg
 	if not args.threads>0:
 		parser.error(f'-t/--threads must be a positive integer. Input was "{repr(args.threads)}"')
-	
-	return hisat2_extensions, anno_type, anno_gzip, fasta_ext
+		
+	return hisat2_extensions, anno_type, anno_gzip, genome_fasta_out
 
 
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
@@ -229,11 +233,18 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 		for i, row in fivep_seqs.iterrows():
 			fasta_out.write(f">{row['fivep_site']}\n{row['seq']}\n")
 
-	# 	print(fasta_ext)
 	# Compress
 	log.debug('Compressing five-prime splice sites FASTA...')
+	compressed_out = f"{out_dir}/{REF_FIVEP_FILE}.fa.gz"
+	if os.path.isfile(compressed_out):
+		log.warning(f'Overwriting existing file at {compressed_out}')
+		os.remove(compressed_out)
 	functions.run_command(f'bgzip --threads {threads} {out_dir}/{REF_FIVEP_FILE}.fa', log=log)
 	
+	# Index
+	log.debug("Building 5' splice sites FASTA index...")
+	functions.run_command(f'samtools faidx {compressed_out} --fai-idx {compressed_out}.fai --gzi-idx {compressed_out}.gzi', log=log)
+
 
 
 #=============================================================================#
@@ -245,7 +256,7 @@ if __name__ == '__main__':
 	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {functions.version()}', help='print the version id and exit')
 	
 	# Required arguments
-	parser.add_argument('-f', '--genome_fasta', required=True, help='FASTA file of the reference genome')
+	parser.add_argument('-f', '--genome_fasta', required=True, help='FASTA file of the reference genome. May be compressed with bgzip, but not with standard gzip.')
 	parser.add_argument('-a', '--genome_anno', required=True, help='GTF or GFF file of the reference gene annotation. May be gzip-compressed')
 	parser.add_argument('-i', '--hisat2_index', required=True, help='HISAT2 index of the reference genome')
 	parser.add_argument('-o', '--out_dir', required=True, help='Output reference directory. Will be created if it does not exist at runtime')
@@ -256,7 +267,7 @@ if __name__ == '__main__':
 	optional_args.add_argument('-g', '--g_attr', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute. (Default = gene_id)',)
 	optional_args.add_argument('-x', '--t_attr', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute. (Default = transcript_id)',)
 		# Output options
-	optional_args.add_argument('-c', '--copy', action='store_true', help='Create deep copies of the input files in out_dir (Default = create symbolic links)')
+	optional_args.add_argument('-c', '--copy', action='store_true', help='Create copies of the input files in out_dir (Default = create symbolic links)')
 		# Technical options
 	optional_args.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use. (Default = 1)')
 	log_levels = optional_args.add_mutually_exclusive_group()
@@ -294,8 +305,9 @@ if __name__ == '__main__':
 	log.info(f'Arguments: \n{arg_message}')
 
 	# Validate the args and determine additional variables
-	hisat2_extensions, anno_type, anno_gzip, fasta_ext = process_args(args, parser, log)
+	hisat2_extensions, anno_type, anno_gzip, genome_fasta_out = process_args(args, parser, log)
 
+	# Unpack args
 	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, out_dir, threads, copy, t_attr, g_attr  = args.genome_fasta, args.genome_anno, args.repeatmasker_bed, args.hisat2_index, args.out_dir, args.threads, args.copy, args.t_attr, args.g_attr
 
 	# Make dir
@@ -307,22 +319,49 @@ if __name__ == '__main__':
 	write_metadata(args, out_dir)
 
 	# Link or copy the neccesary input files
+	# Copying
 	if copy is True:
 		log.info('Copying input files...')
-		shutil.copyfile(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}{fasta_ext}', follow_symlinks=False)
+		if os.path.isfile(genome_fasta_out):
+			log.warning(f'Overwriting existing file at {genome_fasta_out}')
+		shutil.copyfile(genome_fasta, genome_fasta_out, follow_symlinks=False)
+
 		for ext in hisat2_extensions:
+			out_file = f'{out_dir}/{REF_HISAT2_INDEX}{ext}'
+			if os.path.isfile(out_file):
+				log.warning(f'Overwriting existing file at {out_file}')
 			shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}', follow_symlinks=False)
+
 		if repeatmasker_bed is not None:
+			if os.path.isfile(f'{out_dir}/{REF_REPEATMASKER_FILE}'):
+				log.warning(f'Overwriting existing file at {out_dir}/{REF_REPEATMASKER_FILE}')
 			shutil.copyfile(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}', follow_symlinks=False)	
+	# Linking
 	else:
 		log.info('Creating links to input files...')
-		if not os.path.isfile(f'{out_dir}/{REF_GENOME_FILE}{fasta_ext}'):
-			os.symlink(genome_fasta, f'{out_dir}/{REF_GENOME_FILE}{fasta_ext}')
+		if os.path.isfile(genome_fasta_out):
+			log.warning(f'Overwriting existing symbolic link at {genome_fasta_out}')
+			os.remove(genome_fasta_out) 
+		os.symlink(genome_fasta, genome_fasta_out)
+
 		for ext in hisat2_extensions:
-			if not os.path.isfile(f'{out_dir}/{REF_HISAT2_INDEX}{ext}'):
-				os.symlink(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}')
-		if repeatmasker_bed is not None and not os.path.isfile(f'{out_dir}/{REF_REPEATMASKER_FILE}'):
+			out_file = f'{out_dir}/{REF_HISAT2_INDEX}{ext}'
+			if os.path.isfile(out_file):
+				log.warning(f'Overwriting existing symbolic link at {out_file}')
+				os.remove(out_file)
+			os.symlink(f'{hisat2_index}{ext}', out_file)
+
+		if repeatmasker_bed is not None:
+			if os.path.isfile(f'{out_dir}/{REF_REPEATMASKER_FILE}'):
+				log.warning(f'Overwriting existing symbolic link at {out_dir}/{REF_REPEATMASKER_FILE}')
+				os.remove(f'{out_dir}/{REF_REPEATMASKER_FILE}')
 			os.symlink(repeatmasker_bed, f'{out_dir}/{REF_REPEATMASKER_FILE}')	
+
+	log.debug('Building genome FASTA index...')
+	command = f'samtools faidx {genome_fasta_out} --fai-idx {genome_fasta_out}.fai'
+	if genome_fasta_out.endswith('.gz'):
+		command += f" --gzi-idx {genome_fasta_out}.gzi"
+	functions.run_command(command, log=log)
 
 	log.info('Parsing transcripts from annotation file...')
 	transcripts = parse_transcripts(genome_anno, anno_type, anno_gzip, t_attr, g_attr, log)
@@ -330,12 +369,8 @@ if __name__ == '__main__':
 	log.info('Processing exons and introns...')
 	introns = build_exons_introns(transcripts, out_dir, log)
 
-	log.info("Processing five-prime splice sites...")
-	build_fivep(introns, genome_fasta, threads, out_dir, log)
-
-	log.info('Building FASTA indices...')
-	functions.run_command(f'samtools faidx {out_dir}/{REF_GENOME_FILE}{fasta_ext}', log=log)
-	functions.run_command(f'samtools faidx {out_dir}/{REF_FIVEP_FILE}.fa.gz', log=log)
+	log.info("Processing 5' splice sites...")
+	build_fivep(introns, genome_fasta_out, threads, out_dir, log)
 
 	if not args.skip_r:
 		log.info('Building R objects...')

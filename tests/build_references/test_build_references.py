@@ -19,6 +19,12 @@ TEST_DIR = PACKAGE_DIR/'tests'/'build_references'
 # =============================================================================#
 #                                   Tests                                      #
 # =============================================================================#
+# Required args
+@pytest.mark.parametrize('fasta',
+					# [TEST_DIR/'inputs'/'genome.fa',] 
+					[TEST_DIR/'inputs'/'genome.fa', 
+					TEST_DIR/'inputs'/'genome.fa.gz']
+					)
 # Required anno arg + the transcript attribute and gene attribute args since their values depend on the anno file
 @pytest.mark.parametrize('anno',
 					[f"--genome_anno {TEST_DIR/'inputs'/'anno.gtf'} --t_attr tid --g_attr gid", 
@@ -29,21 +35,19 @@ TEST_DIR = PACKAGE_DIR/'tests'/'build_references'
 	  				f"--repeatmasker_bed {TEST_DIR/'inputs'/'repeatmasker.bed'}"])
 @pytest.mark.parametrize('threads',
 					[None, 
-	  				'--threads 1',
 	  				'--threads 4'])
 @pytest.mark.parametrize('copy',
 					[None, 
 	  				'--copy'])
 @pytest.mark.parametrize('verbosity',
 					[None, 
-	  				'--quiet',
 					'--debug'])
-def test_build_references(anno, repeatmasker_bed, threads, copy, verbosity, tmp_path):
+def test_build_references(fasta, anno, repeatmasker_bed, threads, copy, verbosity, tmp_path):
 	command = f"python {PACKAGE_DIR/'build_references.py'} --skip_r" +\
-			f" --genome_fasta {TEST_DIR/'inputs'/'genome.fa'}" +\
 			f" --hisat2_index {TEST_DIR/'inputs'/'hisat2_index'}" +\
+			f" --genome_fasta {fasta}" +\
 			f" {anno} -o {tmp_path}"
-	for optional_arg in (repeatmasker_bed, threads, copy):
+	for optional_arg in (repeatmasker_bed, threads, copy, verbosity):
 		if optional_arg is not None:
 			command += ' ' + optional_arg
 
@@ -51,10 +55,12 @@ def test_build_references(anno, repeatmasker_bed, threads, copy, verbosity, tmp_
 	response_text = '\n' + response.stdout + response.stderr
 	assert response.returncode == 0, response_text
 
+	fasta_ext = '.fa' if fasta.suffix == '.fa' else '.fa.gz'
+
 	# Check output
 	for ref, out in (
+					(TEST_DIR/'outputs'/f'genome{fasta_ext}.fai', tmp_path/f'genome{fasta_ext}.fai'),
 					(TEST_DIR/'outputs'/'introns.tsv', tmp_path/'introns.tsv.gz'),
-					(TEST_DIR/'outputs'/'genome.fa.fai', tmp_path/'genome.fa.fai'),
 					(TEST_DIR/'outputs'/'fivep_sites.fa.gz', tmp_path/'fivep_sites.fa.gz'),
 					(TEST_DIR/'outputs'/'fivep_sites.fa.gz.fai', tmp_path/'fivep_sites.fa.gz.fai'),
 					):
