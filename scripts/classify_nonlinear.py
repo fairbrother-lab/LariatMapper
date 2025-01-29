@@ -14,7 +14,7 @@ import functions
 STAGES = ('Linear mapping', "Fivep mapping", "Fivep alignment filtering", 
 		  'Head mapping', 'Head alignment filtering', 'Lariat filtering', 'To the end')
 READ_CLASSES = ("Linear", "No alignment", "Fivep alignment", 'In repetitive region', 
-				'Template-switching', 'Circularized intron', 'Lariat',)
+				'Template-switching', 'Trans-splicing', 'Circularized intron', 'Lariat',)
 
 OUT_COLS = ['read_id',
 			'read_class',
@@ -109,6 +109,11 @@ if __name__ == '__main__':
 						  'To the end', 
 						  read_classes)
 
+	read_classes = add_reads(f'{output_base}trans_splicing_reads.tsv', 
+						  'Trans-splicing', 
+						  'Head alignment filtering', 
+						  read_classes)
+	
 	read_classes = add_reads(f'{output_base}template_switching_reads.tsv', 
 						  'Template-switching', 
 						  'Head alignment filtering', 

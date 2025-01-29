@@ -7,8 +7,10 @@ import pyfaidx
 import pysam
 
 import functions
-from filter_head_aligns import CIRCULARS_COLS, TEMP_SWITCH_COLS
+from filter_head_aligns import TEMP_SWITCH_COLS, TRANS_SPLICING_COLS, CIRCULARS_COLS
 from filter_lariats import FINAL_RESULTS_COLS
+
+
 
 
 
@@ -64,6 +66,7 @@ SUMMARY_TEMPLATE = (
 					"No alignment: {No_alignment}\n"
 					"Fivep alignment: {Fivep_alignment}\n"
 					"Template-switching: {Template_switching}\n"
+					"Trans-splicing: {Trans_splicing}\n"
 					"Circularized intron: {Circularized_intron}\n"
 					"In repetitive region: {In_repetitive_region}\n"
 					"Lariat: {Lariat}\n"
@@ -98,15 +101,16 @@ READ_COUNTS_TEMPLATE = (
 						"Category\tSubcategory\tReads\n"
 						"Input\tTotal\t{input_count}\n"
 						"Linearly_mapped\tTotal\t{Linear}\n"
-						"Linearly_mapped\tExon-exon_junction\t{exon_exon_junc}\n"
-						"Linearly_mapped\tExon-intron_junction\t{exon_intron_junc}\n"
+						"Linearly_mapped\tExon_exon_junction\t{exon_exon_junc}\n"
+						"Linearly_mapped\tExon_intron_junction\t{exon_intron_junc}\n"
 						"Linearly_mapped\tExon_only\t{exon_only}\n"
 						"Linearly_mapped\tIntron_only\t{intron_only}\n"
 						"Linearly_mapped\tIntergenic_or_ambiguous\t{intergenic_ambiguous}\n"
 						"Not_linearly_mapped\tTotal\t{not_linear}\n"
 						"Not_linearly_mapped\tNo_alignment\t{No_alignment}\n"
 						"Not_linearly_mapped\tFivep_alignment\t{Fivep_alignment}\n"
-						"Not_linearly_mapped\tTemplate-switching\t{Template_switching}\n"
+						"Not_linearly_mapped\tTemplate_switching\t{Template_switching}\n"
+						"Not_linearly_mapped\tTrans_splicing\t{Trans_splicing}\n"
 						"Not_linearly_mapped\tCircularized_intron\t{Circularized_intron}\n"
 						"Not_linearly_mapped\tIn_repetitive_region\t{In_repetitive_region}\n"
 						"Not_linearly_mapped\tLariat\t{Lariat}\n"
@@ -120,7 +124,9 @@ READ_COUNTS_TEMPLATE = (
 )
 
 NONLINEAR_READ_CLASSES = ("No_alignment", "Fivep_alignment", 'In_repetitive_region', 
-						'Template_switching', 'Circularized_intron', 'Lariat')
+						'Template_switching', 'Trans_splicing', 'Circularized_intron', 'Lariat')
+
+
 
 
 
@@ -139,12 +145,15 @@ if __name__ == '__main__':
 	if not os.path.isfile(f'{output_base}lariat_reads.tsv'):
 		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS) + '\n')
-	if not os.path.isfile(f'{output_base}circularized_intron_reads.tsv'):
-		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
-			w.write('\t'.join(CIRCULARS_COLS) + '\n')
+	if not os.path.isfile(f'{output_base}trans_splicing_reads.tsv'):
+		with open(f'{output_base}trans_splicing_reads.tsv', 'w') as w:
+			w.write('\t'.join(TRANS_SPLICING_COLS) + '\n')
 	if not os.path.isfile(f'{output_base}template_switching_reads.tsv'):
 		with open(f'{output_base}template_switching_reads.tsv', 'w') as w:
 			w.write('\t'.join(TEMP_SWITCH_COLS) + '\n')
+	if not os.path.isfile(f'{output_base}circularized_intron_reads.tsv'):
+		with open(f'{output_base}circularized_intron_reads.tsv', 'w') as w:
+			w.write('\t'.join(CIRCULARS_COLS) + '\n')
 
 
 	# Initialise stats dict
@@ -264,7 +273,6 @@ if __name__ == '__main__':
 		else:
 			stats['bp_corrected_prop'] = 'N/A'
 		
-	
 
 	# Write summary info to file
 	log.debug(f'Summary stats: {stats}')
