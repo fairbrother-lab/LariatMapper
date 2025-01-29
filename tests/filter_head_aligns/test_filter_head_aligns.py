@@ -47,6 +47,7 @@ def test_filter_head_aligns(threads, prefix, verbosity, tmp_path):
 	# Check output
 	for ref, out in ((TEST_DIR/'outputs'/'failed_head_alignments.tsv', tmp_path/f'{prefix}failed_head_alignments.tsv'),
 					(TEST_DIR/'outputs'/'template_switching_reads.tsv', tmp_path/f'{prefix}template_switching_reads.tsv'),
+					(TEST_DIR/'outputs'/'trans_splicing_reads.tsv', tmp_path/f'{prefix}trans_splicing_reads.tsv'),
 					(TEST_DIR/'outputs'/'circularized_intron_reads.tsv', tmp_path/f'{prefix}circularized_intron_reads.tsv'),
 					(TEST_DIR/'outputs'/'putative_lariats.tsv', tmp_path/f'{prefix}putative_lariats.tsv')):
 		

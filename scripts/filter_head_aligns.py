@@ -30,8 +30,12 @@ TEMP_SWITCH_COLS = ['read_id',
 					'read_head_end_pos',
 					'fivep_seq',
 					'fivep_sites',
+					'fivep_gene_ids',
 					'head_end_sites',
+					'head_gene_ids',
 					'genomic_head_end_context',
+					'threep_pos',
+					'bp_dist_to_threep',
 					]
 TRANS_SPLICING_COLS = ['read_id',
 					'read_orient_to_gene',
@@ -39,10 +43,12 @@ TRANS_SPLICING_COLS = ['read_id',
 					'read_head_end_pos',
 					'fivep_seq',
 					'fivep_sites',		
-					'tail_gene_id',
+					'fivep_gene_ids',
 					'head_end_sites',
-					'head_gene_id',
+					'head_gene_ids',
 					'genomic_head_end_context',
+					'threep_pos',
+					'bp_dist_to_threep',
 				]
 CIRCULARS_COLS = ['read_id',
 				'chrom',
@@ -81,7 +87,7 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'genomic_bp_context', 
 						'head_align_quality',
 						]
-COMMA_JOIN_COLS = ('gene_id', 'fivep_sites', 'tail_gene_id', 'head_end_sites', 'head_gene_id', 'introns', 'gaps',)
+COMMA_JOIN_COLS = ('gene_id', 'fivep_sites', 'fivep_gene_ids', 'head_end_sites', 'head_gene_ids', 'introns', 'gaps',)
 
 output_base = sys.argv[-2]
 # In files
@@ -212,28 +218,33 @@ class ReadHeadAlignment():
 			return self.read_seq
 		else:
 			raise ValueError(f'Invalid read_orient_to_gene value: {self.read_orient_to_gene}')
-		
+
 	@property
-	def temp_switch_site(self):
-		return self.chrom + ';' + str(self.bp_pos) + ';' + self.strand
+	def fivep_gene_ids(self):
+		if self.fivep_sites is None:
+			return None
+		else:
+			return [functions.str_join(fivep.gene_ids, ';') for fivep in self.fivep_sites]
 	
 	@property
 	def head_end_sites(self):
-		return self.chrom + ';' + str(self.bp_pos) + ';' + self.strand
+		if self.chrom is None or self.bp_pos is None or self.strand is None:
+			return None
+		else:
+			return self.chrom + ';' + str(self.bp_pos) + ';' + self.strand
 
 	@property
-	def tail_gene_id(self):
-		return [functions.str_join(fivep.gene_ids, ';') for fivep in self.fivep_sites]
-
-	@property
-	def head_gene_id(self):
-		return [functions.str_join(intron.data['gene_id']) for intron in self.introns]
+	def head_gene_ids(self):
+		if self.introns is None:
+			return None
+		else:
+			return [functions.str_join(intron.data['gene_id']) for intron in self.introns]
 		
 
 	# Methods
 	@classmethod
 	def fail_out_fields(cls):
-		return tuple(cls.__annotations__.keys()) + ('read_seq_forward', 'filter_failed',)
+		return tuple(cls.__annotations__.keys()) + ('read_seq_forward', 'fivep_gene_ids', 'filter_failed',)
 
 
 	def from_pysam(pysam_align:pysam.AlignedSegment):
@@ -277,6 +288,18 @@ class ReadHeadAlignment():
 				attr_dict['read_seq'] = functions.reverse_complement(row['read_seq_forward'])
 			else:
 				raise ValueError(f'Invalid read_orient_to_gene value: {row["read_orient_to_gene"]}')
+			
+		if 'read_bp_pos' in row and 'read_seq_forward' in row and 'read_bp_nt' not in row:
+			attr_dict['read_bp_nt'] = row['read_seq_forward'][row['read_bp_pos']]
+		
+		if 'genomic_bp_context' in row and 'genomic_bp_nt' not in row:
+			attr_dict['genomic_bp_nt'] = row['genomic_bp_context'][BP_CONTEXT_LENGTH]
+			
+		if 'head_end_sites' in row and 'bp_pos' not in row:
+			chrom, bp_pos, strand = row['head_end_sites'].split(';')
+			attr_dict['chrom'] = chrom
+			attr_dict['bp_pos'] = int(bp_pos)
+			attr_dict['strand'] = strand
 
 		return ReadHeadAlignment(**attr_dict)
 
@@ -593,7 +616,7 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	# Write out if intron circle
 	if is_intron_circle(align) is True:
 		align.gene_id = [functions.str_join(fivep.gene_ids, ';') for fivep in align.fivep_sites]
-		align.write_circle_out()
+		align.write_circulars_out()
 		return
 	
 	# If an alignment reaches this point it probably has only 1 5'ss matched to an intron
@@ -680,13 +703,13 @@ def post_processing(log):
 	lariats['read_id_base'] = lariats.read_id.str.slice(0,-6)
 
 	# Filter out trans-splicing read alignments that also have alignments in a higher-priority table
-	trans_splices, temp_switches = filter_out_shared_reads(trans_splices, 'trans-splicing', temp_switches, 'template-switching')
-	trans_splices, circulars = filter_out_shared_reads(trans_splices, 'trans-splicing', circulars, 'circular')
-	trans_splices, lariats = filter_out_shared_reads(trans_splices, 'trans-splicing', lariats, 'lariat')
+	trans_splices, temp_switches = filter_out_shared_reads(trans_splices, 'trans_splicing', temp_switches, 'template_switching')
+	trans_splices, circulars = filter_out_shared_reads(trans_splices, 'trans_splicing', circulars, 'circular')
+	trans_splices, lariats = filter_out_shared_reads(trans_splices, 'trans_splicing', lariats, 'lariat')
 
 	# Filter out template-switching read alignments that also have alignments in a higher-priority table
-	temp_switches, circulars = filter_out_shared_reads(temp_switches, 'template-switching', circulars, 'circular')
-	temp_switches, lariats = filter_out_shared_reads(temp_switches, 'template-switching', lariats, 'lariat')
+	temp_switches, circulars = filter_out_shared_reads(temp_switches, 'template_switching', circulars, 'circular')
+	temp_switches, lariats = filter_out_shared_reads(temp_switches, 'template_switching', lariats, 'lariat')
 
 	# If template-switching reads remain, collapse the table to one row per read
 	if len(temp_switches) > 0:

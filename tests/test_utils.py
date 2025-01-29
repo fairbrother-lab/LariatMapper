@@ -98,7 +98,11 @@ def vscode_compare_sorted(ref_file:pathlib.Path, out_file:pathlib.Path):
 	try:
 		with open(out_file) as r:
 			lines = r.readlines()
+		header = lines[0]
+		lines = lines[1:]
 		lines.sort()
+		lines = [header] + lines
+
 		with open(out_file, 'w') as w:
 			w.writelines(lines)
 
