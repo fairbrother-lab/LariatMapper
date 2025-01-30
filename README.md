@@ -209,7 +209,16 @@ All output will be written in the directory `OUT_DIR`. This includes:
 <details>
 <summary><code> trans_splicing_reads.tsv </code></summary>
 
-*To be added*
+- `read_id`: The read's ID (unique)
+- `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
+- `read_head_end_pos`: The end position of the head in the read
+- `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
+- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
+- `fivep_gene_ids`<sup>*</sup>: The gene ID(s) of the 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
+- `head_end_sites`<sup>*</sup>: The genomic location(s) to which the head mapped. Format is `CHROMOSOME;POSITION`
+- `head_end_ids`<sup>*</sup>: The gene ID(s) of the genomic location(s) to which the head mapped. Format is `CHROMOSOME;POSITION`
+- `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
 </details>
@@ -218,13 +227,15 @@ All output will be written in the directory `OUT_DIR`. This includes:
 <summary><code> template_switching_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
-- `read_orient_to_gene`:  `Forward` if the read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
 - `read_head_end_pos`: The end position of the head in the read
 - `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
 - `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
+- `fivep_gene_ids`<sup>*</sup>: The gene ID(s) of the 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
+- `head_end_sites`<sup>*</sup>: The genomic location(s) to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
+- `head_end_ids`<sup>*</sup>: The gene ID(s) of the genomic location(s) to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
 - `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
-- `temp_switch_sites`<sup>*</sup>: The genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
 
 <sup>*</sup> can be multiple comma-delimited values
 </details>
@@ -233,14 +244,14 @@ All output will be written in the directory `OUT_DIR`. This includes:
 <summary><code> circularized_intron_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
-- `gene_id`<sup>*</sup>: The Ensembl ID of the intron's gene
-- `chrom`: The chromosome of the intron's gene
-- `strand`: The strand of the intron's gene. `+` for the forward strand and `-` for the reverse strand
+- `gene_id`<sup>*</sup>: The gene ID of the intron
+- `chrom`: The chromosome of the intron
+- `strand`: The strand of the intron. `+` for the forward strand and `-` for the reverse strand
 - `fivep_pos`: The genomic position of the intron's 5' splice site 
 - `head_end_pos`: The genomic position of the end of the head alignment
 - `threep_pos`: The genomic position of the intron's 3' splice site
 - `head_end_dist_to_threep`: The distance of the end of the head alignment to the 3' splice site
-- `read_orient_to_gene`:  `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
 - `read_head_end_pos`: The end position of the head in the read
 - `read_head_end_nt`: The nucleotide at the end position of the head in the read
@@ -254,14 +265,14 @@ All output will be written in the directory `OUT_DIR`. This includes:
 <summary><code> lariat_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
-- `gene_id`<sup>*</sup>: The Ensembl ID of the gene that produced the lariat
-- `chrom`: The chromosome of the gene that produced the lariat
-- `strand`: The strand of the gene that produced the lariat. `+` for the forward strand and `-` for the reverse strand
+- `gene_id`<sup>*</sup>: The gene ID of the intron that produced the lariat
+- `chrom`: The chromosome of the intron that produced the lariat
+- `strand`: The strand of the intron that produced the lariat. `+` for the forward strand and `-` for the reverse strand
 - `fivep_pos`: The genomic position of the lariat's 5' splice site 
 - `bp_pos`: The genomic position of the lariat's branchpoint 
 - `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the branchpoint
 - `bp_dist_to_threep`: The distance from the branchpoint to the 3' splice site
-- `read_orient_to_gene`:  `Forward` if the read's sequence matches the source intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
 - `read_bp_pos`: The position of the branchpoint in the read
 - `read_bp_nt`: The nucleotide of the branchpoint in the read
