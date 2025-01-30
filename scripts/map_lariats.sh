@@ -260,7 +260,6 @@ if ! [ "$PWM_FILES" == "" ]; then
 		--input "$OUTPUT_BASE"lariat_reads.tsv \
 		--ref_fasta $GENOME_FASTA \
 		--file $PIPELINE_DIR/scripts/bp_correction.R \
-		--both_upstream_downstream \
 		--method PWM \
 		--PWM_path $PWM_FILES \
 		--log_level $LOG_LEVEL \
@@ -272,7 +271,6 @@ elif ! [ "$MODEL_FILE" == "" ]; then
 		--input "$OUTPUT_BASE"lariat_reads.tsv \
 		--ref_fasta $GENOME_FASTA \
 		--file $PIPELINE_DIR/scripts/bp_correction.R \
-		--both_upstream_downstream \
 		--method Model-based \
 		--model_path $MODEL_FILE \
 		--log_level $LOG_LEVEL \
