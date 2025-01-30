@@ -9,6 +9,8 @@ import functions
 
 
 
+
+
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
@@ -42,6 +44,8 @@ FAILED_FIVEPS_COLS = ['read_id',
 
 out_lock = mp.Lock()
 failed_out_lock = mp.Lock()
+
+
 
 
 
@@ -270,6 +274,8 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 
 
 
+
+
 # =============================================================================#
 #                                    Main                                      #
 # =============================================================================#
@@ -327,7 +333,7 @@ if __name__ == '__main__' :
 	for process in processes:
 		process.join()
 		if process.exitcode != 0:
-			raise RuntimeError()
+			raise RuntimeError(f'Error in process {process.pid}')
 
 		
 

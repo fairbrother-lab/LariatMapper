@@ -5,10 +5,11 @@ import gzip
 import os
 import shutil
 
-import pyfaidx
 import pandas as pd
 
 from scripts import functions
+
+
 
 
 
@@ -244,6 +245,8 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 	# Index
 	log.debug("Building 5' splice sites FASTA index...")
 	functions.run_command(f'samtools faidx {compressed_out} --fai-idx {compressed_out}.fai --gzi-idx {compressed_out}.gzi', log=log)
+
+
 
 
 

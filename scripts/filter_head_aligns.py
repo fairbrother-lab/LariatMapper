@@ -7,10 +7,12 @@ import sys
 from intervaltree import Interval, IntervalTree
 import numpy as np
 import pandas as pd
-import pyfaidx
 import pysam
 
 import functions
+
+
+
 
 
 # =============================================================================#
@@ -28,9 +30,22 @@ TEMP_SWITCH_COLS = ['read_id',
 					'read_head_end_pos',
 					'fivep_seq',
 					'fivep_sites',
+					'fivep_gene_ids',
+					'head_end_sites',
+					'head_gene_ids',
 					'genomic_head_end_context',
-					'temp_switch_sites',
 					]
+TRANS_SPLICING_COLS = ['read_id',
+					'read_orient_to_gene',
+					'read_seq_forward',
+					'read_head_end_pos',
+					'fivep_seq',
+					'fivep_sites',		
+					'fivep_gene_ids',
+					'head_end_sites',
+					'head_gene_ids',
+					'genomic_head_end_context',
+				]
 CIRCULARS_COLS = ['read_id',
 				'chrom',
 				'strand',
@@ -68,7 +83,7 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'genomic_bp_context', 
 						'head_align_quality',
 						]
-COMMA_JOIN_COLS = ('fivep_sites', 'gene_id', 'gaps', 'fivep_sites', 'introns', 'gene_id')
+COMMA_JOIN_COLS = ('gene_id', 'fivep_sites', 'fivep_gene_ids', 'head_end_sites', 'head_gene_ids', 'introns', 'gaps',)
 
 output_base = sys.argv[-2]
 # In files
@@ -77,13 +92,19 @@ TAILS_FILE = f"{output_base}tails.tsv"
 # Out files
 FAILED_HEADS_FILE = f"{output_base}failed_head_alignments.tsv"
 TEMP_SWITCH_FILE = f"{output_base}template_switching_reads.tsv"
+TRANS_SPLICING_FILE = f"{output_base}trans_splicing_reads.tsv"
 CIRCULARS_FILE = f"{output_base}circularized_intron_reads.tsv"
 PUTATITVE_LARIATS_FILE = f"{output_base}putative_lariats.tsv"
 
 failed_out_lock = mp.Lock()
 temp_switch_lock = mp.Lock()
-circle_lock = mp.Lock()
+trans_splicing_lock = mp.Lock()
+circulars_lock = mp.Lock()
 filtered_out_lock = mp.Lock()
+
+
+
+
 
 # =============================================================================#
 #                                  Classes                                     #
@@ -193,12 +214,33 @@ class ReadHeadAlignment():
 			return self.read_seq
 		else:
 			raise ValueError(f'Invalid read_orient_to_gene value: {self.read_orient_to_gene}')
+
+	@property
+	def fivep_gene_ids(self):
+		if self.fivep_sites is None:
+			return None
+		else:
+			return [functions.str_join(fivep.gene_ids, ';') for fivep in self.fivep_sites]
+	
+	@property
+	def head_end_sites(self):
+		if self.chrom is None or self.bp_pos is None or self.strand is None:
+			return None
+		else:
+			return self.chrom + ';' + str(self.bp_pos) + ';' + self.strand
+
+	@property
+	def head_gene_ids(self):
+		if self.introns is None:
+			return None
+		else:
+			return [functions.str_join(intron.data['gene_id']) for intron in self.introns]
 		
 
 	# Methods
 	@classmethod
 	def fail_out_fields(cls):
-		return tuple(cls.__annotations__.keys()) + ('read_seq_forward', 'filter_failed',)
+		return tuple(cls.__annotations__.keys()) + ('read_seq_forward', 'fivep_gene_ids', 'filter_failed',)
 
 
 	def from_pysam(pysam_align:pysam.AlignedSegment):
@@ -242,6 +284,18 @@ class ReadHeadAlignment():
 				attr_dict['read_seq'] = functions.reverse_complement(row['read_seq_forward'])
 			else:
 				raise ValueError(f'Invalid read_orient_to_gene value: {row["read_orient_to_gene"]}')
+			
+		if 'read_bp_pos' in row and 'read_seq_forward' in row and 'read_bp_nt' not in row:
+			attr_dict['read_bp_nt'] = row['read_seq_forward'][row['read_bp_pos']]
+		
+		if 'genomic_bp_context' in row and 'genomic_bp_nt' not in row:
+			attr_dict['genomic_bp_nt'] = row['genomic_bp_context'][BP_CONTEXT_LENGTH]
+			
+		if 'head_end_sites' in row and 'bp_pos' not in row:
+			chrom, bp_pos, strand = row['head_end_sites'].split(';')
+			attr_dict['chrom'] = chrom
+			attr_dict['bp_pos'] = int(bp_pos)
+			attr_dict['strand'] = strand
 
 		return ReadHeadAlignment(**attr_dict)
 
@@ -284,21 +338,26 @@ class ReadHeadAlignment():
 
 
 	def write_temp_switch_out(self):
-		line = self.to_line(TEMP_SWITCH_COLS[:-1])
-
-		temp_switch_site = self.chrom + ';' + str(self.bp_pos) + ';' + self.strand
-		line += f'\t{temp_switch_site}'
+		line = self.to_line(TEMP_SWITCH_COLS)
 
 		with temp_switch_lock:
 			with open(TEMP_SWITCH_FILE, 'a') as a:
 				a.write(line + '\n')
 
 
-	def write_circle_out(self):
+	def write_circulars_out(self):
 		line = self.to_line(CIRCULARS_COLS)
 
-		with circle_lock:
+		with circulars_lock:
 			with open(CIRCULARS_FILE, 'a') as a:
+				a.write(line + '\n')
+
+
+	def write_trans_splicing_out(self):
+		line = self.to_line(TRANS_SPLICING_COLS)
+
+		with trans_splicing_lock:
+			with open(TRANS_SPLICING_FILE, 'a') as a:
 				a.write(line + '\n')
 
 
@@ -542,16 +601,18 @@ def filter_head_alignment(align:ReadHeadAlignment,
 			return
 
 	# Match introns to 5'ss
-	align.introns, align.fivep_sites = match_introns_to_fiveps(align)
+	matched_introns, matched_fivep_sites = match_introns_to_fiveps(align)
 	# Filter out if no 5'ss-intron matches
-	if len(align.introns) == 0:
-		align.write_failed_out('fivep_intron_match')
+	if len(matched_introns) == 0 or len(matched_fivep_sites) == 0:
+		align.write_trans_splicing_out()
 		return
+	# Remove non-matching introns and 5'ss
+	align.introns, align.fivep_sites = matched_introns, matched_fivep_sites
 	
 	# Write out if intron circle
 	if is_intron_circle(align) is True:
 		align.gene_id = [functions.str_join(fivep.gene_ids, ';') for fivep in align.fivep_sites]
-		align.write_circle_out()
+		align.write_circulars_out()
 		return
 	
 	# If an alignment reaches this point it probably has only 1 5'ss matched to an intron
@@ -597,62 +658,71 @@ def filter_alignments_chunk(genome_fasta:str,
 			filter_head_alignment(align, genome_fasta, introns)
 
 	log.debug(f'Process {os.getpid()}: Finished')
-		
+
+
+def filter_out_shared_reads(class_df, class_name, higher_priority_class_df, higher_priority_class_name):
+	# Check for reads in both classes
+	shared_reads = class_df.loc[class_df.read_id_base.isin(higher_priority_class_df.read_id_base)]
+
+	# If there are any shared reads, filter out the alignments from those reads class_df
+	if shared_reads.shape[0] > 0:
+		# Make label for failing alignments
+		fail_label = f'{class_name}_but_also_{higher_priority_class_name}'
+		# Convert shared_reads rows to ReadHeadAlignment objs
+		shared_reads = [ReadHeadAlignment.from_row(row) for i, row in shared_reads.iterrows()]
+		# Write shared_reads alignments to failed out
+		for align in shared_reads:
+			align.write_failed_out(fail_label)
+			
+		# Filter shared reads out of class_df
+		class_df = class_df.loc[~class_df.read_id_base.isin(higher_priority_class_df.read_id_base)]
+
+	return class_df, higher_priority_class_df
+
 
 def post_processing(log):
 	"""
-	Perform post-processing on template-switching and circularized reads data.
-	This function performs the following steps:
-	1. Load data tables from specified files.
-	2. Move template-switching reads that are in the circularized reads table to failed output.
-	3. Collapse the template-switching reads table to one row per read.
-	4. Choose one alignment for circularized intron reads that have multiple alignments.
-	5. Overwrite the original files with the corrected tables.
+
 	"""
 	log.debug('Post-processing...')
 
 	# Load data tables
 	temp_switches = pd.read_csv(TEMP_SWITCH_FILE, sep='\t', na_filter=False)
 	circulars = pd.read_csv(CIRCULARS_FILE, sep='\t', na_filter=False)
+	trans_splices = pd.read_csv(TRANS_SPLICING_FILE, sep='\t', na_filter=False)
+	lariats = pd.read_csv(PUTATITVE_LARIATS_FILE, sep='\t', na_filter=False)
 
-	# Load putative lariat read ids
-	lariat_rids = pd.read_csv(PUTATITVE_LARIATS_FILE, sep='\t', na_filter=False, usecols=['read_id'])
-	lariat_rids = set(lariat_rids.read_id.str.slice(0,-6))
-		
-	# Add read_id_base columns to both tables
+	# Add read_id_base columns to tables
+	trans_splices['read_id_base'] = trans_splices.read_id.str.slice(0,-6)
 	temp_switches['read_id_base'] = temp_switches.read_id.str.slice(0,-6)
 	circulars['read_id_base'] = circulars.read_id.str.slice(0,-6)
+	lariats['read_id_base'] = lariats.read_id.str.slice(0,-6)
 
-	# Mark template-switching reads that are in the circularized reads table
-	temp_switches['in_circulars'] = temp_switches.read_id_base.isin(circulars.read_id_base)
-	# Write template-switching reads that are in the circularized reads table to failed output
-	# We have to re-calculate the read_seq for write_failed_out()
-	if temp_switches.in_circulars.sum() > 0:
-		temp_in_circs = temp_switches[temp_switches.in_circulars].copy()
-		temp_in_circs = [ReadHeadAlignment.from_row(row) for i, row in temp_in_circs.iterrows()]
-		for align in temp_in_circs:
-			align.write_failed_out('temp_switch_but_also_circular')
+	# Filter out trans-splicing read alignments that also have alignments in a higher-priority table
+	trans_splices, temp_switches = filter_out_shared_reads(trans_splices, 'trans_splicing', temp_switches, 'template_switching')
+	trans_splices, circulars = filter_out_shared_reads(trans_splices, 'trans_splicing', circulars, 'circular')
+	trans_splices, lariats = filter_out_shared_reads(trans_splices, 'trans_splicing', lariats, 'lariat')
 
-	# Mark template-switching reads that are in the putative lariat reads table
-	temp_switches['in_lariats'] = temp_switches.read_id_base.isin(lariat_rids)
-	# Write template-switching reads that are in the putative lariat reads table to failed output
-	# We have to re-calculate the read_seq for write_failed_out()
-	if temp_switches.in_lariats.sum() > 0:
-		temp_in_lariats = temp_switches[temp_switches.in_lariats].copy()
-		temp_in_lariats = [ReadHeadAlignment.from_row(row) for i, row in temp_in_lariats.iterrows()]
-		for align in temp_in_lariats:
-			align.write_failed_out('temp_switch_but_also_lariat')
+	# Filter out template-switching read alignments that also have alignments in a higher-priority table
+	temp_switches, circulars = filter_out_shared_reads(temp_switches, 'template_switching', circulars, 'circular')
+	temp_switches, lariats = filter_out_shared_reads(temp_switches, 'template_switching', lariats, 'lariat')
 
-	# Drop template-switiching reads that are in either other table
-	temp_switches = temp_switches[(~temp_switches.in_circulars) & (~temp_switches.in_lariats)]
-
-	# If temp_switch reads remain, collapse the table to one row per read
+	# If template-switching reads remain, collapse the table to one row per read
 	if len(temp_switches) > 0:
 			temp_switches = (
 				temp_switches
 				.assign(read_id = temp_switches.read_id_base)
 				.groupby('read_id', as_index=False)
 				.agg({col: lambda c: functions.str_join(sorted(c)) for col in TEMP_SWITCH_COLS[1:]})
+			)
+
+	# If trans-splicing reads remain, collapse the table to one row per read
+	if len(trans_splices) > 0:
+			trans_splices = (
+				trans_splices
+				.assign(read_id = trans_splices.read_id_base)
+				.groupby('read_id', as_index=False)
+				.agg({col: lambda c: functions.str_join(sorted(c)) for col in TRANS_SPLICING_COLS[1:]})
 			)
 
 	# Choose one alignment for circularized intron reads that have multiple alignments
@@ -663,9 +733,7 @@ def post_processing(log):
 	if len(dup_circs) > 0:
 		dup_circs = [ReadHeadAlignment.from_row(row) for i, row in dup_circs.iterrows()]
 		for align in dup_circs:
-			align.write_failed_out('not_chosen')
-
-	# Drop duplicate circulars
+			align.write_failed_out('circular_not_chosen')
 	circulars = circulars[~circulars.read_dup]
 
 	# Prepare circulars table for output
@@ -676,14 +744,11 @@ def post_processing(log):
 	)
 
 	# Overwrite files with the corrected tables
+	trans_splices.to_csv(TRANS_SPLICING_FILE, sep='\t', index=False)
 	temp_switches.to_csv(TEMP_SWITCH_FILE, sep='\t', index=False)
 	circulars.to_csv(CIRCULARS_FILE, sep='\t', index=False)
 
 	log.debug('Post-processing complete')
-
-
-
-			
 
 
 
@@ -724,8 +789,11 @@ if __name__ == '__main__':
 	# The rows will be written one by one as they are processed
 	with open(FAILED_HEADS_FILE, 'w') as w:
 		w.write('\t'.join(ReadHeadAlignment.fail_out_fields()) + '\n')
+		
 	with open(TEMP_SWITCH_FILE, 'w') as w:
 		w.write('\t'.join(TEMP_SWITCH_COLS) + '\n')
+	with open(TRANS_SPLICING_FILE, 'w') as w:
+		w.write('\t'.join(TRANS_SPLICING_COLS) + '\n')
 	with open(CIRCULARS_FILE, 'w') as w:
 		w.write('\t'.join(CIRCULARS_COLS) + '\n')
 	with open(PUTATITVE_LARIATS_FILE, 'w') as w:
@@ -750,7 +818,7 @@ if __name__ == '__main__':
 	for process in processes:
 		process.join()
 		if process.exitcode != 0:
-			raise RuntimeError()
+			raise mp.ProcessError(f'Error in process {process.pid}')
 
 	# Post processing
 	post_processing(log)

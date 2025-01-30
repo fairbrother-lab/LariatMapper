@@ -10,6 +10,8 @@ import pysam
 
 
 
+
+
 # =============================================================================#
 #                                  Classes                                     #
 # =============================================================================#
@@ -37,6 +39,8 @@ class RunCommandError(Exception):
 			f"Command: {self.command}\n" +\
 			f"Standard out: {self.stdout}\n" +\
 			f"Standard error: {self.stderr}" 
+
+
 
 
 
