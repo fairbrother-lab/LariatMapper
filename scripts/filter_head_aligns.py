@@ -720,24 +720,6 @@ def post_processing(log):
 				.agg({col: lambda c: functions.str_join(sorted(c)) for col in TEMP_SWITCH_COLS[1:]})
 			)
 
-	# # Choose one alignment for trans-splicing reads that have multiple alignments
-	# # and write the other alignments to failed output
-	# trans_splices = trans_splices.sort_values(['read_id_base', 'read_orient_to_gene'])
-	# trans_splices['read_dup'] = trans_splices.duplicated('read_id_base', keep='first')
-	# dup_trans = trans_splices[trans_splices.read_dup].copy()
-	# if len(dup_trans) > 0:
-	# 	dup_trans = [ReadHeadAlignment.from_row(row) for i, row in dup_trans.iterrows()]
-	# 	for align in dup_trans:
-	# 		align.write_failed_out('trans_splicing_not_chosen')
-	# trans_splices = trans_splices[~trans_splices.read_dup]
-
-	# # Prepare trans-splicing table for output
-	# trans_splices = (
-	# 	trans_splices
-	# 		.assign(read_id = trans_splices.read_id_base)
-	# 		.drop(columns=['read_dup', 'read_id_base'])
-	# )
-
 	# If trans-splicing reads remain, collapse the table to one row per read
 	if len(trans_splices) > 0:
 			trans_splices = (
@@ -840,7 +822,7 @@ if __name__ == '__main__':
 	for process in processes:
 		process.join()
 		if process.exitcode != 0:
-			raise mp.ProcessError(f'Error in process {process.pid}:\n{process}')
+			raise mp.ProcessError(f'Error in process {process.pid}')
 
 	# Post processing
 	post_processing(log)

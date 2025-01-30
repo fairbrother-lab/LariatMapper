@@ -10,6 +10,8 @@ import functions
 
 
 
+
+
 # =============================================================================#
 #                                  Globals                                     #
 # =============================================================================#
@@ -39,6 +41,8 @@ FINAL_RESULTS_COLS = ['read_id',
                         'genomic_bp_context',
                         'total_mapped_reads',
 						]
+
+
 
 
 
@@ -165,6 +169,8 @@ def choose_read_mapping(lariat_reads):
 			break
 
 	return lariat_reads
+
+
 
 
 
