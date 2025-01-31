@@ -518,7 +518,7 @@ def is_template_switch(align:ReadHeadAlignment) -> bool:
 	return base_matches == TEMP_SWITCH_MIN_MATCHES
 
 
-def is_intron_circle(align:ReadHeadAlignment) -> bool:
+def is_circular(align:ReadHeadAlignment) -> bool:
 	return align.bp_dist_to_threep in (-2, -1, 0)
 
 
@@ -526,12 +526,6 @@ def filter_head_alignment(align:ReadHeadAlignment,
 						genome_fasta:str,
 						introns:dict
 						) -> None:
-	# Skip cases where the read doesn't have any fivep sites with  
-	# the given fivep_strand, since they aren't relevant, 
-	# and there's no useful information to be gained from writing to failed out
-	if sum(1 for fp in align.fivep_sites if fp.strand==align.strand) == 0:
-		return
-
 	# Infer bp position in genome
 	if align.strand == '+':
 		align.bp_pos = align.align_end - 1
@@ -548,8 +542,7 @@ def filter_head_alignment(align:ReadHeadAlignment,
 		return
 	
 	# Add more info
-	align.genomic_bp_context = utils.get_seq(
-											genome_fasta = genome_fasta, 
+	align.genomic_bp_context = utils.get_seq(genome_fasta = genome_fasta, 
 											chrom = align.chrom,
 											start = align.bp_pos-BP_CONTEXT_LENGTH,
 											end = align.bp_pos+BP_CONTEXT_LENGTH+1,
@@ -583,24 +576,6 @@ def filter_head_alignment(align:ReadHeadAlignment,
 		align.write_failed_out('overlap_introns')
 		return
 
-	# Filter out if it's a bad alignment orientation combination, 
-	# which does NOT leave the branchpoint adjacent to the 5'ss 
-	# in the read as is expected of lariats
-	if align.read_orient_to_gene == "Forward" :
-		if align.align_is_reverse is True and align.strand=='+':
-			align.write_failed_out('wrong_orient')
-			return
-		if align.align_is_reverse is False and align.strand=='-':
-			align.write_failed_out('wrong_orient')
-			return
-	if align.read_orient_to_gene == "Reverse":
-		if align.align_is_reverse is True and align.strand=='-':
-			align.write_failed_out('wrong_orient')
-			return
-		if align.align_is_reverse is False and align.strand=='+':
-			align.write_failed_out('wrong_orient')
-			return
-
 	# Match introns to 5'ss
 	matched_introns, matched_fivep_sites = match_introns_to_fiveps(align)
 	# Filter out if no 5'ss-intron matches
@@ -611,7 +586,7 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	align.introns, align.fivep_sites = matched_introns, matched_fivep_sites
 	
 	# Write out if intron circle
-	if is_intron_circle(align) is True:
+	if is_circular(align) is True:
 		align.gene_id = [utils.str_join(fivep.gene_ids, ';') for fivep in align.fivep_sites]
 		align.write_circulars_out()
 		return
@@ -652,9 +627,26 @@ def filter_alignments_chunk(genome_fasta:str,
 
 		# Go through each alignment for the read
 		# filling in information and filtering out bad alignments
-		for align, fivep_strand in it.product(read_aligns, ('+', '-')):
-			align.strand = fivep_strand
+		for align in read_aligns:
 			align.fill_tail_info(read_tail)
+
+			# Infer strand from the alignment orientation
+			# By this point we can assume that the read came from a lariat, whether or not reverse
+			# transcriptase read through the branchpoint. In this case, the head cDNA has to have 
+			# been built upstream in the 3' to 5' direction (AKA upstream direction) regardless of 
+			# the RNA template it was built on. If it aligned in the forward orientation that means
+			# the upstream direction is toward the left in the reference genome, which means the 
+			# RNA was from a (+) strand gene. If it aligned in the reverse that means the 
+			# upstream direction is toward the right in the reference genome, which the RNA was from
+			# a (-) strand gene.
+			if align.read_orient_to_gene == 'Forward' and align.align_is_reverse is False:
+				align.strand = '+'
+			elif align.read_orient_to_gene == 'Forward' and align.align_is_reverse is True:
+				align.strand = '-'
+			elif align.read_orient_to_gene == 'Reverse' and align.align_is_reverse is False:
+				align.strand = '-'
+			elif align.read_orient_to_gene == 'Reverse' and align.align_is_reverse is True:
+				align.strand = '+'
 
 			filter_head_alignment(align, genome_fasta, introns)
 
