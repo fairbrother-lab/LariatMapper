@@ -22,7 +22,8 @@ MAX_MISMATCHES = 5
 MAX_MISMATCH_PERCENT = 0.1
 MAX_GAP_LENGTH = 3
 BP_CONTEXT_LENGTH = 8
-TEMP_SWITCH_BASES = 5
+TEMP_SWITCH_RANGE = 5
+TEMP_SWITCH_MIN_MATCHES = 5
 
 TEMP_SWITCH_COLS = ['read_id',
 					'read_orient_to_gene',
@@ -510,11 +511,11 @@ def is_template_switch(align:ReadHeadAlignment) -> bool:
 	bp_adj_seq = align.genomic_bp_context[BP_CONTEXT_LENGTH+1:]
 
 	base_matches = 0
-	for i in range(TEMP_SWITCH_BASES):
+	for i in range(TEMP_SWITCH_RANGE):
 		if bp_adj_seq[i]==align.fivep_seq[i]:
 			base_matches += 1
 	
-	return base_matches == TEMP_SWITCH_BASES
+	return base_matches == TEMP_SWITCH_MIN_MATCHES
 
 
 def is_intron_circle(align:ReadHeadAlignment) -> bool:
