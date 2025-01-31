@@ -39,6 +39,20 @@ class RunCommandError(Exception):
 			f"Command: {self.command}\n" +\
 			f"Standard out: {self.stdout}\n" +\
 			f"Standard error: {self.stderr}" 
+	
+
+class AppendWarnErr(logging.Filter):
+	'''
+	A logging Filter subclass that appends "WARNING!" to the beginning of WARNING-level messages
+	and "ERROR!!!" to the beginning of ERROR-level messages
+	'''
+	def filter(self, record):
+		if record.levelname == 'WARNING':
+			record.msg = 'WARNING! ' + record.msg
+		elif record.levelname == 'ERROR':
+			record.msg = 'ERROR!!! ' + record.msg
+
+		return True
 
 
 
