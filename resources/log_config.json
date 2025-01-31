@@ -14,7 +14,7 @@
 	},
 	"filters": {
 		"append_warn_err": {
-			"()": "LariatMapper.scripts.utils.AppendWarnErr"
+			"()": "__main__.utils.AppendWarnErr"
 		}
 	},
 	"handlers": {
