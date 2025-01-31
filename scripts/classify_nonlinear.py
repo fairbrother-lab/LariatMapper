@@ -4,7 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 
-import functions
+import utils
 
 
 
@@ -55,8 +55,8 @@ def add_reads(file:str, class_:str, stage:str, read_classes:list, read_id_proces
 		df['gene_id'] = ''
 	df = (df
 	   		.groupby('read_id', as_index=False)
-			.agg({'filter_failed': lambda ffs: functions.str_join(ffs, unique=True), 
-		 			'gene_id': lambda gids: functions.str_join(gids, unique=True)})
+			.agg({'filter_failed': lambda ffs: utils.str_join(ffs, unique=True), 
+		 			'gene_id': lambda gids: utils.str_join(gids, unique=True)})
 	)
 
 	df = exclude_classed_reads(df, read_classes)
@@ -102,7 +102,7 @@ if __name__ == '__main__':
 	output_base, seq_type, log_level = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}') 
 
 	# Moving backwards through the pipeline, collect all reads that didn't map linearly to the genome
@@ -132,7 +132,7 @@ if __name__ == '__main__':
 	if os.path.isfile(f'{output_base}failed_lariat_alignments.tsv'):
 		lariat_failed = pd.read_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', na_filter=False)
 		lariat_failed = lariat_failed.loc[lariat_failed.filter_failed=='in_repeat']
-		lariat_failed = lariat_failed.groupby('read_id', as_index=False).agg({'gene_id': lambda gids: functions.str_join(gids, unique=True)})
+		lariat_failed = lariat_failed.groupby('read_id', as_index=False).agg({'gene_id': lambda gids: utils.str_join(gids, unique=True)})
 		lariat_failed = exclude_classed_reads(lariat_failed, read_classes)
 		lariat_failed = [[read_id, 'In repetitive region', 'Lariat filtering', 'in_repeat', gene_id] for read_id, gene_id in lariat_failed.values] 
 		read_classes.extend(lariat_failed) 
@@ -177,7 +177,7 @@ if __name__ == '__main__':
 	log.debug(f'read class counts: {read_classes.read_class.astype("str").value_counts().sort_index().to_dict()}')
 
 	# Do this to prevent ('id_a', 'id_a,id_b') -> 'id_a,id_a,id_b' since the gene_id col may already be comma-delimited
-	read_classes.gene_id = read_classes.gene_id.transform(lambda gids: functions.str_join(gids.split(','), unique=True))
+	read_classes.gene_id = read_classes.gene_id.transform(lambda gids: utils.str_join(gids.split(','), unique=True))
 
 	# Write to file
 	read_classes.to_csv(f'{output_base}read_classes.tsv.gz', sep='\t', index=False, na_rep='N/A')

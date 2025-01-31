@@ -7,7 +7,7 @@ import shutil
 
 import pandas as pd
 
-from scripts import functions
+from scripts import utils
 
 
 
@@ -40,7 +40,7 @@ def write_metadata(args:argparse.Namespace, out_dir:str):
 		"                Metadata                \n"
 		"----------------------------------------\n"
 		)
-		meta_out.write(f'Version: {functions.version()}\n')
+		meta_out.write(f'Version: {utils.version()}\n')
 		meta_out.write(f'Run time (UTC): {time}\n')
 
 		meta_out.write(
@@ -186,7 +186,7 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 	
 	# Collapse gene ids
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
-	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': functions.str_join})
+	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': utils.str_join})
 	# Remove introns 20bp or shorter
 	log.info(f'{sum(introns.end-introns.start<20):,} of {len(introns):,} introns excluded for being shorter than 20nt')
 	introns = introns.loc[introns.end-introns.start>=20]
@@ -220,7 +220,7 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 		bedtools_input += fivep_line
 	
 	# Get fivep sequences using bedtools getfasta
-	fivep_seqs = functions.getfasta(genome_fasta, bedtools_input, log=log)
+	fivep_seqs = utils.getfasta(genome_fasta, bedtools_input, log=log)
 	fivep_seqs = fivep_seqs.rename(columns={'name': 'fivep_site'})
 
 	# Parse output
@@ -240,11 +240,11 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 	if os.path.isfile(compressed_out):
 		log.warning(f'Overwriting existing file at {compressed_out}')
 		os.remove(compressed_out)
-	functions.run_command(f'bgzip --threads {threads} {out_dir}/{REF_FIVEP_FILE}.fa', log=log)
+	utils.run_command(f'bgzip --threads {threads} {out_dir}/{REF_FIVEP_FILE}.fa', log=log)
 	
 	# Index
 	log.debug("Building 5' splice sites FASTA index...")
-	functions.run_command(f'samtools faidx {compressed_out} --fai-idx {compressed_out}.fai --gzi-idx {compressed_out}.gzi', log=log)
+	utils.run_command(f'samtools faidx {compressed_out} --fai-idx {compressed_out}.fai --gzi-idx {compressed_out}.gzi', log=log)
 
 
 
@@ -256,7 +256,7 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(prog='build_references',
 								  	description='Create a directory with the required reference files for running LariatMapper. A reference directory is specific to one reference genome.')
-	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {functions.version()}', help='print the version id and exit')
+	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {utils.version()}', help='print the version id and exit')
 	
 	# Required arguments
 	parser.add_argument('-f', '--genome_fasta', required=True, help='FASTA file of the reference genome. May be compressed with bgzip, but not with standard gzip.')
@@ -292,7 +292,7 @@ if __name__ == '__main__':
 		log_level = 'DEBUG'
 	else:
 		log_level = 'INFO'
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 
 	# Report version
 	pipeline_dir = os.path.dirname(os.path.realpath(__file__))
@@ -364,7 +364,7 @@ if __name__ == '__main__':
 	command = f'samtools faidx {genome_fasta_out} --fai-idx {genome_fasta_out}.fai'
 	if genome_fasta_out.endswith('.gz'):
 		command += f" --gzi-idx {genome_fasta_out}.gzi"
-	functions.run_command(command, log=log)
+	utils.run_command(command, log=log)
 
 	log.info('Parsing transcripts from annotation file...')
 	transcripts = parse_transcripts(genome_anno, anno_type, anno_gzip, t_attr, g_attr, log)
@@ -379,6 +379,6 @@ if __name__ == '__main__':
 		log.info('Building R objects...')
 		cmd = f"Rscript {pipeline_dir}/scripts/build_R_refs.R" +\
 				f" --anno {genome_anno} --g_attr {g_attr} --t_attr {t_attr} --output {out_dir}"
-		functions.run_command(cmd, log=log)
+		utils.run_command(cmd, log=log)
 
 	log.info('Reference building complete.')

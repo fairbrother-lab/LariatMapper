@@ -10,7 +10,7 @@ import pathlib
 
 # This line is where our third-party imports would go, if we had any
 
-from scripts import functions
+from scripts import utils
 
 
 
@@ -195,7 +195,7 @@ class Settings:
 if __name__ == '__main__':
 	# Argument parser
 	parser = argparse.ArgumentParser(prog='larmap.py', description='Extracts lariats and their branchpoint positions from RNA-seq data')
-	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {functions.version()}', help='print the version id and exit')
+	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {utils.version()}', help='print the version id and exit')
 
 	# Required arguments
 	# We use argument groups to make the help message more readable, but we have to enforce 
@@ -245,10 +245,10 @@ if __name__ == '__main__':
 	settings = Settings(**args)
 
 	# Set up logging
-	log = functions.get_logger(settings.log_level)
+	log = utils.get_logger(settings.log_level)
 
 	# Report version
-	log.info(f'LariatMapper {functions.version()}')
+	log.info(f'LariatMapper {utils.version()}')
 
 	# Report arguments
 	arg_message = [f'{key}={val}' for key, val in args.items() if val is not None and val is not False]

@@ -6,7 +6,7 @@ import os
 import pandas as pd
 import numpy as np
 
-import functions
+import utils
 
 
 
@@ -76,7 +76,7 @@ def add_mapped_reads(output_base:str, seq_type:str, log) -> int:
 	Get the number of reads that mapped to the reference genome
 	'''
 	command = f'samtools view --count --exclude-flags 12 {OUTPUT_BAM_FILE.format(output_base)}'
-	count = int(functions.run_command(command, log=log))
+	count = int(utils.run_command(command, log=log))
 	
 	if seq_type == 'paired':
 		count = count//2
@@ -101,8 +101,8 @@ def check_repeat_overlap(lariat_reads: pd.DataFrame, ref_repeatmasker:str, log) 
 
 	# Identify 5'ss that overlap a repeat region
 	bedtools_call = f'bedtools intersect -u -a - -b {ref_repeatmasker}'
-	bedtools_fivep_output = functions.run_command(bedtools_call, input=bedtools_fivep_input, log=log).split('\n')
-	bedtools_bp_output = functions.run_command(bedtools_call, input=bedtools_bp_input, log=log).split('\n')
+	bedtools_fivep_output = utils.run_command(bedtools_call, input=bedtools_fivep_input, log=log).split('\n')
+	bedtools_bp_output = utils.run_command(bedtools_call, input=bedtools_bp_input, log=log).split('\n')
 
 	# Add reads where both sites overlapped to repeat_rids for removal
 	fivep_repeat_rids, bp_repeat_rids = set(), set()
@@ -182,7 +182,7 @@ if __name__ == '__main__':
 	output_base, log_level, seq_type, ref_fasta, ref_repeatmasker = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Load putatitve lariat alignments

@@ -5,7 +5,7 @@ import multiprocessing as mp
 from pyfaidx import Fasta
 import pandas as pd
 
-import functions
+import utils
 
 
 
@@ -73,12 +73,12 @@ def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
 			up_pos = max(fivep_pos-5, 1) 				# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{up_pos}\t{fivep_pos}\t{site}\t0\t{strand}\n'  
 		else:
-			chrom_length = functions.get_chrom_length(f'{genome_fasta}.fai', chrom)
+			chrom_length = utils.get_chrom_length(f'{genome_fasta}.fai', chrom)
 			up_pos = min(fivep_pos+6, chrom_length)		# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{fivep_pos+1}\t{up_pos}\t{site}\t0\t{strand}\n'
 
 	# Call bedtools getfasta 
-	fivep_upstream_seqs = functions.getfasta(genome_fasta, bedtools_input, log)
+	fivep_upstream_seqs = utils.getfasta(genome_fasta, bedtools_input, log)
 	# Make it a dict
 	fivep_upstream_seqs = fivep_upstream_seqs.set_index('name', drop=True)['seq'].to_dict()
 
@@ -90,7 +90,7 @@ def parse_line(sam_line:str):
 
 	read_fivep_start = int(read_fivep_start)-1
 	read_fivep_end = read_fivep_start+20
-	read_orient_to_gene = functions.align_orient(flag)
+	read_orient_to_gene = utils.align_orient(flag)
 
 	return read_id, fivep_site, read_fivep_start, read_fivep_end, read_orient_to_gene
 
@@ -160,7 +160,7 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 	'''
 	# We have to set the log level in each process because the children don't inherit the log level from their parent,
 	# even if you pass the log object itself
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
 	# Go through the assigned chunk of lines, reading and processing all 5'ss alignments to each read together
@@ -211,7 +211,7 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 			elif read_orient_to_gene == "Reverse":
 				segment_end = read_fivep_end + len(fivep_upstream_seqs[fivep_site])
 				read_upstream = read_seq[read_fivep_end:segment_end].upper()
-				upstream_mismatch = read_upstream != functions.reverse_complement(fivep_upstream_seqs[fivep_site])
+				upstream_mismatch = read_upstream != utils.reverse_complement(fivep_upstream_seqs[fivep_site])
 				
 			if upstream_mismatch:
 				fivep_pass.append((fivep_site, read_fivep_start, read_fivep_end))
@@ -238,7 +238,7 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 			# Trim off the rightmost alignment and everything to the left of it
 			head_seq = read_seq[furthest_fivep_end:]
 			# Get sequence of rightmost alignment
-			fivep_seq = functions.reverse_complement(read_seq[furthest_fivep_start:furthest_fivep_end])
+			fivep_seq = utils.reverse_complement(read_seq[furthest_fivep_start:furthest_fivep_end])
 
 		# Keep the subset of 5'ss alignments that start at the upstream-most position and fail the rest
 		fivep_pass_sub = []
@@ -284,7 +284,7 @@ if __name__ == '__main__' :
 	output_base, log_level, genome_fasta, fivep_fasta, strand, threads, = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 	
 	threads = int(threads)
@@ -304,7 +304,7 @@ if __name__ == '__main__' :
 
 	# Decide how to divide the collection of alignments into chunks
 	# for parallel processing, so each thread gets a roughly equal number
-	chunk_ranges = functions.decide_chunk_ranges(n_aligns, threads)
+	chunk_ranges = utils.decide_chunk_ranges(n_aligns, threads)
 	log.debug(f'chunk ranges: {chunk_ranges}')
 
 	# Prep out files with a header row

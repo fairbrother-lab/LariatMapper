@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pysam
 
-import functions
+import utils
 
 
 
@@ -152,7 +152,7 @@ class ReadTail:
 	@property
 	def read_bp_nt(self):
 		if self.read_orient_to_gene == 'Reverse':
-			return functions.reverse_complement(self.read_seq[self.read_bp_pos])
+			return utils.reverse_complement(self.read_seq[self.read_bp_pos])
 		else:
 			return self.read_seq[self.read_bp_pos]
 
@@ -209,7 +209,7 @@ class ReadHeadAlignment():
 		if self.read_seq is None:
 			return None
 		if self.read_orient_to_gene == 'Reverse':
-			return functions.reverse_complement(self.read_seq) 
+			return utils.reverse_complement(self.read_seq) 
 		elif self.read_orient_to_gene == 'Forward':
 			return self.read_seq
 		else:
@@ -220,7 +220,7 @@ class ReadHeadAlignment():
 		if self.fivep_sites is None:
 			return None
 		else:
-			return [functions.str_join(fivep.gene_ids, ';') for fivep in self.fivep_sites]
+			return [utils.str_join(fivep.gene_ids, ';') for fivep in self.fivep_sites]
 	
 	@property
 	def head_end_sites(self):
@@ -234,7 +234,7 @@ class ReadHeadAlignment():
 		if self.introns is None:
 			return None
 		else:
-			return [functions.str_join(intron.data['gene_id']) for intron in self.introns]
+			return [utils.str_join(intron.data['gene_id']) for intron in self.introns]
 		
 
 	# Methods
@@ -281,7 +281,7 @@ class ReadHeadAlignment():
 			if row['read_orient_to_gene'] == 'Forward':
 				attr_dict['read_seq'] = row['read_seq_forward']
 			elif row['read_orient_to_gene'] == 'Reverse':
-				attr_dict['read_seq'] = functions.reverse_complement(row['read_seq_forward'])
+				attr_dict['read_seq'] = utils.reverse_complement(row['read_seq_forward'])
 			else:
 				raise ValueError(f'Invalid read_orient_to_gene value: {row["read_orient_to_gene"]}')
 			
@@ -315,12 +315,12 @@ class ReadHeadAlignment():
 			val = '' if val is None else val
 			# Val fixes
 			if col in COMMA_JOIN_COLS and isinstance(val, (list, tuple, set, frozenset)):
-				val = functions.str_join(val)
+				val = utils.str_join(val)
 			elif col == 'read_bp_pos' and self.read_seq is not None:
 				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
 			elif col == 'fivep_pos' and val == '' and self.fivep_sites is not None:
 				val = [site.pos for site in self.fivep_sites]
-				val = functions.str_join(val)
+				val = utils.str_join(val)
 
 			line += f'\t{val}'
 			
@@ -541,13 +541,13 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	if align.bp_pos - BP_CONTEXT_LENGTH < 0:
 		align.write_failed_out('bp_window_less_than_0')
 		return
-	chrom_len = functions.get_chrom_length(f'{genome_fasta}.fai', align.chrom)
+	chrom_len = utils.get_chrom_length(f'{genome_fasta}.fai', align.chrom)
 	if align.bp_pos + BP_CONTEXT_LENGTH > chrom_len:
 		align.write_failed_out('bp_window_past_chrom_end')
 		return
 	
 	# Add more info
-	align.genomic_bp_context = functions.get_seq(
+	align.genomic_bp_context = utils.get_seq(
 											genome_fasta = genome_fasta, 
 											chrom = align.chrom,
 											start = align.bp_pos-BP_CONTEXT_LENGTH,
@@ -611,7 +611,7 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	
 	# Write out if intron circle
 	if is_intron_circle(align) is True:
-		align.gene_id = [functions.str_join(fivep.gene_ids, ';') for fivep in align.fivep_sites]
+		align.gene_id = [utils.str_join(fivep.gene_ids, ';') for fivep in align.fivep_sites]
 		align.write_circulars_out()
 		return
 	
@@ -643,7 +643,7 @@ def filter_alignments_chunk(genome_fasta:str,
 						log_level:str):
 	# We have to set the log level in each process because the children don't inherit the log level from their parent,
 	# even if you pass the log object itself
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
 	for read_id, read_aligns in yield_read_aligns(chunk_start, chunk_end):
@@ -713,7 +713,7 @@ def post_processing(log):
 				temp_switches
 				.assign(read_id = temp_switches.read_id_base)
 				.groupby('read_id', as_index=False)
-				.agg({col: lambda c: functions.str_join(sorted(c)) for col in TEMP_SWITCH_COLS[1:]})
+				.agg({col: lambda c: utils.str_join(sorted(c)) for col in TEMP_SWITCH_COLS[1:]})
 			)
 
 	# If trans-splicing reads remain, collapse the table to one row per read
@@ -722,7 +722,7 @@ def post_processing(log):
 				trans_splices
 				.assign(read_id = trans_splices.read_id_base)
 				.groupby('read_id', as_index=False)
-				.agg({col: lambda c: functions.str_join(sorted(c)) for col in TRANS_SPLICING_COLS[1:]})
+				.agg({col: lambda c: utils.str_join(sorted(c)) for col in TRANS_SPLICING_COLS[1:]})
 			)
 
 	# Choose one alignment for circularized intron reads that have multiple alignments
@@ -762,7 +762,7 @@ if __name__ == '__main__':
 	threads, ref_introns, genome_fasta, output_base, log_level = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	threads = int(threads)
@@ -776,7 +776,7 @@ if __name__ == '__main__':
 
 	# Decide how to divide the collection of alignments into chunks
 	# for parallel processing, so each thread gets a roughly equal number
-	chunk_ranges = functions.decide_chunk_ranges(n_aligns, threads)
+	chunk_ranges = utils.decide_chunk_ranges(n_aligns, threads)
 	log.debug(f'chunk_ranges: {chunk_ranges}')
 
 	# Load reference data for processing alignments

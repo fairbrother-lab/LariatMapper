@@ -2,7 +2,7 @@ import sys
 
 import pandas as pd
 
-import functions
+import utils
 
 
 
@@ -36,7 +36,7 @@ if __name__ == '__main__':
 	output_base, log_level = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Load lariat reads table

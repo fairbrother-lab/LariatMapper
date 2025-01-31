@@ -6,7 +6,7 @@ import pandas as pd
 import pyfaidx
 import pysam
 
-import functions
+import utils
 from filter_head_aligns import TEMP_SWITCH_COLS, TRANS_SPLICING_COLS, CIRCULARS_COLS
 from filter_lariats import FINAL_RESULTS_COLS
 
@@ -138,7 +138,7 @@ if __name__ == '__main__':
 	output_base, log_level, seq_type = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Make neccesary output files if they are absent due to the run ending early
@@ -160,7 +160,7 @@ if __name__ == '__main__':
 	stats = {}
 
 	# Run information
-	stats['version'] = functions.version()
+	stats['version'] = utils.version()
 	with open(ARGS_FILE.format(output_base), 'r') as json_file:
 		settings = json.load(json_file)
 	stats.update(settings)
