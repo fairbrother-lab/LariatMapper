@@ -43,6 +43,7 @@ SUMMARY_TEMPLATE = (
 					"Reference HISAT2 index: {ref_h2index}\n"
 					"Reference genome FASTA: {ref_fasta}\n"
 					"Reference 5'ss FASTA: {ref_5p_fasta}\n"
+					"Reference exons: {ref_exons}\n"
 					"Reference introns: {ref_introns}\n"
 					"Strandedness: {strand}\n"
 					"Reference RepeatMasker: {ref_repeatmasker}\n"

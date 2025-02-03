@@ -38,7 +38,7 @@ def test_filter_head_aligns(threads, prefix, verbosity, tmp_path):
 
 	# Run script
 	command = f"python {PACKAGE_DIR/'scripts'/'filter_head_aligns.py'} {threads}" \
-			  f" {TEST_DIR/'inputs'/'introns.tsv'} {TEST_DIR/'inputs'/'genome.fa'} {tmp_path}/{prefix} {verbosity}"  
+			  f" {TEST_DIR/'inputs'/'exons.tsv'} {TEST_DIR/'inputs'/'introns.tsv'} {TEST_DIR/'inputs'/'genome.fa'} {tmp_path}/{prefix} {verbosity}"  
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr
 	if response.returncode != 0:

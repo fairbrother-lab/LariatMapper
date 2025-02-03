@@ -15,33 +15,35 @@ GENOME_INDEX="${3}"
 GENOME_FASTA="${4}"
 # FASTA file of 5' splice sites (first 20nts of all introns)
 FIVEP_FASTA="${5}"
+# Annotated exons
+EXONS_TSV="${6}"
 # Annotated introns
-INTRONS_TSV="${6}"
+INTRONS_TSV="${7}"
 # Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
-STRAND="${7}"
+STRAND="${8}"
 # Annotated repeat regions
-REPEATS_BED="${8}"
+REPEATS_BED="${9}"
 # A comma-seperated list of PWM files or a single model file
-PWM_FILES="${9}"
-MODEL_FILE="${10}"
+PWM_FILES="${10}"
+MODEL_FILE="${11}"
 # Run make_track.py after filter_lariats.py. true or false, default false
-UCSC_TRACK="${11}"
+UCSC_TRACK="${12}"
 # Keep output.bam
-KEEP_BAM="${12}"
+KEEP_BAM="${13}"
 # Keep read_classes.tsv.gz. true or false, default false
-KEEP_CLASSES="${13}"
+KEEP_CLASSES="${14}"
 # Keep the temp files created during the run. true or false, default false
-KEEP_TEMP="${14}"
+KEEP_TEMP="${15}"
 # Number of threads to use
-THREADS="${15}"
+THREADS="${16}"
 # Type of sequencing data. "single" or "paired"
-SEQ_TYPE="${16}"
+SEQ_TYPE="${17}"
 # Output directory 
-OUTPUT_BASE="${17}"
+OUTPUT_BASE="${18}"
 # Level for python logging. "DEBUG", "INFO", "WARNING", or "ERROR"
-LOG_LEVEL="${18}"
+LOG_LEVEL="${19}"
 # Directory containing lariat mapping pipeline files
-PIPELINE_DIR="${19}"
+PIPELINE_DIR="${20}"
 
 
 
@@ -243,7 +245,7 @@ check_exitcode
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Analyzing head alignments and outputting lariat table...\n"
 # scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
 # 	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
-python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
+python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
 check_exitcode
 
 

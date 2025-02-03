@@ -60,7 +60,8 @@ def test_build_references(fasta, anno, repeatmasker_bed, threads, copy, verbosit
 	# Check output
 	for ref, out in (
 					(TEST_DIR/'outputs'/f'genome{fasta_ext}.fai', tmp_path/f'genome{fasta_ext}.fai'),
-					(TEST_DIR/'outputs'/'introns.tsv', tmp_path/'introns.tsv.gz'),
+					(TEST_DIR/'outputs'/'exons.tsv.gz', tmp_path/'exons.tsv.gz'),
+					(TEST_DIR/'outputs'/'introns.tsv.gz', tmp_path/'introns.tsv.gz'),
 					(TEST_DIR/'outputs'/'fivep_sites.fa.gz', tmp_path/'fivep_sites.fa.gz'),
 					(TEST_DIR/'outputs'/'fivep_sites.fa.gz.fai', tmp_path/'fivep_sites.fa.gz.fai'),
 					):

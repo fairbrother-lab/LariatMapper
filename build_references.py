@@ -20,6 +20,7 @@ EXON_INTRON_COLUMNS = ('chrom', 'strand', 'start', 'end', 'gene_id')
 REF_GENOME_FILE = 'genome'	# ends up as genome.fa or genome.fa.gz
 REF_FIVEP_FILE = 'fivep_sites' # ends up as fivep_sites.fa.gz, accompanied by the index files fivep_sites.fa.gz.fai and fivep_sites.fa.gz.gzi
 REF_INTRONS_FILE = 'introns.tsv.gz'
+REF_EXONS_FILE = 'exons.tsv.gz'
 REF_REPEATMASKER_FILE = 'repeatmasker.bed'
 REF_HISAT2_INDEX = 'hisat2_index'
 REF_GENOME_UNCOMPRESSED_EXTENSIONS = ('.fa', '.fasta', '.fas', '.fna', '.ffn', '.faa', '.mpfa')
@@ -183,7 +184,15 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 			intron_end = transcript_exons[i+1][0]
 			intron = (chrom, strand, intron_start, intron_end, gene_id)
 			introns.append(intron)
-	
+
+	# Collapse gene ids
+	exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
+	exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': utils.str_join})
+	# Sort to make debugging easier
+	exons = exons.sort_values(['chrom', 'start', 'end'])
+	# Write to file
+	exons.to_csv(f'{out_dir}/{REF_EXONS_FILE}', sep='\t', index=False, compression='gzip')
+
 	# Collapse gene ids
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
 	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': utils.str_join})
@@ -193,7 +202,7 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 	# Sort to make debugging easier
 	introns = introns.sort_values(['chrom', 'start', 'end'])
 	# Write to file
-	introns.to_csv(f'{out_dir}/introns.tsv.gz', sep='\t', index=False, compression='gzip')
+	introns.to_csv(f'{out_dir}/{REF_INTRONS_FILE}', sep='\t', index=False, compression='gzip')
 
 	return introns
 

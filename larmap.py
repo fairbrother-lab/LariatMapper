@@ -26,14 +26,15 @@ class Settings:
 	REQ_REFS = (('ref_h2index', 'hisat2_index'), 
 				('ref_fasta', 'genome.fa'), 
 				('ref_5p_fasta', 'fivep_sites.fa'),
+				('ref_exons', 'exons.tsv.gz'),
 				('ref_introns', 'introns.tsv.gz'))
 	PATH_SETTINGS = ('read_file', 'read_one', 'read_two', 'ref_dir', 'ref_h2index', 'ref_fasta', 
-					'ref_5p_fasta', 'ref_introns', 'output_dir', 'ref_repeatmasker', 'model_correction',
-					'pipeline_dir')
-	ARGS_TO_MAP_LARIATS = ('input_reads', 'ref_dir', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 'ref_introns', 
-						'strand', 'ref_repeatmasker', 'pwm_correction', 'model_correction', 
-						'ucsc_track', 'keep_bam', 'keep_classes', 'keep_temp', 'threads', 'seq_type', 
-						'output_base', 'log_level', 'pipeline_dir')
+					'ref_5p_fasta', 'ref_exons', 'ref_introns', 'output_dir', 'ref_repeatmasker', 
+					'model_correction', 'pipeline_dir')
+	ARGS_TO_MAP_LARIATS = ('input_reads', 'ref_dir', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 
+						'ref_exons', 'ref_introns', 'strand', 'ref_repeatmasker', 'pwm_correction', 
+						'model_correction', 'ucsc_track', 'keep_bam', 'keep_classes', 
+						'keep_temp', 'threads', 'seq_type', 'output_base', 'log_level', 'pipeline_dir')
 
 	# Supplied argument attributes
 	# If an argument is not supplied, it will be None
@@ -44,6 +45,7 @@ class Settings:
 	ref_h2index: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/hisat2_index
 	ref_fasta: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/genome.fa
 	ref_5p_fasta: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/fivep_sites.fa
+	ref_exons: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/exons.tsv.gz
 	ref_introns: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/introns.tsv.gz
 	output_dir: pathlib.Path
 	strand: str
@@ -218,11 +220,13 @@ if __name__ == '__main__':
 	# Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) 
 	# (Default = Unstranded)")
 	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help=argparse.SUPPRESS)
+	# optional_args.add_argument('-T', '--temp_switch_filter', default='5,5', help='Set the parameters of the template-switching filter in the head-filtering step. Format = "N,M", where N is the number of bases . (Default = 5,5)')
 	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help="BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. May be gzip-compressed. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)")
-	optional_args.add_argument('-i', '--ref_h2index', type=pathlib.Path, help='HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)')
+	optional_args.add_argument('-H', '--ref_h2index', type=pathlib.Path, help='HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)')
 	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome. May be gzip-compressed. (Default = REF_DIR/genome.fa.gz)')
 	optional_args.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help="FASTA file of 5' splice site sequences, i.e. the first 20nt of all annotated introns. (Default = REF_DIR/fivep_sites.fa)")
-	optional_args.add_argument('-n', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)')
+	optional_args.add_argument('-e', '--ref_exons', type=pathlib.Path, help='TSV file of all annotated introns. (Default = REF_DIR/exons.tsv.gz)')
+	optional_args.add_argument('-i', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)')
 	bp_correction = optional_args.add_mutually_exclusive_group()
 	bp_correction.add_argument('-P', '--pwm_correction', help='RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See https://doi.org/10.5281/zenodo.14735947 to download prebuilt PWMs. See scripts/pwm_build.R to build a custom matrix (Default = no correction)')
 	bp_correction.add_argument('-M', '--model_correction', help='RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See https://doi.org/10.5281/zenodo.14735947 to download predictions for specific reference genomes. (Default = no correction)')

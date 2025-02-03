@@ -216,8 +216,8 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
 - `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
 - `fivep_gene_ids`<sup>*</sup>: The gene ID(s) of the 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
-- `head_end_sites`<sup>*</sup>: The genomic location(s) to which the head mapped. Format is `CHROMOSOME;POSITION`
-- `head_end_ids`<sup>*</sup>: The gene ID(s) of the genomic location(s) to which the head mapped. Format is `CHROMOSOME;POSITION`
+- `head_end_site`<sup>*</sup>: The genomic location to which the head mapped. Format is `CHROMOSOME;POSITION`
+- `head_end_id`<sup>*</sup>: The gene ID of the genomic location to which the head mapped. Format is `CHROMOSOME;POSITION`
 - `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
@@ -233,8 +233,8 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
 - `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
 - `fivep_gene_ids`<sup>*</sup>: The gene ID(s) of the 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
-- `head_end_sites`<sup>*</sup>: The genomic location(s) to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
-- `head_end_ids`<sup>*</sup>: The gene ID(s) of the genomic location(s) to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
+- `head_end_site`<sup>*</sup>: The genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
+- `head_end_id`<sup>*</sup>: The gene ID of the genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
 - `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
