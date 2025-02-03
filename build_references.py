@@ -187,7 +187,10 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 
 	# Collapse gene ids
 	exons = pd.DataFrame(exons, columns=EXON_INTRON_COLUMNS)
-	exons = exons.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': utils.str_join})
+	exons = (exons
+		  .groupby(['chrom', 'strand', 'start', 'end'], as_index=False)
+		  .agg({'gene_id': lambda gids: utils.str_join(gids, unique=True)})
+	)
 	# Sort to make debugging easier
 	exons = exons.sort_values(['chrom', 'start', 'end'])
 	# Write to file
@@ -195,7 +198,10 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 
 	# Collapse gene ids
 	introns = pd.DataFrame(introns, columns=EXON_INTRON_COLUMNS)
-	introns = introns.groupby(['chrom', 'strand', 'start', 'end'], as_index=False).agg({'gene_id': utils.str_join})
+	introns = (introns
+			.groupby(['chrom', 'strand', 'start', 'end'], as_index=False)
+			.agg({'gene_id': lambda gids: utils.str_join(gids, unique=True)})
+	)
 	# Remove introns 20bp or shorter
 	log.info(f'{sum(introns.end-introns.start<20):,} of {len(introns):,} introns excluded for being shorter than 20nt')
 	introns = introns.loc[introns.end-introns.start>=20]
@@ -208,7 +214,6 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 
 
 def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str, log) -> None:
-	#TODO: Refactor this through the "bedtools_input += fivep_line" line, it's the biggest time-consumer
 	introns = [row.to_list() for i, row in introns.iterrows()]
 	fivep_sites = set()
 	for intron in introns:
