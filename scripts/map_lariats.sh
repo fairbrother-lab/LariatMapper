@@ -21,29 +21,31 @@ EXONS_TSV="${6}"
 INTRONS_TSV="${7}"
 # Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
 STRAND="${8}"
+# Parameters of the template-switching filter
+TEMP_SWITCH_FILTER="${9}"
 # Annotated repeat regions
-REPEATS_BED="${9}"
+REPEATS_BED="${10}"
 # A comma-seperated list of PWM files or a single model file
-PWM_FILES="${10}"
-MODEL_FILE="${11}"
+PWM_FILES="${11}"
+MODEL_FILE="${12}"
 # Run make_track.py after filter_lariats.py. true or false, default false
-UCSC_TRACK="${12}"
+UCSC_TRACK="${13}"
 # Keep output.bam
-KEEP_BAM="${13}"
+KEEP_BAM="${14}"
 # Keep read_classes.tsv.gz. true or false, default false
-KEEP_CLASSES="${14}"
+KEEP_CLASSES="${15}"
 # Keep the temp files created during the run. true or false, default false
-KEEP_TEMP="${15}"
+KEEP_TEMP="${16}"
 # Number of threads to use
-THREADS="${16}"
+THREADS="${17}"
 # Type of sequencing data. "single" or "paired"
-SEQ_TYPE="${17}"
+SEQ_TYPE="${18}"
 # Output directory 
-OUTPUT_BASE="${18}"
+OUTPUT_BASE="${19}"
 # Level for python logging. "DEBUG", "INFO", "WARNING", or "ERROR"
-LOG_LEVEL="${19}"
+LOG_LEVEL="${20}"
 # Directory containing lariat mapping pipeline files
-PIPELINE_DIR="${20}"
+PIPELINE_DIR="${21}"
 
 
 
@@ -245,7 +247,7 @@ check_exitcode
 printf "$(date +'%d/%b/%Y %H:%M:%S') | Analyzing head alignments and outputting lariat table...\n"
 # scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
 # 	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
-python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $OUTPUT_BASE $LOG_LEVEL 
+python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
 check_exitcode
 
 

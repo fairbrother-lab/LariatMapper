@@ -32,9 +32,10 @@ class Settings:
 					'ref_5p_fasta', 'ref_exons', 'ref_introns', 'output_dir', 'ref_repeatmasker', 
 					'model_correction', 'pipeline_dir')
 	ARGS_TO_MAP_LARIATS = ('input_reads', 'ref_dir', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 
-						'ref_exons', 'ref_introns', 'strand', 'ref_repeatmasker', 'pwm_correction', 
-						'model_correction', 'ucsc_track', 'keep_bam', 'keep_classes', 
-						'keep_temp', 'threads', 'seq_type', 'output_base', 'log_level', 'pipeline_dir')
+						'ref_exons', 'ref_introns', 'strand', 'temp_switch_filter', 
+						'ref_repeatmasker', 'pwm_correction', 'model_correction', 'ucsc_track', 
+						'keep_bam', 'keep_classes', 'keep_temp', 'threads', 'seq_type', 
+						'output_base', 'log_level', 'pipeline_dir')
 
 	# Supplied argument attributes
 	# If an argument is not supplied, it will be None
@@ -49,6 +50,7 @@ class Settings:
 	ref_introns: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/introns.tsv.gz
 	output_dir: pathlib.Path
 	strand: str
+	temp_switch_filter: str
 	ref_repeatmasker: pathlib.Path	# If ref_dir is supplied and this is not, will be set to {ref_dir}/repeatmasker.bed
 	pwm_correction: str
 	model_correction: str
@@ -156,6 +158,14 @@ class Settings:
 			if char in str(self.output_dir):
 				raise ValueError(f'Illegal character in output directory: "{char}"')
 			
+		# Confirm the temp_switch_filter arg is formatted correctly, if supplied
+		if self.temp_switch_filter != '':
+			if self.temp_switch_filter.count(',') != 1 or self.temp_switch_filter.startswith(',') or self.temp_switch_filter.endswith(','):
+				raise ValueError(f'--temp_switch_filter must be formatted as "N,M". Input was "{self.temp_switch_filter}"')
+			n, m = self.temp_switch_filter.split(',')
+			if not n.isdigit() or not m.isdigit():
+				raise ValueError(f'--temp_switch_filter must be formatted as "N,M". Input was "{self.temp_switch_filter}"')
+			
 		# Confirm the pwm correction files exist OR model correction file exists, if supplied
 		if self.pwm_correction != '':
 			for file in self.pwm_correction.split(','):
@@ -220,7 +230,7 @@ if __name__ == '__main__':
 	# Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) 
 	# (Default = Unstranded)")
 	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help=argparse.SUPPRESS)
-	# optional_args.add_argument('-T', '--temp_switch_filter', default='5,5', help='Set the parameters of the template-switching filter in the head-filtering step. Format = "N,M", where N is the number of bases . (Default = 5,5)')
+	optional_args.add_argument('-T', '--temp_switch_filter', default='5,5', help='Set the parameters of the template-switching filter in the head-filtering step. Format = "N,M", where N is the number of downstream bases to check, and M is the minimum number of matches required to identify an alignment as template-switching. (Default = 5,5)')
 	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help="BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. May be gzip-compressed. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)")
 	optional_args.add_argument('-H', '--ref_h2index', type=pathlib.Path, help='HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)')
 	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome. May be gzip-compressed. (Default = REF_DIR/genome.fa.gz)')
