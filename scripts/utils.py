@@ -216,8 +216,9 @@ def decide_chunk_ranges(n_aligns:int, threads:int):
 	Returns [[chunk_1_start, chunk_1_end],... [chunk_t_start, n_aligns]] where t = threads
 	Start and end positions are 1-based inclusive
 	'''
-	# If there are only a handful of alignments just go through them all in one thread
-	if n_aligns <= 2*threads:
+	# If there's not enough alignments to ensure that all of a read's alignments will be covered in the same thread,
+	# just assign all alignments to a single thread
+	if n_aligns <= 10_001*threads:
 		return [[1, n_aligns]]
 	
 	# Determine the range of lines to assign to each thread
