@@ -70,7 +70,6 @@ SUMMARY_TEMPLATE = (
 					"Template-switching: {Template_switching}\n"
 					"Trans-spliced lariat: {Trans_spliced_lariat}\n"
 					"Circularized intron: {Circularized_intron}\n"
-					"In repetitive region: {In_repetitive_region}\n"
 					"Lariat: {Lariat}\n"
 					"\n"
 					"----------------------------------------\n"
@@ -114,7 +113,6 @@ READ_COUNTS_TEMPLATE = (
 						"Not_linearly_mapped\tTemplate_switching\t{Template_switching}\n"
 						"Not_linearly_mapped\tTrans_spliced_lariat\t{Trans_spliced_lariat}\n"
 						"Not_linearly_mapped\tCircularized_intron\t{Circularized_intron}\n"
-						"Not_linearly_mapped\tIn_repetitive_region\t{In_repetitive_region}\n"
 						"Not_linearly_mapped\tLariat\t{Lariat}\n"
 						"Other\tOne_mate_linearly_mapped\t{mixed_pairs}\n"
 						"Read_count_after_stage\tLinear_mapping\t{Linear_mapping}\n"
@@ -125,8 +123,8 @@ READ_COUNTS_TEMPLATE = (
 						"Read_count_after_stage\tLariat_filtering\t{Lariat_filtering}\n"
 )
 
-NONLINEAR_READ_CLASSES = ("No_alignment", "Fivep_alignment", 'In_repetitive_region', 
-						'Template_switching', 'Trans_spliced_lariat', 'Circularized_intron', 'Lariat')
+NONLINEAR_READ_CLASSES = ("No_alignment", "Fivep_alignment", 'Template_switching', 
+						  'Trans_spliced_lariat', 'Circularized_intron', 'Lariat')
 
 
 

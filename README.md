@@ -56,19 +56,19 @@ before using LariatMapper.
 LariatMapper needs a set of reference files to run.
 
 You will need:
-- A FASTA file of the reference genome (`[GENOME_FASTA]`)
-- A GTF or GFF file of annotations for the reference genome (`[GENOME_ANNO]`)
-- A hisat2 index of the reference genome (`[HISAT2_INDEX]`)
+- A FASTA file of the reference genome (`GENOME_FASTA`)
+- A GTF or GFF file of annotations for the reference genome (`GENOME_ANNO`)
+- A hisat2 index of the reference genome (`HISAT2_INDEX`)
 
-Run `build_references.py` with the paths to each file and the desired output path (`[REF_DIR]`):
+Run `build_references.py` with the paths to each file and the desired output path (`REF_DIR`):
 
 ```
-python build_references.py -f [GENOME_FASTA] -a [GENOME_ANNO] -i [HISAT2_INDEX] -o [REF_DIR]
+python build_references.py -f GENOME_FASTA -a GENOME_ANNO -i HISAT2_INDEX -o REF_DIR
 ```
 
-`build_references.py` creates symbolic links to the input files by default. To copy the input files to `[REF_DIR]` instead, you can use the argument `-c, --copy`.
+`build_references.py` creates symbolic links to the input files by default. To copy the input files to `REF_DIR` instead, you can use the argument `-c, --copy`.
 
-You can then use `[REF_DIR]` as the reference files directory when running LariatMapper.
+You can then use `REF_DIR` as the reference files directory when running LariatMapper.
 
 If you have a BED file of repetitive regions from RepeatMasker, you can use the argument `-r, --repeatmasker_bed` to copy it to the reference directory. You can find RepeatMasker files for several reference genomes on the [UCSC Genome Browser](https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker". 
 
@@ -79,7 +79,7 @@ If a RepeatMasker file is included in a run, LariatMapper will check putative la
 ### Required arguments 
 For single-end sequencing data, run
 ```
-python larmap.py -f [READ_FILE] -r [REF_DIR] -o [OUTPUT_DIR]
+python larmap.py -f READ_FILE -r REF_DIR -o OUTPUT_DIR
 ```
 For paired-end sequencing data, run
 ```
@@ -124,37 +124,40 @@ Applied with `-M, --model_correction`
 <summary> Expand </summary>
 
 ```
+-T TEMP_SWITCH_FILTER, --temp_switch_filter TEMP_SWITCH_FILTER
+                     Set the parameters of the template-switching filter in the head-filtering step. Format = "N,M", where N is the number of downstream bases to check, and M is the minimum number of matches required to identify an alignment as template-switching. (Default = 5,5)
 -m REF_REPEATMASKER, --ref_repeatmasker REF_REPEATMASKER
-					BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)
--i REF_H2INDEX, --ref_h2index REF_H2INDEX
-					HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)
+                     BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. May be gzip- compressed. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)
+-H REF_H2INDEX, --ref_h2index REF_H2INDEX
+                     HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)
 -g REF_FASTA, --ref_fasta REF_FASTA
-					FASTA file of the reference genome. (Default = REF_DIR/genome.fa)
+                     FASTA file of the reference genome. May be gzip- compressed. (Default = REF_DIR/genome.fa.gz)
 -5 REF_5P_FASTA, --ref_5p_fasta REF_5P_FASTA
-					FASTA file of 5' splice site sequences, i.e. the first 20nt of all annotated introns. (Default = REF_DIR/fivep_sites.fa)
--n REF_INTRONS, --ref_introns REF_INTRONS
-					TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)
-	
+                     FASTA file of 5' splice site sequences, i.e. the first 20nt of all annotated introns. (Default = REF_DIR/fivep_sites.fa)
+-e REF_EXONS, --ref_exons REF_EXONS
+                     TSV file of all annotated introns. (Default = REF_DIR/exons.tsv.gz)
+-i REF_INTRONS, --ref_introns REF_INTRONS
+                     TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)
 -P PWM_CORRECTION, --pwm_correction PWM_CORRECTION
-					RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See https://doi.org/10.5281/zenodo.14735947 to download prebuilt PWMs. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
--M PWM_CORRECTION, --model_correction MODEL_CORRECTION
-					RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. Seehttps://doi.org/10.5281/zenodo.14735947 to download predictions for precalculated predictions for commonly-used reference genomes. (Default = no correction)
-					
+                     RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See https://doi.org/10.5281/zenodo.14735947 to download prebuilt PWMs. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
+-M MODEL_CORRECTION, --model_correction MODEL_CORRECTION
+                     RDS file with predictions from DeepEnsemble, a deep- learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See https://doi.org/10.5281/zenodo.14735947 to download predictions for specific reference genomes. (Default = no correction)
 -p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
-					Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv). (Default = no prefix)
-					
--u, --ucsc_track    Add an output file named "lariat_reads.bed". This can be used as a custom track in the UCSC Genome Browser to visualize lariat read alignments
-
--b, --keep_bam      Keep the BAM file produced in the initial linear mapping step (Default = delete)
--c, --keep_classes  Keep a file with per-read classification of non-linearly-aligned reads named "read_classes.tsv.gz" in the output (Default = delete)
--k, --keep_temp     Keep all temporary files created while running the pipeline. Forces -c and -b (Default = delete)
-
+                     Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv). (Default = no prefix)
+-u, --ucsc_track
+                     Add an output file named "lariat_reads.bed". This can be used as a custom track in the UCSC Genome Browser to visualize lariat read alignments
+-b, --keep_bam
+                     Keep the BAM file produced in the initial linear mapping step (Default = delete)
+-c, --keep_classes
+                     Keep a file with per-read classification of non- linearly-aligned reads named "read_classes.tsv.gz" in the output (Default = delete)
+-k, --keep_temp
+                     Keep all temporary files created while running the pipeline. Forces -c and -b (Default = delete)
 -t THREADS, --threads THREADS
-					Number of threads to use. (Default = 1)
-
--q, --quiet         Only print fatal error messages. Mutually exclusive with -w and -d
--w, --warning       Print warning messages and fatal error messages. Mutually exclusive with -q and -d
--d, --debug         Print extensive status messages. Mutually exclusive with -q and -w
+                     Number of threads to use. (Default = 1)
+-q, --quiet
+                     Only print fatal error messages. Mutually exclusive with -w and -d
+-w, --warning
+                     Print warning messages and fatal error messages. Mutually exclusive with -q and -d
 ```
 
 </details>
@@ -182,10 +185,9 @@ LariatMapper aims to classify all input reads by the type of RNA template from w
 2. The read does *NOT* have a valid linear alignment to the genome, and...
 	- **No alignment**: ... no 5' splice sites map to it.
 	- **Fivep alignment**: ... at least one 5' splice site maps to it.
-	- **Trans-splicing**: ... contains a trans-splicing event which occured at the transition from head to tail during RNA splicing
 	- **Template-switching**: ... contains a template-switching event which occured at the transition from tail to head during reverse transcription
-	- **In repetitive region**: ... has an inverted gapped alignment that's characteristic of a lariat, but in an repetitive region
 	- **Circularized intron**: ... has an inverted gapped alignment that's characteristic of a lariat, but the apparent branchpoint is within 2nt of the 3' splice site
+	- **Trans-spliced lariat**: ... the head and tail map to different genes
 	- **Lariat**: ... has an inverted gapped alignment that's characteristic of a lariat
 
 
@@ -194,10 +196,10 @@ LariatMapper aims to classify all input reads by the type of RNA template from w
 ### Output files
 All output will be written in the directory `OUT_DIR`. This includes:
 
-- `trans_splicing_reads.tsv`: A table of the reads classified as trans-splicing
-- `template_switching_reads.tsv`: A table of the reads classified as template-switching
-- `circularized_intron_reads.tsv`: A table of the reads classified as circularized introns
 - `lariat_reads.tsv`: A table of the reads classified as lariats
+- `trans_spliced_lariat_reads.tsv`: A table of the reads classified as trans-spliced lariats
+- `circularized_intron_reads.tsv`: A table of the reads classified as circularized introns
+- `template_switching_reads.tsv`: A table of the reads classified as template-switching
 - `output.bam_count.tsv`: A table of linearly-mapped read counts for each gene, stratified by read class
 - `read_counts.tsv`: A table of counts for various read classes in machine-friendly format
 - `summary.txt`: A collection of metadata and summary statistics for the run
@@ -207,35 +209,40 @@ All output will be written in the directory `OUT_DIR`. This includes:
 
 ### Output file columns 
 <details>
-<summary><code> trans_splicing_reads.tsv </code></summary>
+<summary><code> lariat_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
+- `gene_id`<sup>*</sup>: The gene ID of the intron that produced the lariat
+- `chrom`: The chromosome of the intron that produced the lariat
+- `strand`: The strand of the intron that produced the lariat. `+` for the forward strand and `-` for the reverse strand
+- `fivep_pos`: The genomic position of the lariat's 5' splice site 
+- `bp_pos`: The genomic position of the lariat's branchpoint 
+- `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the branchpoint
+- `bp_dist_to_threep`: The distance from the branchpoint to the 3' splice site
 - `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
-- `read_head_end_pos`: The end position of the head in the read
-- `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
-- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
-- `fivep_gene_ids`<sup>*</sup>: The gene ID(s) of the 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
-- `head_end_site`<sup>*</sup>: The genomic location to which the head mapped. Format is `CHROMOSOME;POSITION`
-- `head_end_id`<sup>*</sup>: The gene ID of the genomic location to which the head mapped. Format is `CHROMOSOME;POSITION`
-- `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
+- `read_bp_pos`: The position of the branchpoint in the read
+- `read_bp_nt`: The nucleotide of the branchpoint in the read
+- `genomic_bp_nt`: The nucleotide of the branchpoint in the genome. Reverse-complemented if `strand` = `-`
+- `bp_mismatch`: `True` if `read_bp_nt` ≠ `genomic_bp_nt`, otherwise `False`
+- `genomic_bp_context`: The genomic sequence from positions -8 to +8 of the branchpoint. Reverse-complemented if `strand` = `-`
+- `total_mapped_reads`: The total number of input reads that mapped linearly to the reference genome (identical across all rows)
 
 <sup>*</sup> can be multiple comma-delimited values
 </details>
 
 <details>
-<summary><code> template_switching_reads.tsv </code></summary>
+<summary><code> trans_spliced_lariat_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
 - `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
-- `read_head_end_pos`: The end position of the head in the read
+- `read_bp_pos`: The position of the head in the read
 - `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
-- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
-- `fivep_gene_ids`<sup>*</sup>: The gene ID(s) of the 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
-- `head_end_site`<sup>*</sup>: The genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
-- `head_end_id`<sup>*</sup>: The gene ID of the genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
-- `genomic_head_end_context`: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
+- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION;GENE_ID`, where `GENE_ID` can be multiple values delimited by the character `&`.
+- `head_alignment`<sup>*</sup>: The head alignment. Format is `CHROMOSOME;FIRST_POSITION;LAST_POSITION;ORIENTATION;STRAND;GENE_ID`, where `FIRST_POSITION` is 0-based inclusive, `LAST_POSITION` is 0-based exclusive, and `GENE_ID` can be multiple values delimited by the character `&`.
+- `bp_pos`<sup>*</sup>: The genomic position of the lariat's branchpoint.
+- `genomic_bp_context`<sup>*</sup>: The genomic sequence from positions -8 to +8 of the end of the branchpoint. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
 </details>
@@ -262,24 +269,21 @@ All output will be written in the directory `OUT_DIR`. This includes:
 </details>
 
 <details>
-<summary><code> lariat_reads.tsv </code></summary>
+<summary><code> template_switching_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
-- `gene_id`<sup>*</sup>: The gene ID of the intron that produced the lariat
-- `chrom`: The chromosome of the intron that produced the lariat
-- `strand`: The strand of the intron that produced the lariat. `+` for the forward strand and `-` for the reverse strand
-- `fivep_pos`: The genomic position of the lariat's 5' splice site 
-- `bp_pos`: The genomic position of the lariat's branchpoint 
-- `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the branchpoint
-- `bp_dist_to_threep`: The distance from the branchpoint to the 3' splice site
 - `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
-- `read_bp_pos`: The position of the branchpoint in the read
-- `read_bp_nt`: The nucleotide of the branchpoint in the read
-- `genomic_bp_nt`: The nucleotide of the branchpoint in the genome. Reverse-complemented if `strand` = `-`
-- `bp_mismatch`: `True` if `read_bp_nt` ≠ `genomic_bp_nt`, otherwise `False`
-- `genomic_bp_context`: The genomic sequence from positions -8 to +8 of the branchpoint. Reverse-complemented if `strand` = `-`
-- `total_mapped_reads`: The total number of input reads that mapped linearly to the reference genome (identical across all rows)
+- `read_head_end_pos`: The end position of the head in the read
+- `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
+- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
+<!-- - `fivep_gene_ids`<sup>*</sup>: The gene ID(s) of the 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
+- `head_end_site`<sup>*</sup>: The genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
+- `head_end_id`<sup>*</sup>: The gene ID of the genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION` -->
+- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION;GENE_ID`, where `GENE_ID` can be multiple values delimited by the character `&`.
+- `head_alignment`<sup>*</sup>: The head alignment. Format is `CHROMOSOME;FIRST_POSITION;LAST_POSITION;ORIENTATION;STRAND;GENE_ID`, where `FIRST_POSITION` is 0-based inclusive, `LAST_POSITION` is 0-based exclusive, and `GENE_ID` can be multiple values delimited by the character `&`.
+- `temp_switch_pos`<sup>*</sup>: The genomic position of the end of the head alignment, where the reverse transcriptase attached.
+- `genomic_head_end_context`<sup>*</sup>: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
 </details>
@@ -298,7 +302,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 
 </details>
 
-All position values are 0-based and inclusive. 
+All position values are 0-based and inclusive, unless otherwise noted. 
 
 
 

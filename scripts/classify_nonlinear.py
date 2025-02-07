@@ -15,8 +15,8 @@ import utils
 # =============================================================================#
 STAGES = ('Linear mapping', "Fivep mapping", "Fivep alignment filtering", 
 		  'Head mapping', 'Head alignment filtering', 'Lariat filtering', 'To the end')
-READ_CLASSES = ("Linear", "No alignment", "Fivep alignment", 'In repetitive region', 
-				'Template-switching', 'Trans-spliced lariat', 'Circularized intron', 'Lariat',)
+READ_CLASSES = ("Linear", "No alignment", "Fivep alignment", 'Template-switching', 
+				'Trans-spliced lariat', 'Circularized intron', 'Lariat',)
 
 OUT_COLS = ['read_id',
 			'read_class',
@@ -128,14 +128,6 @@ if __name__ == '__main__':
 						  'Circularized intron', 
 						  'Head alignment filtering', 
 						  read_classes)
-
-	if os.path.isfile(f'{output_base}failed_lariat_alignments.tsv'):
-		lariat_failed = pd.read_csv(f'{output_base}failed_lariat_alignments.tsv', sep='\t', na_filter=False)
-		lariat_failed = lariat_failed.loc[lariat_failed.filter_failed=='in_repeat']
-		lariat_failed = lariat_failed.groupby('read_id', as_index=False).agg({'gene_id': lambda gids: utils.str_join(gids, unique=True)})
-		lariat_failed = exclude_classed_reads(lariat_failed, read_classes)
-		lariat_failed = [[read_id, 'In repetitive region', 'Lariat filtering', 'in_repeat', gene_id] for read_id, gene_id in lariat_failed.values] 
-		read_classes.extend(lariat_failed) 
 
 	read_classes = add_reads(f'{output_base}failed_head_alignments.tsv', 
 						  "Fivep alignment", 
