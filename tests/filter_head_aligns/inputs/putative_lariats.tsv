@@ -1,0 +1,1 @@
+read_id	read_orient_to_gene	chrom	strand	gene_id	fivep_pos	bp_pos	threep_pos	bp_dist_to_threep	read_seq_forward	read_bp_pos	read_bp_nt	genomic_bp_nt	genomic_bp_context	head_align_quality
