@@ -65,8 +65,6 @@ def load_lariat_table(output_base:str, log) -> pd.DataFrame:
 	lariat_reads.read_id = lariat_reads.read_id.str.slice(0,-4)
 	lariat_reads[['read_id', 'read_num']] = lariat_reads.read_id.str.split('/', expand=True)
 	lariat_reads.read_num = lariat_reads.read_num.astype(int)
-	lariat_reads['bp_mismatch'] = lariat_reads.read_bp_nt != lariat_reads.genomic_bp_nt
-	lariat_reads['max_quality'] = lariat_reads.groupby('read_id').head_align_quality.agg('max')
 	
 	return lariat_reads
 

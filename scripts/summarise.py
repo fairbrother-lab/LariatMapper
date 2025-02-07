@@ -7,7 +7,7 @@ import pyfaidx
 import pysam
 
 import utils
-from filter_head_aligns import TEMP_SWITCH_COLS, TRANS_SPLICING_COLS, CIRCULARS_COLS
+from filter_head_aligns import TEMP_SWITCH_COLS, TRANS_SPLICED_COLS, CIRCULARS_COLS
 from filter_lariats import FINAL_RESULTS_COLS
 
 
@@ -46,6 +46,7 @@ SUMMARY_TEMPLATE = (
 					"Reference exons: {ref_exons}\n"
 					"Reference introns: {ref_introns}\n"
 					"Strandedness: {strand}\n"
+					"Template-switching filter parameters: {temp_switch_filter}\n"
 					"Reference RepeatMasker: {ref_repeatmasker}\n"
 					"BP position correction: {bp_correction}\n"
 					"BP position correction files: {bp_correction_files}\n"
@@ -67,7 +68,7 @@ SUMMARY_TEMPLATE = (
 					"No alignment: {No_alignment}\n"
 					"Fivep alignment: {Fivep_alignment}\n"
 					"Template-switching: {Template_switching}\n"
-					"Trans-splicing: {Trans_splicing}\n"
+					"Trans-spliced lariat: {Trans_spliced_lariat}\n"
 					"Circularized intron: {Circularized_intron}\n"
 					"In repetitive region: {In_repetitive_region}\n"
 					"Lariat: {Lariat}\n"
@@ -111,7 +112,7 @@ READ_COUNTS_TEMPLATE = (
 						"Not_linearly_mapped\tNo_alignment\t{No_alignment}\n"
 						"Not_linearly_mapped\tFivep_alignment\t{Fivep_alignment}\n"
 						"Not_linearly_mapped\tTemplate_switching\t{Template_switching}\n"
-						"Not_linearly_mapped\tTrans_splicing\t{Trans_splicing}\n"
+						"Not_linearly_mapped\tTrans_spliced_lariat\t{Trans_spliced_lariat}\n"
 						"Not_linearly_mapped\tCircularized_intron\t{Circularized_intron}\n"
 						"Not_linearly_mapped\tIn_repetitive_region\t{In_repetitive_region}\n"
 						"Not_linearly_mapped\tLariat\t{Lariat}\n"
@@ -125,7 +126,7 @@ READ_COUNTS_TEMPLATE = (
 )
 
 NONLINEAR_READ_CLASSES = ("No_alignment", "Fivep_alignment", 'In_repetitive_region', 
-						'Template_switching', 'Trans_splicing', 'Circularized_intron', 'Lariat')
+						'Template_switching', 'Trans_spliced_lariat', 'Circularized_intron', 'Lariat')
 
 
 
@@ -146,9 +147,9 @@ if __name__ == '__main__':
 	if not os.path.isfile(f'{output_base}lariat_reads.tsv'):
 		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS) + '\n')
-	if not os.path.isfile(f'{output_base}trans_splicing_reads.tsv'):
-		with open(f'{output_base}trans_splicing_reads.tsv', 'w') as w:
-			w.write('\t'.join(TRANS_SPLICING_COLS) + '\n')
+	if not os.path.isfile(f'{output_base}trans_spliced_lariat_reads.tsv'):
+		with open(f'{output_base}trans_spliced_lariat_reads.tsv', 'w') as w:
+			w.write('\t'.join(TRANS_SPLICED_COLS) + '\n')
 	if not os.path.isfile(f'{output_base}template_switching_reads.tsv'):
 		with open(f'{output_base}template_switching_reads.tsv', 'w') as w:
 			w.write('\t'.join(TEMP_SWITCH_COLS) + '\n')
