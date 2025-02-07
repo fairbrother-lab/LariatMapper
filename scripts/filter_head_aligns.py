@@ -31,6 +31,7 @@ TEMP_SWITCH_COLS = ['read_id',
 					'fivep_sites',
 					'head_alignment',
 					'temp_switch_pos',
+					'threep_pos',
 					'genomic_head_end_context',
 					]
 CIRCULARS_COLS = ['read_id',
