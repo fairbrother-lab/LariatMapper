@@ -1,3 +1,4 @@
+import bisect
 import dataclasses
 import itertools as it
 import multiprocessing as mp
@@ -30,7 +31,7 @@ TEMP_SWITCH_COLS = ['read_id',
 					'fivep_seq',
 					'fivep_sites',
 					'head_alignment',
-					'temp_switch_pos',
+					'head_end_pos',
 					'threep_pos',
 					'genomic_head_end_context',
 					]
@@ -62,8 +63,8 @@ TRANS_SPLICED_COLS = ['read_id',
 					'fivep_sites',
 					'fivep_seq',
 					'bp_pos',
-					'bp_dist_to_threep',
 					'threep_pos',
+					'bp_dist_to_threep',
 					'read_orient_to_gene',
 					'read_seq_forward',
 					'read_bp_pos',
@@ -239,7 +240,6 @@ class ReadHeadAlignment():
 	def bp_mismatch(self):
 		return self.read_bp_nt != self.genomic_bp_nt
 	
-
 	# Methods
 	@classmethod
 	def all_fields(cls):
@@ -262,7 +262,6 @@ class ReadHeadAlignment():
 					gaps = gaps,
 					head_align_quality = pysam_align.mapping_quality
 		)
-
 
 	def from_row(row:pd.Series):
 		attrs = tuple(ReadHeadAlignment.__annotations__.keys())
@@ -296,11 +295,9 @@ class ReadHeadAlignment():
 			
 		return ReadHeadAlignment(**attr_dict)
 
-
 	def fill_tail_info(self, tail:ReadTail):
 		for attr in self.TAIL_INFO_ATTRS:
 			setattr(self, attr, getattr(tail, attr))
-
 
 	def to_line(self, columns:list):
 		line = self.read_id
@@ -323,7 +320,6 @@ class ReadHeadAlignment():
 			
 		return line
 
-
 	def write_failed_out(self, filter_failed:str):
 		line = self.to_line(self.all_fields())
 
@@ -332,7 +328,6 @@ class ReadHeadAlignment():
 		with failed_out_lock:
 			with open(FAILED_HEADS_FILE, 'a') as a:
 				a.write(line + '\n')
-
 
 	def write_temp_switch_out(self):
 		head_gene_ids = []
@@ -348,7 +343,6 @@ class ReadHeadAlignment():
 			with open(TEMP_SWITCH_FILE, 'a') as a:
 				a.write(line + '\n')
 
-
 	def write_trans_spliced_out(self):
 		head_gene_ids = []
 		for intron in self.introns:
@@ -362,7 +356,6 @@ class ReadHeadAlignment():
 			with open(TRANS_SPLICED_FILE, 'a') as a:
 				a.write(line + '\n')
 
-
 	def write_circulars_out(self):
 		self.gene_id = [utils.str_join(intron.data['gene_id']) for intron in self.introns]
 
@@ -371,7 +364,6 @@ class ReadHeadAlignment():
 		with circulars_lock:
 			with open(CIRCULARS_FILE, 'a') as a:
 				a.write(line + '\n')
-
 
 	def write_lariat_out(self):
 		line = self.to_line(PUTATITVE_LARIATS_COLS)
@@ -387,30 +379,40 @@ class ReadHeadAlignment():
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
-def parse_exons_introns(ref_exons, ref_introns, log):
+def parse_exons_introns(ref_exons, ref_introns, log) -> tuple[dict[str, dict[str, IntervalTree]], 
+															  dict[str, dict[str, IntervalTree]], 
+															  dict[str, dict[str, tuple]], 
+															  dict[str, frozenset]]:
 	exons_df = pd.read_csv(ref_exons, sep='\t', na_filter=False)
 	exons_df['gene_id'] = exons_df.gene_id.transform(lambda gene_id: frozenset(gene_id.split(',')))
 	introns_df = pd.read_csv(ref_introns, sep='\t', na_filter=False)
 	introns_df['gene_id'] = introns_df.gene_id.transform(lambda gene_id: frozenset(gene_id.split(',')))
 
-	chroms = set(exons_df.chrom.unique()).union(introns_df.chrom.unique())
+	chromosomes = set(exons_df.chrom.unique()).union(introns_df.chrom.unique())
 
 	# Initialize IntervalTrees for exons and introns
 	exons = {}
 	introns = {}
-	for chrom in chroms:
+	threep_sites = {}
+	for chrom in chromosomes:
 		exons[chrom] = {'+': IntervalTree(), '-': IntervalTree()}
 		introns[chrom] = {'+': IntervalTree(), '-': IntervalTree()}
+		threep_sites[chrom] = {'+': tuple(), '-': tuple()}
 
 	# Fill IntervalTrees with exons and introns
-	for chrom, strand in it.product(chroms, ('+', '-')):
+	for chrom, strand in it.product(chromosomes, ('+', '-')):
 		for df, dict_, feat_type in ((exons_df, exons, 'exon'), (introns_df, introns, 'intron')):
 			subset = df.loc[(df.chrom==chrom) & (df.strand==strand)]
 			subset = [Interval(row['start'], row['end'], {'gene_id': row['gene_id']}) for _,row in subset.iterrows()]
 			if len(subset) == 0:
-				log.warning(f'No ({strand}) strand {feat_type}s found in chromosome "{chrom}"')
+				log.warning(f'No ({strand})-strand {feat_type}s found in chromosome "{chrom}"')
 				continue
 			dict_[chrom][strand].update(subset)
+	
+	# Make a sorted, de-duplicated tuple of threep_sites for quick lookup
+	for chrom in chromosomes:
+		threep_sites[chrom]['+'] = tuple(sorted(set(interval.end-1 for interval in introns[chrom]['+'])))
+		threep_sites[chrom]['-'] = tuple(sorted(set(interval.begin for interval in introns[chrom]['-'])))
 
 	# Make a dictionary of {fivep_site: gene_ids} for quick lookup
 	fivep_genes = introns_df.copy()
@@ -422,7 +424,7 @@ def parse_exons_introns(ref_exons, ref_introns, log):
 					.to_dict()
 	)
 
-	return exons, introns, fivep_genes	
+	return exons, introns, threep_sites, fivep_genes	
 
 
 def parse_tails(fivep_genes:dict) -> dict:
@@ -520,24 +522,30 @@ def overlapping_features(align:ReadHeadAlignment, exons:dict, introns:dict) -> t
 	return over_exons, over_introns
 
 
-def nearest_threep_pos(chrom:str, strand:str, bp_pos:int, introns:dict):
+def nearest_threep_pos(chrom:str, strand:str, bp_pos:int, threep_sites:dict):
+	# If no threep sites for the given chrom and strand, return np.nan
+	if len(threep_sites[chrom][strand]) == 0:
+		return np.nan
+
 	# If + strand, find the intron closest to the bp on the right-hand side
 	# and return the end pos of that intron (-1 to convert 0-based exlusive end to 0-based inclusive pos)
 	if strand == '+':
-		target_introns = introns[chrom][strand][bp_pos:]
-		if len(target_introns) == 0:
+		# Get the index of the nearest threep site to the right of bp_pos (inclusive of bp_pos)
+		ind = bisect.bisect_left(threep_sites[chrom][strand], bp_pos)
+		# If bp_pos is further right than the last threep site, return np.nan
+		if ind == len(threep_sites[chrom][strand]):
 			return np.nan
-		threep = min(target_introns, key=lambda i: i.end).end
-		return int(threep - 1)
-	
+
 	# If - strand, find the intron closest to the bp on the left-hand side
 	# and return the start pos of that intron
 	else:
-		target_introns = introns[chrom][strand][:bp_pos+1]
-		if len(target_introns) == 0:
+		# Get the index of the nearest threep site to the left of bp_pos (inclusive of bp_pos)
+		ind = bisect.bisect_right(threep_sites[chrom][strand], bp_pos) - 1 
+		# If bp_pos is further left than the first threep site, return np.nan
+		if ind == -1:
 			return np.nan
-		threep = max(target_introns, key=lambda i: i.begin).begin
-		return int(threep)
+
+	return threep_sites[chrom][strand][ind]
 
 
 def match_enveloping_introns_to_fiveps(align:ReadHeadAlignment) -> tuple[set[Interval], set[FivepSite]]:
@@ -578,6 +586,7 @@ def filter_head_alignment(align:ReadHeadAlignment,
 						genome_fasta:str,
 						exons:dict,
 						introns:dict,
+						threep_sites:dict,
 						temp_switch_range:int,
 						temp_switch_min_matches:int
 						) -> None:
@@ -604,8 +613,8 @@ def filter_head_alignment(align:ReadHeadAlignment,
 											rev_comp = align.strand=='-')
 	align.genomic_bp_nt = align.genomic_bp_context[BP_CONTEXT_LENGTH]
 	align.exons, align.introns = overlapping_features(align, exons, introns)
-	align.threep_pos = nearest_threep_pos(align.chrom, align.strand, align.bp_pos, introns)
-	align.bp_dist_to_threep = -abs(align.bp_pos - align.threep_pos)
+	align.threep_pos = nearest_threep_pos(align.chrom, align.strand, align.bp_pos, threep_sites)
+	align.bp_dist_to_threep = -abs(align.bp_pos - align.threep_pos) if not pd.isna(align.threep_pos) else np.nan
 
 	# Filter out if low-quality
 	if align.mismatches > MAX_MISMATCHES:
@@ -671,6 +680,7 @@ def filter_alignments_chunk(genome_fasta:str,
 						tails:dict, 
 						exons:dict, 
 						introns: dict,
+						threep_sites:dict,
 						temp_switch_range:int, 
 						temp_switch_min_matches:int,
 						chunk_start:int, 
@@ -708,8 +718,8 @@ def filter_alignments_chunk(genome_fasta:str,
 			elif align.read_orient_to_gene == 'Reverse' and align.align_is_reverse is True:
 				align.strand = '+'
 
-			filter_head_alignment(align, genome_fasta, exons, introns, temp_switch_range, temp_switch_min_matches)
-
+			filter_head_alignment(align, genome_fasta, exons, introns, threep_sites, temp_switch_range, temp_switch_min_matches)
+	
 	log.debug(f'Process {os.getpid()}: Finished')
 
 
@@ -836,7 +846,7 @@ if __name__ == '__main__':
 
 	# Load reference data for processing alignments
 	log.debug('Loading reference data...')
-	exons, introns, fivep_genes = parse_exons_introns(ref_exons, ref_introns, log)
+	exons, introns, threep_sites, fivep_genes = parse_exons_introns(ref_exons, ref_introns, log)
 	log.debug('Loading read tails...')
 	tails = parse_tails(fivep_genes)
 
@@ -858,15 +868,17 @@ if __name__ == '__main__':
 	processes = []
 	for chunk_start, chunk_end in chunk_ranges[1:]:
 		process = mp.Process(target=filter_alignments_chunk, 
-							args=(genome_fasta, tails, exons, introns, temp_switch_range, temp_switch_min_matches,
-								chunk_start, chunk_end, log_level,))
+							args=(genome_fasta, tails, exons, introns, threep_sites,
+			 					temp_switch_range, temp_switch_min_matches, chunk_start, chunk_end, 
+								log_level,))
 		process.start()
 		processes.append(process)
 
 	# Process the first chunk in the main process
 	chunk_start, chunk_end = chunk_ranges[0]
-	filter_alignments_chunk(genome_fasta, tails, exons, introns, temp_switch_range, temp_switch_min_matches,
-						 	chunk_start, chunk_end, log_level,)
+	filter_alignments_chunk(genome_fasta, tails, exons, introns, threep_sites, 
+						 	temp_switch_range, temp_switch_min_matches, chunk_start, chunk_end, 
+							log_level,)
 
 	# Check if any processes hit an error
 	for process in processes:
