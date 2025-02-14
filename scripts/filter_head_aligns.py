@@ -33,6 +33,7 @@ TEMP_SWITCH_COLS = ['read_id',
 					'head_alignment',
 					'head_end_pos',
 					'threep_pos',
+					'head_end_dist_to_threep',
 					'genomic_head_end_context',
 					]
 CIRCULARS_COLS = ['read_id',
@@ -548,18 +549,15 @@ def nearest_threep_pos(chrom:str, strand:str, bp_pos:int, threep_sites:dict):
 	return threep_sites[chrom][strand][ind]
 
 
-def match_enveloping_introns_to_fiveps(align:ReadHeadAlignment) -> tuple[set[Interval], set[FivepSite]]:
-	# Exclude introns that overlap the head alignment but don't envelop it
-	env_introns = set(feat for feat in align.introns if feat.begin<=align.align_start and feat.end>=align.align_end)
-	
+def match_introns_to_fiveps(align:ReadHeadAlignment) -> tuple[set[Interval], set[FivepSite]]:
 	# Return early if no introns or no 5'ss
-	if len(env_introns)==0 or len(align.fivep_sites)==0:
+	if len(align.introns)==0 or len(align.fivep_sites)==0:
 		return set(),set()
 	
 	# Match introns to 5'ss by gene id
 	intron_matches = set()
 	fivep_matches = set()
-	for intron, fivep in it.product(env_introns, align.fivep_sites):
+	for intron, fivep in it.product(align.introns, align.fivep_sites):
 		if len(intron.data['gene_id'].intersection(fivep.gene_ids))>0:
 			intron_matches.add(intron)
 			fivep_matches.add(fivep)
@@ -635,17 +633,19 @@ def filter_head_alignment(align:ReadHeadAlignment,
 		align.write_temp_switch_out()
 		return
 
-	# Filter out if no overlaping introns of the given strand
+	# Remove features that don't envelop the head alignment
+	align.introns = set(feat for feat in align.introns if feat.begin<=align.align_start and feat.end>=align.align_end)
+	align.exons = set(feat for feat in align.exons if feat.begin<=align.align_start and feat.end>=align.align_end)
+
+	# Filter out if no enveloping introns of the given strand
 	if len(align.introns) == 0:
-		align.write_failed_out('overlap_introns')
+		align.write_failed_out('envelop_introns')
 		return
 
 	# Match introns to 5'ss
-	matched_introns, matched_fivep_sites = match_enveloping_introns_to_fiveps(align)
-	# Write out as trans-spliced if no matching introns
+	matched_introns, matched_fivep_sites = match_introns_to_fiveps(align)
+	# Write out as trans-spliced if the head is in an intron but there are no matching introns
 	if len(matched_introns) == 0:
-		# Make sure the introns include the bp
-		align.introns = set(feat for feat in align.introns if feat.overlaps(align.bp_pos))
 		align.write_trans_spliced_out()
 		return
 	# Filter out non-matching introns and 5'ss
