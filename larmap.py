@@ -211,16 +211,18 @@ if __name__ == '__main__':
 
 	# Required arguments
 	# We use argument groups to make the help message more readable, but we have to enforce 
-	# mutually exclusive arguments later because argparse doesn't support mutually exclusive groups
+	# more complicated mutual exclusion relationships (like with -1 and -2 vs -f) manually later
+	# because argparse only supports basic mutual exclusivity 
 	read_group = parser.add_argument_group(title='Input read files', 
-										description='Provide either two FASTQ files from paired-end RNA-seq or one FASTQ file from single-end RNA-seq. Files can be uncompressed or gzip-compressed')
-	read_group.add_argument('-1', '--read_one', type=pathlib.Path, help='FASTQ file of read mate 1. Use with paired-end RNA-seq data. Mutually exclusive with -f, requires -2')
+										description='Provide either two FASTQ files from paired-end RNA-seq or one FASTQ file from single-end RNA-seq. Files can be gzip-compressed')
+	read_group.add_argument('-1', '--read_one', type=pathlib.Path, help='FASTQ file of read mate 1. Use for paired-end RNA-seq data. Mutually exclusive with -f, requires -2')
 	read_group.add_argument('-2', '--read_two', type=pathlib.Path, help='FASTQ file of read mate 2. Use for paired-end RNA-seq data. Mutually exclusive with -f, requires -1')
-	read_group.add_argument('-f', '--read_file', type=pathlib.Path, help='FASTQ file. Use with single-end RNA-seq data. Mutually exclusive with -1 and -2')
+	read_group.add_argument('-f', '--read_file', type=pathlib.Path, help='FASTQ file. Use for single-end RNA-seq data. Mutually exclusive with -1 and -2')
 	reference_group = parser.add_argument_group(title='Reference data')
 	reference_group.add_argument('-r', '--ref_dir', required=True, type=pathlib.Path, help='Directory with reference files created by build_references.py')
 	out_group = parser.add_argument_group(title='Output')
 	out_group.add_argument('-o', '--output_dir', required=True, type=pathlib.Path, help='Directory for output files. Will be created if it does not exist at runtime')
+
 	# Optional arguments
 	optional_args = parser.add_argument_group(title='Optional arguments')
 		# Experimentally-revelant options 
