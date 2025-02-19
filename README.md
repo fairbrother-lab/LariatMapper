@@ -27,7 +27,7 @@ NOTE: LariatMapper is currently in development. If you encounter any problems wh
 
 
 ## Installation
-LariatMapper can be installed in a Linux system or a MacOS system. It will not work in Windows. 
+LariatMapper can be installed in a Linux or macOS system. It does not work in Windows. 
 
 You can download it in a command line terminal with [git](https://git-scm.com/):
 
@@ -89,7 +89,7 @@ LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The da
 
 
 ### Branchpoint correction
-LariatMapper includes an option to try to correct the apparent branchpoint positions of lariat reads to account for sequencing errors. When applied, LariatMapper will check a 3nt window downstream of the head's end position (the apparent branchpoint) to see if any of them are more likely to be the true branchpoint position. If there *is* a more likely branchpoint position, it will record that corrected position. 
+LariatMapper includes an option to try to correct the apparent branchpoint position of lariat reads to account for sequencing errors. When applied, LariatMapper will check a 3nt window downstream of the head's end position (the apparent branchpoint) to see if any of them are more likely to be the true branchpoint position. If there *is* a more likely branchpoint position, it will record that corrected position. 
 
 Including branchpoint correction in a LariatMapper run will add the following columns to `lariat_reads.tsv`:
 
@@ -167,14 +167,16 @@ Applied with `-M, --model_correction`
 ### Head and tail
 ![A diagram illustrating RNA-seq reads split into a head and a tail, and linear vs inverted gapped alignments](./resources/images/Linear%20vs%20Inverted%20alignments.svg)
 
-The fundamental aim of LariatMapper is to identify lariat reads by their inverted gapped alignment to the genome. To find those alignments, we split RNA-seq reads into two fragments. For practicality, we name the 5'-end fragment the **head** and the 3'-end fragment the **tail**.
+The fundamental goal of LariatMapper is to identify lariat reads by their inverted gapped alignment to the genome. To find those alignments, we split RNA-seq reads into two fragments. For practicality, we name the 5'-end fragment the **head** and the 3'-end fragment the **tail**.
 
 In the diagram above, we illustrate an mRNA read alignment as an example of a linear gapped alignment, with the head at the end of an exon and the tail at the start of a downstream exon. A lariat read alignment is used as an example of an inverted gapped alignment, with the head inside an intron and the tail at an upstream 5' splice site. 
 
 
-### Read classes
+### Steps
 
-LariatMapper aims to classify all input reads by the type of RNA template from which they originated. Read classes are mututally exclusive, and can be divided into 2 groups:
+
+### Read classes
+LariatMapper assigns a "read class" to all input reads which describes their RNA template. Some classes don't represent any particular type of RNA, but rather the extent of information that LariatMapper was able to obtain before the read got filtered out (e.g. **Fivep alignment**). Read classes can be divided into 2 groups based on whether or not the read aligned linearly to the genome in LariatMapper's first step:
 
 1. The read *does* have a valid linear alignment to the genome, and...
 	- **Exon-exon junction**: ... contains an exon-exon splice junction but no exon-intron junctions.
@@ -185,9 +187,9 @@ LariatMapper aims to classify all input reads by the type of RNA template from w
 2. The read does *NOT* have a valid linear alignment to the genome, and...
 	- **No alignment**: ... no 5' splice sites map to it.
 	- **Fivep alignment**: ... at least one 5' splice site maps to it.
-	- **Template-switching**: ... contains a template-switching event which occured at the transition from tail to head during reverse transcription
+	- **Template-switching**: ... contains a template-switching event which occurred at the transition from tail to head during reverse transcription
 	- **Circularized intron**: ... has an inverted gapped alignment that's characteristic of a lariat, but the apparent branchpoint is within 2nt of the 3' splice site
-	- **Trans-spliced lariat**: ... the head and tail map to different genes
+	- **Trans-spliced lariat**: ... the head and tail map to introns in different genes
 	- **Lariat**: ... has an inverted gapped alignment that's characteristic of a lariat
 
 
