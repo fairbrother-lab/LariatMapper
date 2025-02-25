@@ -57,7 +57,7 @@ output_bam="$OUTPUT_BASE"output.bam
 unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
 fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
 heads_fasta="$OUTPUT_BASE"heads.fa
-heads_to_genome="$OUTPUT_BASE"heads_to_genome.sam
+heads_to_genome="$OUTPUT_BASE"heads_to_genome
 
 if [ "$STRAND" == "Unstranded" ]; then
 	hisat2_strand_arg=""
@@ -77,7 +77,7 @@ temp_files=(
 	# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
 	$unmapped_fasta.1.bt* $unmapped_fasta.2.bt* $unmapped_fasta.3.bt* $unmapped_fasta.4.bt* 
 	$unmapped_fasta.rev.1.bt* $unmapped_fasta.rev.2.bt* $fivep_to_reads $fivep_to_reads.tmp 
-	$heads_fasta $heads_to_genome $heads_to_genome.tmp "$OUTPUT_BASE"tails.tsv "$OUTPUT_BASE"putative_lariats.tsv
+	$heads_fasta $heads_to_genome.bam $heads_to_genome.bam.tmp $heads_to_genome.sam "$OUTPUT_BASE"tails.tsv "$OUTPUT_BASE"putative_lariats.tsv
 	$OUTPUT_BASE"settings.json" $OUTPUT_BASE"read_classes.tsv.gz" $OUTPUT_BASE"output.bam_summary_count.tsv"
 	"$OUTPUT_BASE"failed_fivep_alignments.tsv "$OUTPUT_BASE"failed_head_alignments.tsv "$OUTPUT_BASE"failed_lariat_alignments.tsv
 )
@@ -236,16 +236,19 @@ python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $
 check_exitcode
 
 
-### Map read heads to genome
+## Map read heads to genome
 print_message "Mapping heads to genome..."
-hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
+hisat2 --repeat --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
 	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $heads_fasta \
-	> $heads_to_genome.tmp
+	> $heads_to_genome.bam
 check_exitcode
+bedtools tag -f 1 -tag RP -labels Y -i $heads_to_genome.bam -files $REPEATS_BED > $heads_to_genome.bam.tmp
+check_exitcode
+mv $heads_to_genome.bam.tmp $heads_to_genome.bam
 # We need to order the output SAM by read_id (which is the reference in this case)
 # so we can process all the alignments to each read together in the following filtering 
-samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_genome.tmp \
-	> $heads_to_genome
+samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_genome.bam \
+	> $heads_to_genome.sam
 check_exitcode
 
 
