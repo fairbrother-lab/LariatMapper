@@ -198,6 +198,7 @@ class ReadHeadAlignment():
 	mismatches_p: float
 	gaps: list[int]
 	head_align_quality: int
+	repeat_region: bool
 	
 	# Copied from the ReadTail object 
 	read_orient_to_gene: str = None
@@ -261,7 +262,8 @@ class ReadHeadAlignment():
 					mismatches = pysam_align.get_tag('NM'),
 					mismatches_p = mismatch_p,
 					gaps = gaps,
-					head_align_quality = pysam_align.mapping_quality
+					head_align_quality = pysam_align.mapping_quality,
+					repeat_region = pysam_align.has_tag('RP'),
 		)
 
 	def from_row(row:pd.Series):
@@ -626,6 +628,10 @@ def filter_head_alignment(align:ReadHeadAlignment,
 		return
 	if len(align.gaps) == 1 and align.gaps[0] > MAX_GAP_LENGTH:
 		align.write_failed_out('gaps')
+		return
+	# Filter out if in repetitive region
+	if align.repeat_region is True:
+		align.write_failed_out('repeat')
 		return
 	
 	# Write out if template-switching
