@@ -632,12 +632,17 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	if is_template_switch(align, temp_switch_range, temp_switch_min_matches) is True:
 		align.write_temp_switch_out()
 		return
+	
+	# Filter out if no overlapping introns 
+	if len(align.introns) == 0:
+		align.write_failed_out('overlap_introns')
+		return
 
 	# Remove features that don't envelop the head alignment
 	align.introns = set(feat for feat in align.introns if feat.begin<=align.align_start and feat.end>=align.align_end)
 	align.exons = set(feat for feat in align.exons if feat.begin<=align.align_start and feat.end>=align.align_end)
 
-	# Filter out if no enveloping introns of the given strand
+	# Filter out if no enveloping introns 
 	if len(align.introns) == 0:
 		align.write_failed_out('envelop_introns')
 		return
