@@ -74,7 +74,6 @@ def reverse_complement(seq:str):
 
 def str_join(items, join_string:str=',', unique:bool=False) -> str:
 	'''
-	If <items> contains only 1 unique item, return str(that item)
 	Else, return a <join_string>-delimited string of <items>
 		e.g.) 	[toy1, toy2, toy2, toy3]			  	  -> "toy1,toy2,toy2,toy3"
 			 	[toy1, toy2, toy2, toy3], join_string=";" -> "toy1;toy2;toy2;toy3"
@@ -83,9 +82,6 @@ def str_join(items, join_string:str=',', unique:bool=False) -> str:
 	if isinstance(items, (set, frozenset, pd.Series)):
 		items = tuple(items)
 
-	if len(set(items)) == 1:
-		return str(items[0])
-	
 	if unique is True:
 		out = []
 		for item in items:
