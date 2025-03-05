@@ -57,23 +57,6 @@ HEAD_END_BP_RENAMES = {'head_end_pos': 'bp_pos',
 						'read_head_end_nt': 'read_bp_nt',
 						'genomic_head_end_nt': 'genomic_bp_nt',
 						'genomic_head_end_context': 'genomic_bp_context',}
-TRANS_SPLICED_COLS = ['read_id',
-					'chrom', 
-					'strand', 
-					'gene_id', 
-					'fivep_sites',
-					'fivep_seq',
-					'bp_pos',
-					'threep_pos',
-					'bp_dist_to_threep',
-					'read_orient_to_gene',
-					'read_seq_forward',
-					'read_bp_pos',
-					'read_bp_nt',
-					'genomic_bp_nt',
-					'bp_mismatch',
-					'genomic_bp_context',
-				]
 PUTATITVE_LARIATS_COLS = ['read_id', 
 						'gene_id', 
 						'chrom', 
@@ -101,13 +84,11 @@ TAILS_FILE = f"{output_base}tails.tsv"
 # Out files
 FAILED_HEADS_FILE = f"{output_base}failed_head_alignments.tsv"
 TEMP_SWITCH_FILE = f"{output_base}template_switching_reads.tsv"
-TRANS_SPLICED_FILE = f"{output_base}trans_spliced_lariat_reads.tsv"
 CIRCULARS_FILE = f"{output_base}circularized_intron_reads.tsv"
 PUTATITVE_LARIATS_FILE = f"{output_base}putative_lariats.tsv"
 
 failed_out_lock = mp.Lock()
 temp_switch_lock = mp.Lock()
-trans_spliced_lock = mp.Lock()
 circulars_lock = mp.Lock()
 filtered_out_lock = mp.Lock()
 
@@ -342,19 +323,6 @@ class ReadHeadAlignment():
 
 		with temp_switch_lock:
 			with open(TEMP_SWITCH_FILE, 'a') as a:
-				a.write(line + '\n')
-
-	def write_trans_spliced_out(self):
-		head_gene_ids = []
-		for intron in self.introns:
-			for gene_id in intron.data['gene_id']:
-				head_gene_ids.append(gene_id)
-		self.gene_id = utils.str_join(head_gene_ids, '&')
-
-		line = self.to_line(TRANS_SPLICED_COLS)
-
-		with trans_spliced_lock:
-			with open(TRANS_SPLICED_FILE, 'a') as a:
 				a.write(line + '\n')
 
 	def write_circulars_out(self):
@@ -649,10 +617,6 @@ def filter_head_alignment(align:ReadHeadAlignment,
 
 	# Match introns to 5'ss
 	matched_introns, matched_fivep_sites = match_introns_to_fiveps(align)
-	# Write out as trans-spliced if the head is in an intron but there are no matching introns
-	if len(matched_introns) == 0:
-		align.write_trans_spliced_out()
-		return
 	# Filter out non-matching introns and 5'ss
 	align.introns, align.fivep_sites = matched_introns, matched_fivep_sites
 
@@ -757,19 +721,12 @@ def post_processing(log):
 	# Load data tables
 	temp_switches = pd.read_csv(TEMP_SWITCH_FILE, sep='\t', na_filter=False)
 	circulars = pd.read_csv(CIRCULARS_FILE, sep='\t', na_filter=False)
-	trans_splices = pd.read_csv(TRANS_SPLICED_FILE, sep='\t', na_filter=False)
 	lariats = pd.read_csv(PUTATITVE_LARIATS_FILE, sep='\t', na_filter=False)
 
 	# Add read_id_base columns to tables
 	temp_switches['read_id_base'] = temp_switches.read_id.str.slice(0,-6)
 	circulars['read_id_base'] = circulars.read_id.str.slice(0,-6)
-	trans_splices['read_id_base'] = trans_splices.read_id.str.slice(0,-6)
 	lariats['read_id_base'] = lariats.read_id.str.slice(0,-6)
-
-	# Filter out trans-spliced lariat read alignments that also have alignments in a higher-priority table
-	trans_splices, temp_switches = filter_out_shared_reads(trans_splices, 'trans_spliced', temp_switches, 'template_switching')
-	trans_splices, circulars = filter_out_shared_reads(trans_splices, 'trans_spliced', circulars, 'circular')
-	trans_splices, lariats = filter_out_shared_reads(trans_splices, 'trans_spliced', lariats, 'lariat')
 
 	# Filter out template-switching read alignments that also have alignments in a higher-priority table
 	temp_switches, circulars = filter_out_shared_reads(temp_switches, 'template_switching', circulars, 'circular')
@@ -782,15 +739,6 @@ def post_processing(log):
 				.assign(read_id = temp_switches.read_id_base)
 				.groupby('read_id', as_index=False)
 				.agg({col: lambda c: utils.str_join(c) for col in TEMP_SWITCH_COLS[1:]})
-			)
-
-	# If trans-spliced lariat reads remain, collapse the table to one row per read
-	if len(trans_splices) > 0:
-			trans_splices = (
-				trans_splices
-				.assign(read_id = trans_splices.read_id_base)
-				.groupby('read_id', as_index=False)
-				.agg({col: lambda c: utils.str_join(c) for col in TRANS_SPLICED_COLS[1:]})
 			)
 
 	# Choose one alignment for circularized intron reads that have multiple alignments
@@ -814,7 +762,6 @@ def post_processing(log):
 	# Overwrite files with the corrected tables
 	temp_switches.to_csv(TEMP_SWITCH_FILE, sep='\t', index=False)
 	circulars.to_csv(CIRCULARS_FILE, sep='\t', index=False)
-	trans_splices.to_csv(TRANS_SPLICED_FILE, sep='\t', index=False)
 
 	log.debug('Post-processing complete')
 
@@ -861,8 +808,6 @@ if __name__ == '__main__':
 		w.write('\t'.join(ReadHeadAlignment.all_fields()) + '\tfilter_failed\n')
 	with open(TEMP_SWITCH_FILE, 'w') as w:
 		w.write('\t'.join(TEMP_SWITCH_COLS) + '\n')
-	with open(TRANS_SPLICED_FILE, 'w') as w:
-		w.write('\t'.join(TRANS_SPLICED_COLS) + '\n')
 	with open(CIRCULARS_FILE, 'w') as w:
 		w.write('\t'.join(CIRCULARS_COLS) + '\n')
 	with open(PUTATITVE_LARIATS_FILE, 'w') as w:

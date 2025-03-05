@@ -1,2 +1,0 @@
-read_id	chrom	strand	gene_id	fivep_sites	fivep_seq	bp_pos	threep_pos	bp_dist_to_threep	read_orient_to_gene	read_seq_forward	read_bp_pos	read_bp_nt	genomic_bp_nt	bp_mismatch	genomic_bp_context
-trans_spliced_lariat	chr2	+	FOXN2	chr1;688;+;DDX11L1	GTGAGTGTCCCCAGTGTTGC	199	13878	-13679	Forward,Reverse	CGGTCCCCTCCAGGGTCGGCGCTCCCCGCCCCAGCCCGCGGCGCAGCTCCGTGAGTGTCCCCAGTGTTGCAGAGGTGAGAGGAGAGTAGACAGTGAGTGG	49	C	C	False	CGCAGCTCCCGGGCGCG

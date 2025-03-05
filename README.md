@@ -189,7 +189,6 @@ LariatMapper assigns a "read class" to all input reads which describes their RNA
 	- **Fivep alignment**: ... at least one 5' splice site maps to it.
 	- **Template-switching**: ... contains a template-switching event which occurred at the transition from tail to head during reverse transcription
 	- **Circularized intron**: ... has an inverted gapped alignment that's characteristic of a lariat, but the apparent branchpoint is within 2nt of the 3' splice site
-	- **Trans-spliced lariat**: ... the head and tail map to introns in different genes
 	- **Lariat**: ... has an inverted gapped alignment that's characteristic of a lariat
 
 
@@ -199,7 +198,6 @@ LariatMapper assigns a "read class" to all input reads which describes their RNA
 All output will be written in the directory `OUT_DIR`. This includes:
 
 - `lariat_reads.tsv`: A table of the reads classified as lariats
-- `trans_spliced_lariat_reads.tsv`: A table of the reads classified as trans-spliced lariats
 - `circularized_intron_reads.tsv`: A table of the reads classified as circularized introns
 - `template_switching_reads.tsv`: A table of the reads classified as template-switching
 - `output.bam_count.tsv`: A table of linearly-mapped read counts for each gene, stratified by read class
@@ -229,22 +227,6 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `bp_mismatch`: `True` if `read_bp_nt` ≠ `genomic_bp_nt`, otherwise `False`
 - `genomic_bp_context`: The genomic sequence from positions -8 to +8 of the branchpoint. Reverse-complemented if `strand` = `-`
 - `total_mapped_reads`: The total number of input reads that mapped linearly to the reference genome (identical across all rows)
-
-<sup>*</sup> can be multiple comma-delimited values
-</details>
-
-<details>
-<summary><code> trans_spliced_lariat_reads.tsv </code></summary>
-
-- `read_id`: The read's ID (unique)
-- `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
-- `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
-- `read_bp_pos`: The position of the head in the read
-- `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
-- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION;GENE_ID`, where `GENE_ID` can be multiple values delimited by the character `&`.
-- `head_alignment`<sup>*</sup>: The head alignment. Format is `CHROMOSOME;FIRST_POSITION;LAST_POSITION;ORIENTATION;STRAND;GENE_ID`, where `FIRST_POSITION` is 0-based inclusive, `LAST_POSITION` is 0-based exclusive, and `GENE_ID` can be multiple values delimited by the character `&`.
-- `bp_pos`<sup>*</sup>: The genomic position of the lariat's branchpoint.
-- `genomic_bp_context`<sup>*</sup>: The genomic sequence from positions -8 to +8 of the end of the branchpoint. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
 </details>
