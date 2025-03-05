@@ -603,7 +603,7 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	
 	# Filter out if no overlapping introns 
 	if len(align.introns) == 0:
-		align.write_failed_out('overlap_introns')
+		align.write_failed_out('no_overlapping_introns')
 		return
 
 	# Remove features that don't envelop the head alignment
@@ -612,13 +612,16 @@ def filter_head_alignment(align:ReadHeadAlignment,
 
 	# Filter out if no enveloping introns 
 	if len(align.introns) == 0:
-		align.write_failed_out('envelop_introns')
+		align.write_failed_out('no_enveloping_introns')
 		return
 
 	# Match introns to 5'ss
 	matched_introns, matched_fivep_sites = match_introns_to_fiveps(align)
 	# Filter out non-matching introns and 5'ss
 	align.introns, align.fivep_sites = matched_introns, matched_fivep_sites
+	if len(align.introns) == 0:
+		align.write_failed_out('no_matching_introns')
+		return
 
 	# Write out if intron circle
 	if is_circular(align) is True:
@@ -728,9 +731,8 @@ def post_processing(log):
 	circulars['read_id_base'] = circulars.read_id.str.slice(0,-6)
 	lariats['read_id_base'] = lariats.read_id.str.slice(0,-6)
 
-	# Filter out template-switching read alignments that also have alignments in a higher-priority table
-	temp_switches, circulars = filter_out_shared_reads(temp_switches, 'template_switching', circulars, 'circular')
-	temp_switches, lariats = filter_out_shared_reads(temp_switches, 'template_switching', lariats, 'lariat')
+	# Filter out circular read alignments that also have alignments in a higher-priority table
+	circulars, temp_switches = filter_out_shared_reads(circulars, 'circular', temp_switches, 'template_switching')
 
 	# If template-switching reads remain, collapse the table to one row per read
 	if len(temp_switches) > 0:
