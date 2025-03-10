@@ -218,7 +218,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `fivep_pos`: The genomic position of the lariat's 5' splice site 
 - `bp_pos`: The genomic position of the lariat's branchpoint 
 - `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the branchpoint
-- `bp_dist_to_threep`: The distance from the branchpoint to the 3' splice site
+- `bp_dist_to_threep`: The distance from the branchpoint to the 3' splice site. Equal to `-|bp_pos - threep_pos|`
 - `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
 - `read_bp_pos`: The position of the branchpoint in the read
@@ -239,9 +239,9 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `chrom`: The chromosome of the intron
 - `strand`: The strand of the intron. `+` for the forward strand and `-` for the reverse strand
 - `fivep_pos`: The genomic position of the intron's 5' splice site 
-- `head_end_pos`: The genomic position of the end of the head alignment
-- `threep_pos`: The genomic position of the intron's 3' splice site
-- `head_end_dist_to_threep`: The distance of the end of the head alignment to the 3' splice site
+- `head_end_pos`: The genomic position of the head's end
+- `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the head's end
+- `head_end_dist_to_threep`: The distance of the head's end to the 3' splice site. Equal to `-|head_end_pos - threep_pos|`
 - `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
 - `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
 - `read_head_end_pos`: The end position of the head in the read
@@ -256,20 +256,23 @@ All output will be written in the directory `OUT_DIR`. This includes:
 <summary><code> template_switching_reads.tsv </code></summary>
 
 - `read_id`: The read's ID (unique)
-- `read_orient_to_gene`: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
-- `read_seq_forward`: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
-- `read_head_end_pos`: The end position of the head in the read
-- `fivep_seq`<sup>*</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
-- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
-<!-- - `fivep_gene_ids`<sup>*</sup>: The gene ID(s) of the 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
-- `head_end_site`<sup>*</sup>: The genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION`
-- `head_end_id`<sup>*</sup>: The gene ID of the genomic location to which the reverse transcriptase transfered. Format is `CHROMOSOME;POSITION` -->
-- `fivep_sites`<sup>*</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION;GENE_ID`, where `GENE_ID` can be multiple values delimited by the character `&`.
-- `head_alignment`<sup>*</sup>: The head alignment. Format is `CHROMOSOME;FIRST_POSITION;LAST_POSITION;ORIENTATION;STRAND;GENE_ID`, where `FIRST_POSITION` is 0-based inclusive, `LAST_POSITION` is 0-based exclusive, and `GENE_ID` can be multiple values delimited by the character `&`.
-- `temp_switch_pos`<sup>*</sup>: The genomic position of the end of the head alignment, where the reverse transcriptase attached.
-- `genomic_head_end_context`<sup>*</sup>: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
+- `read_orient_to_gene`<sup>†</sup>: `Forward` if the read's sequence matches the intron's sequence, `Reverse` if it matches the reverse-complement
+- `read_seq_forward`<sup>†</sup>: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
+- `read_head_end_pos`<sup>†</sup>: The end position of the head in the read
+- `fivep_seq`<sup>†</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
+- `fivep_sites`<sup>*</sup><sup>†</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
+- `head_chrom`<sup>†</sup>: The chromosome of the head alignment
+- `head_strand`<sup>†</sup>: The strand of the gene overlapping the head alignment
+- `head_gene_id`<sup>*</sup> <sup>†</sup>: The gene ID of the gene overlapping the head alignment
+- `head_first_pos`<sup>†</sup>: The first position of the head alignment in the genome
+- `head_last_pos`<sup>†</sup>: The last position of the head alignment in the genome. 0-based exclusive
+- `head_end_pos`<sup>†</sup>: The genomic position of the head's end, where the reverse transcriptase attached during template-switching. Equal to `head_first_pos` if `head_strand` = `-`, or `head_last_pos - 1` if `head_strand` = `+`
+- `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the head's end
+- `head_end_dist_to_threep`<sup>†</sup>: The distance of the head's end to the 3' splice site. Equal to `|head_end_pos - threep_pos|`
+- `genomic_head_end_context`<sup>†</sup>: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
+<sup>†</sup> can be multiple values delimited by a vertical bar (`|`), for reads with multiple head alignments (of equal quality) that were caught by the template-switching filter. If the input read data is from paired-end sequencing, some reads may also have head alignments from both mates that were caught by the template-switching filter. In such cases, there may be 2 values for `read_orient_to_gene`, `read_seq_forward`, and/or `read_head_end_pos`.
 </details>
 
 <details>
