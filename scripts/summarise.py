@@ -6,8 +6,8 @@ import pandas as pd
 import pyfaidx
 import pysam
 
-import functions
-from filter_head_aligns import TEMP_SWITCH_COLS, TRANS_SPLICING_COLS, CIRCULARS_COLS
+import utils
+from filter_head_aligns import TEMP_SWITCH_COLS, CIRCULARS_COLS
 from filter_lariats import FINAL_RESULTS_COLS
 
 
@@ -43,8 +43,10 @@ SUMMARY_TEMPLATE = (
 					"Reference HISAT2 index: {ref_h2index}\n"
 					"Reference genome FASTA: {ref_fasta}\n"
 					"Reference 5'ss FASTA: {ref_5p_fasta}\n"
+					"Reference exons: {ref_exons}\n"
 					"Reference introns: {ref_introns}\n"
 					"Strandedness: {strand}\n"
+					"Template-switching filter parameters: {temp_switch_filter}\n"
 					"Reference RepeatMasker: {ref_repeatmasker}\n"
 					"BP position correction: {bp_correction}\n"
 					"BP position correction files: {bp_correction_files}\n"
@@ -66,9 +68,7 @@ SUMMARY_TEMPLATE = (
 					"No alignment: {No_alignment}\n"
 					"Fivep alignment: {Fivep_alignment}\n"
 					"Template-switching: {Template_switching}\n"
-					"Trans-splicing: {Trans_splicing}\n"
 					"Circularized intron: {Circularized_intron}\n"
-					"In repetitive region: {In_repetitive_region}\n"
 					"Lariat: {Lariat}\n"
 					"\n"
 					"----------------------------------------\n"
@@ -110,9 +110,7 @@ READ_COUNTS_TEMPLATE = (
 						"Not_linearly_mapped\tNo_alignment\t{No_alignment}\n"
 						"Not_linearly_mapped\tFivep_alignment\t{Fivep_alignment}\n"
 						"Not_linearly_mapped\tTemplate_switching\t{Template_switching}\n"
-						"Not_linearly_mapped\tTrans_splicing\t{Trans_splicing}\n"
 						"Not_linearly_mapped\tCircularized_intron\t{Circularized_intron}\n"
-						"Not_linearly_mapped\tIn_repetitive_region\t{In_repetitive_region}\n"
 						"Not_linearly_mapped\tLariat\t{Lariat}\n"
 						"Other\tOne_mate_linearly_mapped\t{mixed_pairs}\n"
 						"Read_count_after_stage\tLinear_mapping\t{Linear_mapping}\n"
@@ -123,8 +121,8 @@ READ_COUNTS_TEMPLATE = (
 						"Read_count_after_stage\tLariat_filtering\t{Lariat_filtering}\n"
 )
 
-NONLINEAR_READ_CLASSES = ("No_alignment", "Fivep_alignment", 'In_repetitive_region', 
-						'Template_switching', 'Trans_splicing', 'Circularized_intron', 'Lariat')
+NONLINEAR_READ_CLASSES = ("No_alignment", "Fivep_alignment", 'Template_switching', 
+						 'Circularized_intron', 'Lariat')
 
 
 
@@ -138,16 +136,13 @@ if __name__ == '__main__':
 	output_base, log_level, seq_type = sys.argv[1:]
 
 	# Get logger
-	log = functions.get_logger(log_level)
+	log = utils.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
 	# Make neccesary output files if they are absent due to the run ending early
 	if not os.path.isfile(f'{output_base}lariat_reads.tsv'):
 		with open(f'{output_base}lariat_reads.tsv', 'w') as w:
 			w.write('\t'.join(FINAL_RESULTS_COLS) + '\n')
-	if not os.path.isfile(f'{output_base}trans_splicing_reads.tsv'):
-		with open(f'{output_base}trans_splicing_reads.tsv', 'w') as w:
-			w.write('\t'.join(TRANS_SPLICING_COLS) + '\n')
 	if not os.path.isfile(f'{output_base}template_switching_reads.tsv'):
 		with open(f'{output_base}template_switching_reads.tsv', 'w') as w:
 			w.write('\t'.join(TEMP_SWITCH_COLS) + '\n')
@@ -160,7 +155,7 @@ if __name__ == '__main__':
 	stats = {}
 
 	# Run information
-	stats['version'] = functions.version()
+	stats['version'] = utils.version()
 	with open(ARGS_FILE.format(output_base), 'r') as json_file:
 		settings = json.load(json_file)
 	stats.update(settings)

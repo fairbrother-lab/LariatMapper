@@ -39,6 +39,20 @@ class RunCommandError(Exception):
 			f"Command: {self.command}\n" +\
 			f"Standard out: {self.stdout}\n" +\
 			f"Standard error: {self.stderr}" 
+	
+
+class AppendWarnErr(logging.Filter):
+	'''
+	A logging Filter subclass that appends "WARNING!" to the beginning of WARNING-level messages
+	and "ERROR!!!" to the beginning of ERROR-level messages
+	'''
+	def filter(self, record):
+		if record.levelname == 'WARNING':
+			record.msg = 'WARNING! ' + record.msg
+		elif record.levelname == 'ERROR':
+			record.msg = 'ERROR!!! ' + record.msg
+
+		return True
 
 
 
@@ -60,7 +74,6 @@ def reverse_complement(seq:str):
 
 def str_join(items, join_string:str=',', unique:bool=False) -> str:
 	'''
-	If <items> contains only 1 unique item, return str(that item)
 	Else, return a <join_string>-delimited string of <items>
 		e.g.) 	[toy1, toy2, toy2, toy3]			  	  -> "toy1,toy2,toy2,toy3"
 			 	[toy1, toy2, toy2, toy3], join_string=";" -> "toy1;toy2;toy2;toy3"
@@ -69,9 +82,6 @@ def str_join(items, join_string:str=',', unique:bool=False) -> str:
 	if isinstance(items, (set, frozenset, pd.Series)):
 		items = tuple(items)
 
-	if len(set(items)) == 1:
-		return str(items[0])
-	
 	if unique is True:
 		out = []
 		for item in items:
@@ -202,8 +212,9 @@ def decide_chunk_ranges(n_aligns:int, threads:int):
 	Returns [[chunk_1_start, chunk_1_end],... [chunk_t_start, n_aligns]] where t = threads
 	Start and end positions are 1-based inclusive
 	'''
-	# If there are only a handful of alignments just go through them all in one thread
-	if n_aligns <= 2*threads:
+	# If there's not enough alignments to ensure that all of a read's alignments will be covered in the same thread,
+	# just assign all alignments to a single thread
+	if n_aligns <= 10_001*threads:
 		return [[1, n_aligns]]
 	
 	# Determine the range of lines to assign to each thread

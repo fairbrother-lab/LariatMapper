@@ -1,28 +1,35 @@
 {
 	"version": 1,
 	"formatters": {
-	  "simple": {
-		"format": "{asctime} | {message}",
-		"datefmt": "%d/%b/%Y %H:%M:%S",
-		"style": "{"
-	  },
-	  "extensive":{
-		"format": "{asctime} | {filename:^21} | {lineno:<3} | {message}",
-		"datefmt": "%d/%b/%Y %H:%M:%S",
-		"style": "{"
-	  }
+		"extensive":{
+			"format": "{asctime} | {filename:^21} | {lineno:<3} | {message}",
+			"datefmt": "%d/%b/%Y %H:%M:%S",
+			"style": "{"
+		},
+		"simple": {
+		  "format": "{asctime} | {message}",
+		  "datefmt": "%d/%b/%Y %H:%M:%S",
+		  "style": "{"
+		}
+	},
+	"filters": {
+		"append_warn_err": {
+			"()": "__main__.utils.AppendWarnErr"
+		}
 	},
 	"handlers": {
-	  "simple": {
-		"class": "logging.StreamHandler",
-		"formatter": "simple",
-		"stream": "ext://sys.stdout"
-	  },
-	  "extensive": {
-		"class": "logging.StreamHandler",
-		"formatter": "extensive",
-		"stream": "ext://sys.stdout"
-	  }
+		"extensive": {
+			"formatter": "extensive",
+			"class": "logging.StreamHandler",
+			"stream": "ext://sys.stdout",
+			"filters": ["append_warn_err"]
+		},
+		"simple": {
+			"formatter": "simple",
+			"class": "logging.StreamHandler",
+			"stream": "ext://sys.stdout",
+			"filters": ["append_warn_err"]
+		}
 	},
 	"loggers": {
 		"debug": {

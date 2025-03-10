@@ -31,7 +31,7 @@ TEST_DIR = PACKAGE_DIR/'tests'/'filter_lariats'
 						'ERROR'])
 def test_filter_lariats(prefix, seq_type, verbosity, tmp_path):
 	# Link files needed in working dir
-	for file in ('output.bam', 'circularized_intron_reads.tsv', 'putative_lariats.tsv'):
+	for file in ('output.bam', 'template_switching_reads.tsv', 'circularized_intron_reads.tsv', 'putative_lariats.tsv'):
 		os.symlink(TEST_DIR/'inputs'/file, tmp_path/f'{prefix}{file}')
 
 	# Run script
@@ -46,7 +46,7 @@ def test_filter_lariats(prefix, seq_type, verbosity, tmp_path):
 	for ref, out in ((TEST_DIR/'outputs'/'failed_lariat_alignments.tsv', tmp_path/f'{prefix}failed_lariat_alignments.tsv'),
 					(TEST_DIR/'outputs'/'lariat_reads.tsv', tmp_path/f'{prefix}lariat_reads.tsv')):
 		
-		test_utils.check_read_bp_pos(ref)
+		test_utils.check_read_bp_pos(out)
 
 		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
 		if ref_lines == out_lines:
