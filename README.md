@@ -260,7 +260,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `read_seq_forward`<sup>†</sup>: The read's DNA sequence. Reverse-complemented if `read_orient_to_gene` = `Reverse`
 - `read_head_end_pos`<sup>†</sup>: The end position of the head in the read
 - `fivep_seq`<sup>†</sup>: The 5' splice sites' DNA sequence. Reverse-complemented if `strand` = `-`
-- `fivep_sites`<sup>*</sup><sup>†</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION`
+- `fivep_sites`<sup>*</sup><sup>†</sup>: The 5' splice site(s) that mapped to the read. Format is `CHROMOSOME;STRAND;POSITION;GENE_ID`, where `GENE_ID` may be multiple values delimited by ampersands (`&`)
 - `head_chrom`<sup>†</sup>: The chromosome of the head alignment
 - `head_strand`<sup>†</sup>: The strand of the gene overlapping the head alignment
 - `head_gene_id`<sup>*</sup> <sup>†</sup>: The gene ID of the gene overlapping the head alignment
@@ -272,7 +272,7 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `genomic_head_end_context`<sup>†</sup>: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
-<sup>†</sup> can be multiple values delimited by a vertical bar (`|`), for reads with multiple head alignments (of equal quality) that were caught by the template-switching filter. If the input read data is from paired-end sequencing, some reads may also have head alignments from both mates that were caught by the template-switching filter. In such cases, there may be 2 values for `read_orient_to_gene`, `read_seq_forward`, and/or `read_head_end_pos`.
+<sup>†</sup> can be multiple values delimited by vertical bars (`|`), for reads with multiple head alignments (of equal quality) that were caught by the template-switching filter. If the input read data is from paired-end sequencing, some reads may also have head alignments from both mates that were caught by the template-switching filter. In such cases, there may be 2 values for `read_orient_to_gene`, `read_seq_forward`, and/or `read_head_end_pos`.
 </details>
 
 <details>
