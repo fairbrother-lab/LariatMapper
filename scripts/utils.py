@@ -74,7 +74,7 @@ def reverse_complement(seq:str):
 
 def str_join(items, join_string:str=',', unique:bool=False) -> str:
 	'''
-	Else, return a <join_string>-delimited string of <items>
+	Return a <join_string>-delimited string of <items>
 		e.g.) 	[toy1, toy2, toy2, toy3]			  	  -> "toy1,toy2,toy2,toy3"
 			 	[toy1, toy2, toy2, toy3], join_string=";" -> "toy1;toy2;toy2;toy3"
 			 	[toy1, toy2, toy2, toy3], unique=True     -> "toy1,toy2,toy3"
