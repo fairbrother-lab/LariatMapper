@@ -24,13 +24,18 @@ MAX_MISMATCH_PERCENT = 0.1
 MAX_GAP_LENGTH = 3
 BP_CONTEXT_LENGTH = 8
 
+# Out file columns
 TEMP_SWITCH_COLS = ['read_id',
 					'read_orient_to_gene',
 					'read_seq_forward', 
 					'read_head_end_pos',
 					'fivep_seq',
 					'fivep_sites',
-					'head_alignment',
+					'head_chrom',
+					'head_strand',
+					'head_gene_id',
+					'head_first_pos',
+					'head_last_pos',
 					'head_end_pos',
 					'threep_pos',
 					'head_end_dist_to_threep',
@@ -51,12 +56,6 @@ CIRCULARS_COLS = ['read_id',
 				'genomic_head_end_nt',
 				'genomic_head_end_context',
 				]
-HEAD_END_BP_RENAMES = {'head_end_pos': 'bp_pos',
-						'head_end_dist_to_threep': 'bp_dist_to_threep',
-						'read_head_end_pos': 'read_bp_pos',
-						'read_head_end_nt': 'read_bp_nt',
-						'genomic_head_end_nt': 'genomic_bp_nt',
-						'genomic_head_end_context': 'genomic_bp_context',}
 PUTATITVE_LARIATS_COLS = ['read_id', 
 						'gene_id', 
 						'chrom', 
@@ -75,7 +74,21 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'head_align_quality',
 						'max_quality',
 						]
+
+COL_NAME_TO_ATTR_NAME = {'read_head_end_pos': 'read_bp_pos',
+						'head_chrom': 'chrom',
+						'head_strand': 'strand',
+						'head_gene_id': 'gene_id',
+						'head_first_pos': 'align_start',
+						'head_last_pos': 'align_end',
+						'head_end_pos': 'bp_pos',
+						'head_end_dist_to_threep': 'bp_dist_to_threep',
+						'read_head_end_nt': 'read_bp_nt',
+						'genomic_head_end_nt': 'genomic_bp_nt',
+						'genomic_head_end_context': 'genomic_bp_context',
+						}
 COMMA_JOIN_COLS = ('gaps', 'exons', 'introns', 'gene_id', 'fivep_sites')
+ROW_JOIN_CHAR = "|"
 
 output_base = sys.argv[-2]
 # In files
@@ -167,7 +180,7 @@ class ReadHeadAlignment():
 	"""
 	TAIL_INFO_ATTRS = ('read_orient_to_gene', 'read_seq', 'fivep_seq', 'fivep_sites',
 						'read_bp_pos', 'read_bp_nt')
-	PROPERTIES = ('read_seq_forward', 'temp_switch_pos')
+	PROPERTIES = ('read_seq_forward', 'bp_mismatch')
 	
 	# Assigned at creation
 	read_id: str
@@ -200,7 +213,6 @@ class ReadHeadAlignment():
 	bp_dist_to_threep: int = None
 	gene_id: str = None		
 	fivep_pos: int = None	
-	head_alignment: str = None	
 
 	# Properties
 	@property
@@ -215,10 +227,6 @@ class ReadHeadAlignment():
 			raise ValueError(f'Invalid read_orient_to_gene value: {self.read_orient_to_gene}')
 
 	@property
-	def temp_switch_pos(self):
-		return self.bp_pos
-	
-	@property
 	def bp_mismatch(self):
 		return self.read_bp_nt != self.genomic_bp_nt
 	
@@ -227,9 +235,9 @@ class ReadHeadAlignment():
 	def all_fields(cls):
 		return tuple(cls.__annotations__.keys()) + cls.PROPERTIES
 
-
 	def from_pysam(pysam_align:pysam.AlignedSegment):
 		"""
+		For building ReadHeadAlignment objects from the heads_to_genome output file
 		"""
 		mismatch_p = pysam_align.get_tag('NM')/pysam_align.query_length
 		gaps = [length for op, length in pysam_align.cigartuples if op in (1,2)]
@@ -246,32 +254,45 @@ class ReadHeadAlignment():
 		)
 
 	def from_row(row:pd.Series):
+		"""
+		For rebuilding ReadHeadAlignment objects from rows in post_processing
+		"""
 		attrs = tuple(ReadHeadAlignment.__annotations__.keys())
 		attr_dict = {}
 		for attr in attrs:
+			# Set attribute value to None by default
+			attr_dict[attr] = None
+
+			# Now look for the attribute in the row
 			if attr in row:
 				attr_dict[attr] = row[attr]
-			elif attr in HEAD_END_BP_RENAMES.values() and attr.replace('_bp_', '_head_end_') in row:
-				attr_dict[attr] = row[attr.replace('_bp_', '_head_end_')]
-			else:
-				attr_dict[attr] = None
+			# If neccesary, get the altered column name that corresponds to the attribute and then
+			# get the value from the row, if present
+			elif attr in COL_NAME_TO_ATTR_NAME.values():
+				col = [k for k,v in COL_NAME_TO_ATTR_NAME.items() if v==attr][0]
+				if col in row:
+					attr_dict[attr] = row[col]
 
 		if 'fivep_sites' in row:
 			attr_dict['fivep_sites'] = FivepSite.from_compact_str(row['fivep_sites'])
 
 		# If the row is missing 'read_seq' but has 'read_seq_forward' and 'read_orient_to_gene'
-		# we can infer 'read_seq' from the other two
-		if 'read_seq_forward' in row and 'read_orient_to_gene' in row and 'read_seq' not in row:
+		# we can infer it
+		if 'read_seq' not in row and 'read_seq_forward' in row and 'read_orient_to_gene' in row:
 			if row['read_orient_to_gene'] == 'Forward':
 				attr_dict['read_seq'] = row['read_seq_forward']
 			elif row['read_orient_to_gene'] == 'Reverse':
 				attr_dict['read_seq'] = utils.reverse_complement(row['read_seq_forward'])
 			else:
 				raise ValueError(f'Invalid read_orient_to_gene value: {row["read_orient_to_gene"]}')
-			
-		if 'read_bp_pos' in row and 'read_seq_forward' in row and 'read_bp_nt' not in row:
+		
+		# If the row is missing 'read_bp_nt' but has 'read_bp_pos' and 'read_seq_forward'
+		# we can infer it
+		if 'read_bp_nt' not in row and 'read_bp_pos' in row and 'read_seq_forward' in row:
 			attr_dict['read_bp_nt'] = row['read_seq_forward'][row['read_bp_pos']]
 		
+		# If the row is missing 'genomic_bp_nt' but has 'genomic_bp_context'
+		# we can infer it
 		if 'genomic_bp_context' in row and 'genomic_bp_nt' not in row:
 			attr_dict['genomic_bp_nt'] = row['genomic_bp_context'][BP_CONTEXT_LENGTH]
 			
@@ -284,14 +305,15 @@ class ReadHeadAlignment():
 	def to_line(self, columns:list):
 		line = self.read_id
 		for col in columns[1:]:
-			if col in HEAD_END_BP_RENAMES.keys():
-				col = HEAD_END_BP_RENAMES[col]
+			# Rename columns to attribute names to get the right attribute value, if necessary
+			if col in COL_NAME_TO_ATTR_NAME.keys():
+				col = COL_NAME_TO_ATTR_NAME[col]
 
 			val = getattr(self, col)
 			val = '' if val is None else val
-			# Val fixes
+			# Val fixes for writing to output file
 			if col in COMMA_JOIN_COLS and isinstance(val, (list, tuple, set, frozenset, FivepSite)):
-				val = utils.str_join(val)
+				val = utils.str_join(val, join_string=",")
 			elif col == 'read_bp_pos' and self.read_seq is not None:
 				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
 			elif col == 'fivep_pos' and val == '' and self.fivep_sites is not None:
@@ -312,13 +334,12 @@ class ReadHeadAlignment():
 				a.write(line + '\n')
 
 	def write_temp_switch_out(self):
-		head_gene_ids = []
-		for feat in self.exons.union(self.introns):
+		head_gene_ids = set()
+		for feat in it.chain(self.exons, self.introns):
 			for gene_id in feat.data['gene_id']:
-				head_gene_ids.append(gene_id)
-		head_gene_ids = utils.str_join(head_gene_ids, '&')
-		orient = 'Forward' if self.strand == '+' else 'Reverse'
-		self.head_alignment = f"{self.chrom};{self.align_start};{self.align_end};{orient};{self.strand};{head_gene_ids}"
+				head_gene_ids.add(gene_id)
+		self.gene_id = utils.str_join(head_gene_ids, join_string=",")
+
 		line = self.to_line(TEMP_SWITCH_COLS)
 
 		with temp_switch_lock:
@@ -724,12 +745,10 @@ def post_processing(log):
 	# Load data tables
 	temp_switches = pd.read_csv(TEMP_SWITCH_FILE, sep='\t', na_filter=False)
 	circulars = pd.read_csv(CIRCULARS_FILE, sep='\t', na_filter=False)
-	lariats = pd.read_csv(PUTATITVE_LARIATS_FILE, sep='\t', na_filter=False)
 
 	# Add read_id_base columns to tables
 	temp_switches['read_id_base'] = temp_switches.read_id.str.slice(0,-6)
 	circulars['read_id_base'] = circulars.read_id.str.slice(0,-6)
-	lariats['read_id_base'] = lariats.read_id.str.slice(0,-6)
 
 	# Filter out circular read alignments that also have alignments in a higher-priority table
 	circulars, temp_switches = filter_out_shared_reads(circulars, 'circular', temp_switches, 'template_switching')
@@ -740,7 +759,7 @@ def post_processing(log):
 				temp_switches
 				.assign(read_id = temp_switches.read_id_base)
 				.groupby('read_id', as_index=False)
-				.agg({col: lambda c: utils.str_join(c) for col in TEMP_SWITCH_COLS[1:]})
+				.agg({col: lambda c: utils.str_join(c, ROW_JOIN_CHAR) for col in TEMP_SWITCH_COLS[1:]})
 			)
 
 	# Choose one alignment for circularized intron reads that have multiple alignments
