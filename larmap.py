@@ -165,6 +165,8 @@ class Settings:
 			n, m = self.temp_switch_filter.split(',')
 			if not n.isdigit() or not m.isdigit():
 				raise ValueError(f'--temp_switch_filter must be formatted as "N,M". Input was "{self.temp_switch_filter}"')
+			if int(n) < int(m):
+				raise ValueError(f'--temp_switch_filter: N must be greater than or equal to M. Input was "{self.temp_switch_filter}"')
 			
 		# Confirm the pwm correction files exist OR model correction file exists, if supplied
 		if self.pwm_correction != '':
