@@ -641,7 +641,7 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	# Match introns to 5'ss
 	matched_introns, matched_fivep_sites = match_introns_to_fiveps(align)
 	# Filter out if no matching intron-5'ss matches
-	if len(align.introns) == 0:
+	if len(matched_introns) == 0:
 		align.write_failed_out('no_matching_introns')
 		return
 	# Reduce introns and 5'ss to matching subset
