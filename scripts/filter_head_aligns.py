@@ -627,22 +627,26 @@ def filter_head_alignment(align:ReadHeadAlignment,
 		align.write_failed_out('no_overlapping_introns')
 		return
 
-	# Remove features that don't envelop the head alignment
-	align.introns = set(feat for feat in align.introns if feat.begin<=align.align_start and feat.end>=align.align_end)
-	align.exons = set(feat for feat in align.exons if feat.begin<=align.align_start and feat.end>=align.align_end)
-
+	# Select features that envelop the head alignment
+	enveloping_introns = set(feat for feat in align.introns if feat.begin<=align.align_start and feat.end>=align.align_end)
+	enveloping_exons = set(feat for feat in align.exons if feat.begin<=align.align_start and feat.end>=align.align_end)
 	# Filter out if no enveloping introns 
-	if len(align.introns) == 0:
+	if len(enveloping_introns) == 0:
 		align.write_failed_out('no_enveloping_introns')
 		return
+	# Reduce features to enveloping subset
+	align.introns = enveloping_introns
+	align.exons = enveloping_exons
 
 	# Match introns to 5'ss
 	matched_introns, matched_fivep_sites = match_introns_to_fiveps(align)
-	# Filter out non-matching introns and 5'ss
-	align.introns, align.fivep_sites = matched_introns, matched_fivep_sites
+	# Filter out if no matching intron-5'ss matches
 	if len(align.introns) == 0:
 		align.write_failed_out('no_matching_introns')
 		return
+	# Reduce introns and 5'ss to matching subset
+	align.introns = matched_introns
+	align.fivep_sites = matched_fivep_sites
 
 	# Write out if intron circle
 	if is_circular(align) is True:
