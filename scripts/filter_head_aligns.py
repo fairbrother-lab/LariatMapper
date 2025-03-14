@@ -207,8 +207,8 @@ class ReadHeadAlignment():
 	bp_pos: int	= None
 	genomic_bp_context: str	= None
 	genomic_bp_nt: str	= None
-	exons: list = None
-	introns: list = None
+	exons: set[Interval] = None
+	introns: set[Interval] = None
 	threep_pos: int	= None	
 	bp_dist_to_threep: int = None
 	gene_id: str = None		
@@ -230,11 +230,13 @@ class ReadHeadAlignment():
 	def bp_mismatch(self):
 		return self.read_bp_nt != self.genomic_bp_nt
 	
-	# Methods
+	### Methods
+	# Class methods
 	@classmethod
 	def all_fields(cls):
 		return tuple(cls.__annotations__.keys()) + cls.PROPERTIES
 
+	# Construction methods
 	def from_pysam(pysam_align:pysam.AlignedSegment):
 		"""
 		For building ReadHeadAlignment objects from the heads_to_genome output file
@@ -302,6 +304,75 @@ class ReadHeadAlignment():
 		for attr in self.TAIL_INFO_ATTRS:
 			setattr(self, attr, getattr(tail, attr))
 
+	# Inferring info and filtering methods
+	def get_overlapping_features(self, exons:dict, introns:dict) -> tuple[set[Interval], set[Interval]]:
+		if self.chrom not in exons:
+			over_exons = set()
+		else:
+			over_exons = exons[self.chrom][self.strand].overlap(self.align_start, self.align_end)
+
+		if self.chrom not in introns:
+			over_introns = set()
+		else:
+			over_introns = introns[self.chrom][self.strand].overlap(self.align_start, self.align_end)
+		
+		return over_exons, over_introns
+	
+	def get_nearest_threep_pos(self, threep_sites:dict):
+		# If no threep sites for the given chrom and strand, return np.nan
+		if len(threep_sites[self.chrom][self.strand]) == 0:
+			return np.nan
+
+		# If + strand, find the intron closest to the bp on the right-hand side
+		# and return the end pos of that intron (-1 to convert 0-based exlusive end to 0-based inclusive pos)
+		if self.strand == '+':
+			# Get the index of the nearest threep site to the right of bp_pos (inclusive of bp_pos)
+			ind = bisect.bisect_left(threep_sites[self.chrom][self.strand], self.bp_pos)
+			# If bp_pos is further right than the last threep site, return np.nan
+			if ind == len(threep_sites[self.chrom][self.strand]):
+				return np.nan
+
+		# If - strand, find the intron closest to the bp on the left-hand side
+		# and return the start pos of that intron
+		else:
+			# Get the index of the nearest threep site to the left of bp_pos (inclusive of bp_pos)
+			ind = bisect.bisect_right(threep_sites[self.chrom][self.strand], self.bp_pos) - 1 
+			# If bp_pos is further left than the first threep site, return np.nan
+			if ind == -1:
+				return np.nan
+
+		return threep_sites[self.chrom][self.strand][ind]
+	
+	def head_is_downstream_of_fivep(self, fivep_pos:int) -> bool:
+		if self.strand == '+':
+			if fivep_pos < self.align_start:
+				return True
+			else:
+				return False
+		if self.strand == '-':
+			if fivep_pos > self.align_end-1:
+				return True
+			else:
+				return False
+		
+	def is_circularized_intron(self, matched_introns:set[Interval], upstream_fivep_sites:list[FivepSite]) -> bool:
+		if len(matched_introns) == 0 or len(upstream_fivep_sites) == 0:
+			return False
+		
+		if self.bp_dist_to_threep in (-2, -1, 0):
+			return True
+
+	def is_template_switch(self, temp_switch_range:int, temp_switch_min_matches:int) -> bool:
+		bp_adj_seq = self.genomic_bp_context[BP_CONTEXT_LENGTH+1:]
+
+		base_matches = 0
+		for i in range(temp_switch_range):
+			if bp_adj_seq[i]==self.fivep_seq[i]:
+				base_matches += 1
+		
+		return base_matches >= temp_switch_min_matches
+
+	# Output methods
 	def to_line(self, columns:list):
 		line = self.read_id
 		for col in columns[1:]:
@@ -346,7 +417,7 @@ class ReadHeadAlignment():
 			with open(TEMP_SWITCH_FILE, 'a') as a:
 				a.write(line + '\n')
 
-	def write_circulars_out(self):
+	def write_circular_out(self):
 		self.gene_id = [utils.str_join(intron.data['gene_id']) for intron in self.introns]
 
 		line = self.to_line(CIRCULARS_COLS)
@@ -369,6 +440,7 @@ class ReadHeadAlignment():
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
+# Loading data
 def parse_exons_introns(ref_exons, ref_introns, log) -> tuple[dict[str, dict[str, IntervalTree]], 
 															  dict[str, dict[str, IntervalTree]], 
 															  dict[str, dict[str, tuple]], 
@@ -498,55 +570,16 @@ def yield_read_aligns(chunk_start:int, chunk_end:int):
 		yield current_read_id, read_aligns, max_quality
 
 
-def overlapping_features(align:ReadHeadAlignment, exons:dict, introns:dict) -> tuple[set[Interval], set[Interval]]:
-	if align.chrom not in exons:
-		over_exons = set()
-	else:
-		over_exons = exons[align.chrom][align.strand].overlap(align.align_start, align.align_end)
-
-	if align.chrom not in introns:
-		over_introns = set()
-	else:
-		over_introns = introns[align.chrom][align.strand].overlap(align.align_start, align.align_end)
-	
-	return over_exons, over_introns
-
-
-def nearest_threep_pos(chrom:str, strand:str, bp_pos:int, threep_sites:dict):
-	# If no threep sites for the given chrom and strand, return np.nan
-	if len(threep_sites[chrom][strand]) == 0:
-		return np.nan
-
-	# If + strand, find the intron closest to the bp on the right-hand side
-	# and return the end pos of that intron (-1 to convert 0-based exlusive end to 0-based inclusive pos)
-	if strand == '+':
-		# Get the index of the nearest threep site to the right of bp_pos (inclusive of bp_pos)
-		ind = bisect.bisect_left(threep_sites[chrom][strand], bp_pos)
-		# If bp_pos is further right than the last threep site, return np.nan
-		if ind == len(threep_sites[chrom][strand]):
-			return np.nan
-
-	# If - strand, find the intron closest to the bp on the left-hand side
-	# and return the start pos of that intron
-	else:
-		# Get the index of the nearest threep site to the left of bp_pos (inclusive of bp_pos)
-		ind = bisect.bisect_right(threep_sites[chrom][strand], bp_pos) - 1 
-		# If bp_pos is further left than the first threep site, return np.nan
-		if ind == -1:
-			return np.nan
-
-	return threep_sites[chrom][strand][ind]
-
-
-def match_introns_to_fiveps(align:ReadHeadAlignment) -> tuple[set[Interval], set[FivepSite]]:
+# Inferring info and filtering
+def match_introns_to_fivep_sites(introns:set[Interval], fivep_sites:list[FivepSite]) -> tuple[set[Interval], set[FivepSite]]:
 	# Return early if no introns or no 5'ss
-	if len(align.introns)==0 or len(align.fivep_sites)==0:
+	if len(introns)==0 or len(introns)==0:
 		return set(),set()
 	
 	# Match introns to 5'ss by gene id
 	intron_matches = set()
 	fivep_matches = set()
-	for intron, fivep in it.product(align.introns, align.fivep_sites):
+	for intron, fivep in it.product(introns, fivep_sites):
 		if len(intron.data['gene_id'].intersection(fivep.gene_ids))>0:
 			intron_matches.add(intron)
 			fivep_matches.add(fivep)
@@ -554,21 +587,7 @@ def match_introns_to_fiveps(align:ReadHeadAlignment) -> tuple[set[Interval], set
 	return intron_matches, fivep_matches
 
 
-def is_template_switch(align:ReadHeadAlignment, temp_switch_range:int, temp_switch_min_matches:int) -> bool:
-	bp_adj_seq = align.genomic_bp_context[BP_CONTEXT_LENGTH+1:]
-
-	base_matches = 0
-	for i in range(temp_switch_range):
-		if bp_adj_seq[i]==align.fivep_seq[i]:
-			base_matches += 1
-	
-	return base_matches >= temp_switch_min_matches
-
-
-def is_circular(align:ReadHeadAlignment) -> bool:
-	return align.bp_dist_to_threep in (-2, -1, 0)
-
-
+# The info-inferring and filtering process
 def filter_head_alignment(align:ReadHeadAlignment, 
 						genome_fasta:str,
 						exons:dict,
@@ -599,8 +618,8 @@ def filter_head_alignment(align:ReadHeadAlignment,
 											end = align.bp_pos+BP_CONTEXT_LENGTH+1,
 											rev_comp = align.strand=='-')
 	align.genomic_bp_nt = align.genomic_bp_context[BP_CONTEXT_LENGTH]
-	align.exons, align.introns = overlapping_features(align, exons, introns)
-	align.threep_pos = nearest_threep_pos(align.chrom, align.strand, align.bp_pos, threep_sites)
+	align.exons, align.introns = align.get_overlapping_features(exons, introns)
+	align.threep_pos = align.get_nearest_threep_pos(threep_sites)
 	align.bp_dist_to_threep = -abs(align.bp_pos - align.threep_pos) if not pd.isna(align.threep_pos) else np.nan
 
 	# Filter out if low-quality
@@ -616,9 +635,24 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	if len(align.gaps) == 1 and align.gaps[0] > MAX_GAP_LENGTH:
 		align.write_failed_out('gaps')
 		return
+
+	# Select features that envelop the head alignment
+	enveloping_exons = set(feat for feat in align.exons if feat.begin<=align.align_start and feat.end>=align.align_end)
+	enveloping_introns = set(feat for feat in align.introns if feat.begin<=align.align_start and feat.end>=align.align_end)
+
+	# Match introns to 5'ss
+	matched_introns, matched_fivep_sites = match_introns_to_fivep_sites(enveloping_introns, align.fivep_sites)
+
+	# Write out if circularized intron
+	upstream_fivep_sites = [fivep for fivep in matched_fivep_sites if align.head_is_downstream_of_fivep(fivep.pos)]
+	if align.is_circularized_intron(matched_introns, upstream_fivep_sites) is True:
+		align.introns = matched_introns
+		align.fivep_sites = upstream_fivep_sites
+		align.write_circular_out()
+		return
 	
 	# Write out if template-switching
-	if is_template_switch(align, temp_switch_range, temp_switch_min_matches) is True:
+	if align.is_template_switch(temp_switch_range, temp_switch_min_matches) is True:
 		align.write_temp_switch_out()
 		return
 	
@@ -627,32 +661,24 @@ def filter_head_alignment(align:ReadHeadAlignment,
 		align.write_failed_out('no_overlapping_introns')
 		return
 
-	# Select features that envelop the head alignment
-	enveloping_introns = set(feat for feat in align.introns if feat.begin<=align.align_start and feat.end>=align.align_end)
-	enveloping_exons = set(feat for feat in align.exons if feat.begin<=align.align_start and feat.end>=align.align_end)
 	# Filter out if no enveloping introns 
 	if len(enveloping_introns) == 0:
 		align.write_failed_out('no_enveloping_introns')
 		return
-	# Reduce features to enveloping subset
-	align.introns = enveloping_introns
+	
+	# Reduce exons and introns to enveloping subset
 	align.exons = enveloping_exons
-
-	# Match introns to 5'ss
-	matched_introns, matched_fivep_sites = match_introns_to_fiveps(align)
+	align.introns = enveloping_introns
+	
 	# Filter out if no matching intron-5'ss matches
 	if len(matched_introns) == 0:
 		align.write_failed_out('no_matching_introns')
 		return
+	
 	# Reduce introns and 5'ss to matching subset
 	align.introns = matched_introns
 	align.fivep_sites = matched_fivep_sites
 
-	# Write out if intron circle
-	if is_circular(align) is True:
-		align.write_circulars_out()
-		return
-	
 	# If an alignment reaches this point it probably has only 1 5'ss matched to an intron
 	# but there are cases where multiple valid 5'ss remain, 
 	# in which case we treat each possible 5'ss as a separate putative lariat  
@@ -660,11 +686,8 @@ def filter_head_alignment(align:ReadHeadAlignment,
 		align.fivep_pos = fivep.pos
 		align.gene_id = fivep.gene_ids
 
-		# Filter out if the 5'ss is at or downstream of the tail's start
-		if align.strand == '+' and align.fivep_pos > align.align_start:
-			align.write_failed_out('5p_bp_order')
-			return
-		if align.strand == '-' and align.fivep_pos < align.align_end-1:
+		# Filter out if the 5'ss is NOT upstream of the putative bp
+		if align.head_is_downstream_of_fivep(fivep.pos) is False:
 			align.write_failed_out('5p_bp_order')
 			return
 
@@ -753,9 +776,6 @@ def post_processing(log):
 	# Add read_id_base columns to tables
 	temp_switches['read_id_base'] = temp_switches.read_id.str.slice(0,-6)
 	circulars['read_id_base'] = circulars.read_id.str.slice(0,-6)
-
-	# Filter out circular read alignments that also have alignments in a higher-priority table
-	circulars, temp_switches = filter_out_shared_reads(circulars, 'circular', temp_switches, 'template_switching')
 
 	# If template-switching reads remain, collapse the table to one row per read
 	if len(temp_switches) > 0:
