@@ -58,28 +58,14 @@ def test_build_references(fasta, anno, repeatmasker_bed, threads, copy, verbosit
 	fasta_ext = '.fa' if fasta.suffix == '.fa' else '.fa.gz'
 
 	# Check output
-	for ref, out in (
+	ref_and_out_files = (
 					(TEST_DIR/'outputs'/f'genome{fasta_ext}.fai', tmp_path/f'genome{fasta_ext}.fai'),
 					(TEST_DIR/'outputs'/'exons.tsv.gz', tmp_path/'exons.tsv.gz'),
 					(TEST_DIR/'outputs'/'introns.tsv.gz', tmp_path/'introns.tsv.gz'),
 					(TEST_DIR/'outputs'/'fivep_sites.fa.gz', tmp_path/'fivep_sites.fa.gz'),
 					(TEST_DIR/'outputs'/'fivep_sites.fa.gz.fai', tmp_path/'fivep_sites.fa.gz.fai'),
-					):
-		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
-		if ref_lines == out_lines:
-			continue
-
-		### If the lines don't match, report it
-		# Print the response text
-		print(response_text)
-
-		# If in vscode, open the files for comparison
-		if test_utils.vscode_available():
-			test_utils.vscode_compare_sorted(ref, out)
-		
-		# Trigger pytest fail
-		assert ref_lines == out_lines
-
+	)
+	test_utils.confirm_outputs_match_references(ref_and_out_files, response_text)
 
 
 # Optional args

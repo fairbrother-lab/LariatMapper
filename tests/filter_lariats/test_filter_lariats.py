@@ -43,22 +43,8 @@ def test_filter_lariats(prefix, seq_type, verbosity, tmp_path):
 		pytest.fail(response_text)
 
 	# Check output
-	for ref, out in ((TEST_DIR/'outputs'/'failed_lariat_alignments.tsv', tmp_path/f'{prefix}failed_lariat_alignments.tsv'),
-					(TEST_DIR/'outputs'/'lariat_reads.tsv', tmp_path/f'{prefix}lariat_reads.tsv')):
-		
-		test_utils.check_read_bp_pos(out)
-
-		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
-		if ref_lines == out_lines:
-			continue
-
-		### If the lines don't match, report it
-		# Print the response text
-		print(response_text)
-
-		# If in vscode, open the files for comparison
-		if test_utils.vscode_available():
-			test_utils.vscode_compare_sorted(ref, out)
-		
-		# Trigger pytest fail
-		assert ref_lines == out_lines
+	ref_and_out_files = (
+		(TEST_DIR/'outputs'/'failed_lariat_alignments.tsv', tmp_path/f'{prefix}failed_lariat_alignments.tsv'),
+		(TEST_DIR/'outputs'/'lariat_reads.tsv', tmp_path/f'{prefix}lariat_reads.tsv')
+	)
+	test_utils.confirm_outputs_match_references(ref_and_out_files, response_text)

@@ -23,13 +23,13 @@ Method_Combo = collections.namedtuple('Method_Combo', ['method_arg', 'path_arg',
 @pytest.mark.parametrize('method_combo',
 					[Method_Combo(method_arg='--method Model-based', 
 									path_arg=f"--model_path {TEST_DIR/'inputs'/'gencode_v44_U2_U12_BP_pred_prob_tx.rds'}", 
-									output=f"{TEST_DIR}/outputs/lariat_reads_model.tsv"),
+									output=pathlib.Path(f"{TEST_DIR}/outputs/lariat_reads_model.tsv")),
 					Method_Combo(method_arg='--method PWM',
 									path_arg=f"--PWM_path {TEST_DIR/'inputs'/'gencode_v44_U2_pwm.rds'}",
-									output=f"{TEST_DIR}/outputs/lariat_reads_pwm_U2.tsv"),
+									output=pathlib.Path(f"{TEST_DIR}/outputs/lariat_reads_pwm_U2.tsv")),
 					Method_Combo(method_arg='--method PWM',
 									path_arg=f"--PWM_path {TEST_DIR/'inputs'/'gencode_v44_U2_pwm.rds'},{TEST_DIR/'inputs'/'gencode_v44_U12_pwm.rds'}",
-									output=f"{TEST_DIR}/outputs/lariat_reads_pwm_U2_U12.tsv"),
+									output=pathlib.Path(f"{TEST_DIR}/outputs/lariat_reads_pwm_U2_U12.tsv")),
 					]
 )
 # Optional args
@@ -57,19 +57,7 @@ def test_bp_correction(method_combo, log_level, tmp_path):
 	assert response.returncode == 0, response_text
 
 	# Check output
-	ref = method_combo.output
-	out = tmp_path/'lariat_reads.tsv'
-	ref_lines, out_lines = test_utils.load_file_lines(ref, out)
-	if ref_lines == out_lines:
-		return
-	
-	### If the lines don't match, report it
-	# Print the response text
-	print(response_text)
-
-	# If in vscode, open the files for comparison
-	if test_utils.vscode_available():
-		test_utils.vscode_compare_sorted(ref, out)
-	
-	# Trigger pytest fail
-	assert ref_lines == out_lines
+	ref_and_out_files = (
+		(method_combo.output, tmp_path/'lariat_reads.tsv'),
+	)
+	test_utils.confirm_outputs_match_references(ref_and_out_files, response_text)

@@ -26,7 +26,7 @@ TEST_DIR = PACKAGE_DIR/'tests'/'filter_head_aligns'
 						'3', 
 						'8'])
 @pytest.mark.parametrize('temp_switch_filter',
-						['5,5', 
+						['2,2', 
 						])
 @pytest.mark.parametrize('prefix',
 						['', 
@@ -49,27 +49,11 @@ def test_filter_head_aligns(threads, temp_switch_filter, prefix, verbosity, tmp_
 		pytest.fail(response_text)
 
 	# Check output
-	for ref, out in ((TEST_DIR/'outputs'/'failed_head_alignments.tsv', tmp_path/f'{prefix}failed_head_alignments.tsv'),
-					(TEST_DIR/'outputs'/'template_switching_reads.tsv', tmp_path/f'{prefix}template_switching_reads.tsv'),
-					(TEST_DIR/'outputs'/'circularized_intron_reads.tsv', tmp_path/f'{prefix}circularized_intron_reads.tsv'),
-					(TEST_DIR/'outputs'/'putative_lariats.tsv', tmp_path/f'{prefix}putative_lariats.tsv')):
-		
-		if ref.name == 'putative_lariats.tsv':
-			test_utils.check_read_bp_pos(ref)
-		elif ref.name == 'circularized_intron_reads.tsv':
-			test_utils.check_read_bp_pos(ref, True)
-		
-		ref_lines, out_lines = test_utils.load_file_lines(ref, out)
-		if ref_lines == out_lines:
-			continue
-
-		### If the lines don't match, report it
-		# Print the response text
-		print(response_text)
-
-		# If in vscode, open the files for comparison
-		if test_utils.vscode_available():
-			test_utils.vscode_compare_sorted(ref, out)
-		
-		# Trigger pytest fail
-		assert ref_lines == out_lines
+	ref_and_out_files = (
+		(TEST_DIR/'outputs'/'failed_head_alignments.tsv', tmp_path/f'{prefix}failed_head_alignments.tsv'),
+		(TEST_DIR/'outputs'/'template_switching_reads.tsv', tmp_path/f'{prefix}template_switching_reads.tsv'),
+		(TEST_DIR/'outputs'/'circularized_intron_reads.tsv', tmp_path/f'{prefix}circularized_intron_reads.tsv'),
+		(TEST_DIR/'outputs'/'putative_lariats.tsv', tmp_path/f'{prefix}putative_lariats.tsv')
+	)
+	test_utils.confirm_outputs_match_references(ref_and_out_files, response_text)
+	

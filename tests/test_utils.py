@@ -140,3 +140,37 @@ def check_read_bp_pos(file:pathlib.Path, circularized_introns:bool=False):
 								axis=1)
 	if read_bp_wrong.any():
 		pytest.fail(f'Wrong read_bp_nt in {file}: {df.loc[read_bp_wrong].index}')
+
+
+def output_matches_ref(ref_file:pathlib.Path, out_file:pathlib.Path) -> bool:
+	if ref_file.name == 'putative_lariats.tsv':
+		check_read_bp_pos(ref_file)
+	elif ref_file.name == 'circularized_intron_reads.tsv':
+		check_read_bp_pos(ref_file, True)
+	
+	ref_lines, out_lines = load_file_lines(ref_file, out_file)
+	if ref_lines == out_lines:
+		return True
+	else:
+		return False
+		
+
+def confirm_outputs_match_references(ref_and_out_files:tuple[tuple[pathlib.Path, pathlib.Path], ...], 
+									 response_text:str) -> None:
+	failed_files = []
+	for ref, out in (ref_and_out_files):
+		if output_matches_ref(ref, out):
+			continue
+
+		# Note failure
+		failed_files.append(ref.name)
+		# If in vscode, open the file for comparison
+		if vscode_available():
+			vscode_compare_sorted(ref, out)
+
+	# If any of the outputs don't match the references, fail the test
+	if len(failed_files) > 0:
+		# Print the response text
+		print(response_text)
+		# Trigger pytest fail
+		pytest.fail(f'Test output does not match reference: {",".join(failed_files)}')
