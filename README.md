@@ -125,7 +125,7 @@ Applied with `-M, --model_correction`
 
 ```
 -T TEMP_SWITCH_FILTER, --temp_switch_filter TEMP_SWITCH_FILTER
-                     Set the parameters of the template-switching filter in the head-filtering step. Format = "N,M", where N is the number of downstream bases to check, and M is the minimum number of matches required to identify an alignment as template-switching. (Default = 5,5)
+                     Set the parameters of the template-switching filter in the head-filtering step. Format = "N,M", where N is the number of downstream bases to check, and M is the minimum number of matches required to identify an alignment as template-switching. (Default = 2,2)
 -m REF_REPEATMASKER, --ref_repeatmasker REF_REPEATMASKER
                      BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. May be gzip- compressed. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)
 -H REF_H2INDEX, --ref_h2index REF_H2INDEX
@@ -267,11 +267,12 @@ All output will be written in the directory `OUT_DIR`. This includes:
 - `head_first_pos`<sup>†</sup>: The first position of the head alignment in the genome
 - `head_last_pos`<sup>†</sup>: The last position of the head alignment in the genome. 0-based exclusive
 - `head_end_pos`<sup>†</sup>: The genomic position of the head's end, where the reverse transcriptase attached during template-switching. Equal to `head_first_pos` if `head_strand` = `-`, or `head_last_pos - 1` if `head_strand` = `+`
-- `threep_pos`: The genomic position of the closest 3' splice site that is downstream of the head's end
+- `threep_pos`<sup>†</sup>: The genomic position of the closest 3' splice site that is downstream of the head's end
 - `head_end_dist_to_threep`<sup>†</sup>: The distance of the head's end to the 3' splice site. Equal to `|head_end_pos - threep_pos|`
 - `genomic_head_end_context`<sup>†</sup>: The genomic sequence from positions -8 to +8 of the end of the head alignment. Reverse-complemented if `strand` = `-`
 
 <sup>*</sup> can be multiple comma-delimited values
+
 <sup>†</sup> can be multiple values delimited by vertical bars (`|`), for reads with multiple head alignments (of equal quality) that were caught by the template-switching filter. If the input read data is from paired-end sequencing, some reads may also have head alignments from both mates that were caught by the template-switching filter. In such cases, there may be 2 values for `read_orient_to_gene`, `read_seq_forward`, and/or `read_head_end_pos`.
 </details>
 
