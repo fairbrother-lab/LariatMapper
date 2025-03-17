@@ -1,0 +1,71 @@
+{% set version = "0.16.1" %}
+
+package:
+  name: lariatmapper
+  version: {{ version }}
+
+source:
+  path: ../
+  # url: https://github.com/fairbrother-lab/LariatMapper/archive/refs/tags/v{{ version }}.tar.gz
+
+build:
+  number: 0
+  noarch: generic
+  additional-platforms:
+    - osx-arm64
+  entry_points:
+    - LariatMapper: LariatMapper.larmap:main
+    - LariatMapper-build: LariatMapper.build_references:main
+  pin_depends: record
+
+channels:
+  - conda-forge
+  - bioconda
+
+requirements:
+  host:
+    - git
+    - python >=3.9, <=3.11
+    - r-base =4.1.*         # Explicitly define the r-base version to prevent breakage if something changes in newer versions
+    - numpy =2.2.*         # Explicitly define numpy version to address numpy-specific quirks in conda-build
+  run:
+    - bcftools
+    - bedtools
+    - bioconductor-biostrings
+    - bioconductor-genomicalignments
+    - bioconductor-genomicfeatures
+    - bioconductor-genomicranges
+    - bioconductor-rtracklayer
+    - bioconductor-txdbmaker         # Required by GenomicFeatures makeTxDbFromGRanges function
+    - bowtie2
+    - fsspec
+    - hisat2
+    - intervaltree
+    - pandas
+    - pyarrow
+    - pyfaidx
+    - pysam
+    - r-bedtoolsr
+    - r-ggplot2
+    - r-magrittr
+    - r-optparse
+    - r-tidyverse
+    - samtools
+
+test:
+  files:
+    - LariatMapper/build_references.py
+    - LariatMapper/larmap.py
+    - LariatMapper/scripts/*
+    - tests/*
+  requires:
+    - pytest
+    - pytest-xdist
+  # Test commands (including pytest) need to be put in run_test.sh
+  # to follow bioconda rules (https://bioconda.github.io/contributor/guidelines.html#test-dependencies)
+
+about:
+  home: https://github.com/fairbrother-lab/LariatMapper
+  license: MIT License
+  summary: 'LariatMapper: A pipeline for extracting lariats and their branchpoints from RNA-sequencing data.'
+  doc_url: https://github.com/fairbrother-lab/LariatMapper
