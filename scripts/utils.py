@@ -2,6 +2,7 @@ import os
 import logging
 import logging.config
 import json
+import pathlib as pl
 import subprocess
 import tempfile
 
@@ -189,12 +190,17 @@ def version() -> str:
 	'''
 	Return the current version of LariatMapper (format Major.Minor.Patch)
 	'''
-	toml_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../pyproject.toml')
-	with open(toml_file) as file_in:
-		for line in file_in:
-			if line.startswith('version = "'):
-				v = line.lstrip('version = "').rstrip('"\n')
-				return v
+	meta_file = pl.Path(__file__).parent.parent.resolve()/'recipie'/'meta.yaml'
+	with open(meta_file) as file_in:
+		version_line = file_in.readline().strip()
+	
+	if not version_line.startswith('{% set version = "') or not version_line.endswith('" %}'):
+		raise RuntimeError(f"First line in meta.yaml ({meta_file}) is not corrected formatted.\n" +\
+					 	f"Expected: '{{% set version = \"X.X.X\" %}}', Line: '{version_line}'")
+	
+	ver = version_line.split('"')[1]
+	return ver
+
 
 
 def linecount(file:str) -> int:
