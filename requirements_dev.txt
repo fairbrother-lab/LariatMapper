@@ -1,7 +1,0 @@
-conda-build
-conda-tree
-ipykernel
-pytest
-pytest-xdist
-r-irkernel
-scalene
