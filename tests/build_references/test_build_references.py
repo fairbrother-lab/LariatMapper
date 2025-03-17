@@ -14,6 +14,7 @@ import test_utils
 #                                  Globals                                     #
 # =============================================================================#
 PACKAGE_DIR = pathlib.Path(__file__).parent.parent.parent.resolve()
+SCRIPTS_DIR = PACKAGE_DIR/'LariatMapper'/'scripts'
 TEST_DIR = PACKAGE_DIR/'tests'/'build_references'
 
 # =============================================================================#
@@ -43,7 +44,7 @@ TEST_DIR = PACKAGE_DIR/'tests'/'build_references'
 					[None, 
 					'--debug'])
 def test_build_references(fasta, anno, repeatmasker_bed, threads, copy, verbosity, tmp_path):
-	command = f"python {PACKAGE_DIR/'build_references.py'} --skip_r" +\
+	command = f"python {PACKAGE_DIR/'LariatMapper'/'build_references.py'} --skip_r" +\
 			f" --hisat2_index {TEST_DIR/'inputs'/'hisat2_index'}" +\
 			f" --genome_fasta {fasta}" +\
 			f" {anno} -o {tmp_path}"
@@ -74,7 +75,7 @@ def test_build_references(fasta, anno, repeatmasker_bed, threads, copy, verbosit
 	  				'--quiet',
 					'--debug'])
 def test_build_R_refs(verbosity, tmp_path):
-	command = f"Rscript {PACKAGE_DIR}/scripts/build_R_refs.R" +\
+	command = f"Rscript {SCRIPTS_DIR/'build_R_refs.R'}" +\
 			f" --anno {TEST_DIR/'inputs'/'hg38.gencode.v44.sample.gtf'}" +\
 			f" --g_attr gene_id --t_attr transcript_id --output {tmp_path}"
 	for optional_arg in (verbosity,):

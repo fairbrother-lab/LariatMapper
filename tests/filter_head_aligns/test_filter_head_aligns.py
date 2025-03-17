@@ -14,6 +14,7 @@ import test_utils
 #                                  Globals                                     #
 # =============================================================================#
 PACKAGE_DIR = pathlib.Path(__file__).parent.parent.parent.resolve()
+SCRIPTS_DIR = PACKAGE_DIR/'LariatMapper'/'scripts'
 TEST_DIR = PACKAGE_DIR/'tests'/'filter_head_aligns'
 
 
@@ -40,7 +41,7 @@ def test_filter_head_aligns(threads, temp_switch_filter, prefix, verbosity, tmp_
 		os.symlink(TEST_DIR/'inputs'/file, tmp_path/f'{prefix}{file}')
 
 	# Run script
-	command = f"python {PACKAGE_DIR/'scripts'/'filter_head_aligns.py'} {threads}" \
+	command = f"python {SCRIPTS_DIR/'filter_head_aligns.py'} {threads}" \
 			  f" {TEST_DIR/'inputs'/'exons.tsv'} {TEST_DIR/'inputs'/'introns.tsv'} " \
 			  f"{TEST_DIR/'inputs'/'genome.fa'} {temp_switch_filter} {tmp_path}/{prefix} {verbosity}"  
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)

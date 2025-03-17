@@ -13,6 +13,7 @@ import test_utils
 #                                  Globals                                     #
 # =============================================================================#
 PACKAGE_DIR = pathlib.Path(__file__).parent.parent.parent.resolve()
+SCRIPTS_DIR = PACKAGE_DIR/'LariatMapper'/'scripts'
 TEST_DIR = PACKAGE_DIR/'tests'/'bp_correction'
 Method_Combo = collections.namedtuple('Method_Combo', ['method_arg', 'path_arg', 'output'])
 
@@ -42,10 +43,10 @@ def test_bp_correction(method_combo, log_level, tmp_path):
 	subprocess.run(f"gunzip --keep --stdout {TEST_DIR/'inputs'/'hg38.chr22.fa.gz'} > {tmp_path}/hg38.chr22.fa", shell=True)
 	subprocess.run(f"cp {TEST_DIR/'inputs'/'hg38.chr22.fa.fai'} {tmp_path}/hg38.chr22.fa.fai", shell=True)
 
-	command = f"Rscript {PACKAGE_DIR/'scripts'/'bp_correction_wrapper.R'}" +\
+	command = f"Rscript {SCRIPTS_DIR/'bp_correction_wrapper.R'}" +\
 				f" --input {TEST_DIR/'inputs'/'lariat_reads.tsv'}" +\
 				f" --ref_fasta {tmp_path/'hg38.chr22.fa'}" +\
-				f" --file {PACKAGE_DIR/'scripts'/'bp_correction.R'}" +\
+				f" --file {SCRIPTS_DIR/'bp_correction.R'}" +\
 				' ' + method_combo.method_arg +\
 				' ' + method_combo.path_arg +\
 				f" --output_base {tmp_path}/"

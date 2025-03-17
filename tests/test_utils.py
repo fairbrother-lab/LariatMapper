@@ -17,8 +17,6 @@ BUILD_REFERENCES_DIR = PACKAGE_DIR/'tests'/'build_references'
 FILTER_FIVEP_ALIGNS_DIR = PACKAGE_DIR/'tests'/'filter_fivep_aligns'
 FILTER_HEAD_ALIGNS_DIR = PACKAGE_DIR/'tests'/'filter_head_aligns'
 FILTER_LARIATS_DIR = PACKAGE_DIR/'tests'/'filter_lariats'
-INPUTS_DIR = PACKAGE_DIR/'tests'/'inputs'
-OUTPUTS_DIR = PACKAGE_DIR/'tests'/'outputs'
 
 
 

@@ -14,6 +14,7 @@ import test_utils
 #                                  Globals                                     #
 # =============================================================================#
 PACKAGE_DIR = pathlib.Path(__file__).parent.parent.parent.resolve()
+SCRIPTS_DIR = PACKAGE_DIR/'LariatMapper'/'scripts'
 TEST_DIR = PACKAGE_DIR/'tests'/'filter_lariats'
 
 
@@ -35,7 +36,7 @@ def test_filter_lariats(prefix, seq_type, verbosity, tmp_path):
 		os.symlink(TEST_DIR/'inputs'/file, tmp_path/f'{prefix}{file}')
 
 	# Run script
-	command = f"python {PACKAGE_DIR/'scripts'/'filter_lariats.py'} {tmp_path}/{prefix} {verbosity}" \
+	command = f"python {SCRIPTS_DIR/'filter_lariats.py'} {tmp_path}/{prefix} {verbosity}" \
 			  f" {seq_type} {TEST_DIR/'inputs'/'genome.fa'} {TEST_DIR/'inputs'/'repeatmasker.bed'}" 
 	response = subprocess.run(command, shell=True, capture_output=True, text=True)
 	response_text = '\n' + response.stdout + response.stderr

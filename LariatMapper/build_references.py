@@ -309,12 +309,7 @@ if __name__ == '__main__':
 	log = utils.get_logger(log_level)
 
 	# Report version
-	pipeline_dir = os.path.dirname(os.path.realpath(__file__))
-	with open(f'{pipeline_dir}/pyproject.toml') as toml:
-		for line in toml:
-			if line.startswith('version = "'):
-				version = line.lstrip('version = "').rstrip('"\n')
-				log.info(f'LariatMapper {version}')
+	log.info(f'LariatMapper {utils.version()}')
 
 	# Print arguments
 	arg_message = [f'{key}={val}' for key, val in vars(args).items() if val is not None and val is not False]
