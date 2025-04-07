@@ -21,6 +21,15 @@ from scripts import utils
 # =============================================================================#
 FORBIDDEN_CHARS = (" ", '\\', '>', '<', '&', '~', '*', '?', '[', ']', ',', ';', '|', '!', '$', "'", '"')
 
+REF_DIR_META_FILE = 'meta.txt'
+
+
+
+
+
+# =============================================================================#
+#                                  Classes                                     #
+# =============================================================================#
 @dataclasses.dataclass
 class Settings:
 	REQ_REFS = (('ref_h2index', 'hisat2_index'), 
@@ -84,7 +93,7 @@ class Settings:
 					default_path = pathlib.Path(os.path.join(self.ref_dir, ref_file_name + '.gz'))
 
 				setattr(self, ref_attr_name, default_path)
-		
+
 		# If ref_repeatmasker wasn't input, set it to {ref_dir}/repeatmasker.bed
 		# If it doesn't exist that's fine, filter_lariats.py will check before trying to use it
 		if self.ref_repeatmasker is None:
@@ -132,7 +141,7 @@ class Settings:
 			self.log_level = 'INFO'
 
 
-	def validate_args(self):
+	def validate_args(self, log):
 		# Confirm that the read file(s) exit
 		if self.seq_type=='single' and self.read_file.is_file() is False:
 			raise ValueError(f'"{self.read_file}" is not an existing file')
@@ -151,6 +160,18 @@ class Settings:
 		if (not os.path.isfile(f'{self.ref_h2index}.1.ht2')) and (not os.path.isfile(f'{self.ref_h2index}.1.ht2l')):
 			raise ValueError(f'"{self.ref_h2index}" is not an existing hisat2 index')
 		
+		# If ref_dir was input, check if the version in metadata file matches the current version
+		# and warn if they don't match
+		if self.ref_dir is not None:
+			if not os.path.isfile(os.path.join(self.ref_dir, 'meta.txt')):
+				log.warning(f'Reference directory provided ({self.ref_dir}), but no meta.txt file found within it. The directory may not be valid. Only use a directory created with build_references.py as input to -r/--ref_dir')
+			
+			with open(os.path.join(self.ref_dir, 'meta.txt')) as file_in:
+				metadata = file_in.readlines()
+				ref_version = metadata[3].strip('\n').removeprefix('Version: ')
+			if ref_version != utils.version():
+				log.warning(f'The provided reference directory ({self.ref_dir}) was built with LariatMapper version {ref_version}, but you are using version {utils.version()}. This may cause unexpected behavior.')
+	
 		# Confirm that the output directory parent exists and it doesn't have forbidden characters
 		if self.output_dir.parent.is_dir() is False:
 			raise ValueError(f'"{self.output_dir.parent}" is not an existing directory')
@@ -274,7 +295,7 @@ if __name__ == '__main__':
 	log.info(f'Arguments: \n\t{arg_message}')
 
 	# Validate arguments
-	settings.validate_args()
+	settings.validate_args(log)
 
 	# Make output dir
 	log.info('Preparing directories...')
