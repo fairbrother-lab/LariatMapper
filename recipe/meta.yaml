@@ -11,8 +11,6 @@ source:
 build:
   number: 0
   noarch: generic
-  additional-platforms:
-    - osx-arm64
   entry_points:
     - LariatMapper: LariatMapper.larmap:main
     - LariatMapper-build: LariatMapper.build_references:main
