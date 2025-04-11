@@ -107,11 +107,8 @@ delete_temp_files(){
 }
 
 end_run() {
-	### Classify reads
-	print_message "Classifying linearly-aligned reads..."
-	Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE
-	check_exitcode
-	print_message "Classifying non-linearly-aligned reads..."
+	### Classify nonlinear reads
+	print_message "Classifying reads non-linearly aligned reads..."
 	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL 
 	check_exitcode
 
@@ -191,9 +188,16 @@ elif [ "$SEQ_TYPE" == "paired" ]; then
 
 fi
 
+# 
 samtools index $output_bam
 check_exitcode
 
+# 
+print_message "Classifying linearly aligned reads..."
+Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE
+check_exitcode
+
+# 
 unmapped_read_count=$(samtools view --count --require-flags 4 $output_bam)
 if [ $unmapped_read_count == 0 ];then
 	print_message "All reads mapped linearly to genome."
