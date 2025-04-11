@@ -4,12 +4,15 @@ import argparse
 import json
 import os
 import multiprocessing
-import subprocess
 import dataclasses
 import pathlib
+import subprocess
+import sys
 
 # This line is where our third-party imports would go, if we had any
 
+# Have to make sure the LariatMapper directory is in the path so we can import utils
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from scripts import utils
 
 
@@ -227,7 +230,7 @@ class Settings:
 # =============================================================================#
 #                                    Main                                      #
 # =============================================================================#
-if __name__ == '__main__':
+def main():
 	# Argument parser
 	parser = argparse.ArgumentParser(prog='larmap.py', description='Extracts lariats and their branchpoint positions from RNA-seq data')
 	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {utils.version()}', help='print the version id and exit')
@@ -316,3 +319,7 @@ if __name__ == '__main__':
 	log.debug(f'map_lariats args: {settings.map_lariats_args}')
 	map_call = f"{settings.pipeline_dir/'scripts'/'map_lariats.sh'} {' '.join(settings.map_lariats_args)}"
 	subprocess.run(map_call.split(' '))
+
+
+if __name__ == '__main__':
+	main()

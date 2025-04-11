@@ -4,9 +4,13 @@ import datetime
 import gzip
 import os
 import shutil
+import sys
 
 import pandas as pd
 
+
+# Have to make sure the LariatMapper directory is in the path so we can import utils
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from scripts import utils
 
 
@@ -267,7 +271,7 @@ def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str
 #=============================================================================#
 #                                    Main                                     #
 #=============================================================================#
-if __name__ == '__main__':
+def main():
 	parser = argparse.ArgumentParser(prog='build_references',
 								  	description='Create a directory with the required reference files for running LariatMapper. A reference directory is specific to one reference genome.')
 	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {utils.version()}', help='print the version id and exit')
@@ -386,8 +390,12 @@ if __name__ == '__main__':
 
 	if not args.skip_r:
 		log.info('Building R objects...')
-		cmd = f"Rscript {pipeline_dir}/scripts/build_R_refs.R" +\
+		cmd = f"Rscript {utils.get_LariatMapper_path()}/scripts/build_R_refs.R" +\
 				f" --anno {genome_anno} --g_attr {g_attr} --t_attr {t_attr} --output {out_dir}"
 		utils.run_command(cmd, log=log)
 
 	log.info('Reference building complete.')
+
+
+if __name__ == '__main__':
+	main()
