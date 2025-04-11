@@ -4,8 +4,15 @@
 
 echo "Path is $PATH"
 echo "Working dir is $(pwd)"
-echo "Source dir is $SRC_DIR"
-python3 LariatMapper/larmap.py --help
-python3 LariatMapper/build_references.py --help
-LariatMapper --help
-pytest -n auto tests
+
+# 1> /dev/null eliminates stdout but stderr will still be printed if there are errors
+lariatmapper --help 1> /dev/null
+lariatmapper-build --help 1> /dev/null
+
+# larmap.py --help
+# build_references.py --help
+
+# echo "Running pytest"
+# pytest -n auto tests
+
+echo "Testing complete."

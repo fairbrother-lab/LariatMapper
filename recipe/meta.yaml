@@ -5,15 +5,14 @@ package:
   version: {{ version }}
 
 source:
-  path: ../
+  path: ../     # You can use the local path to the source code when testing the conda build process after modifying the package 
   # url: https://github.com/fairbrother-lab/LariatMapper/archive/refs/tags/v{{ version }}.tar.gz
 
 build:
   number: 0
-  noarch: generic
   entry_points:
-    - LariatMapper: LariatMapper.larmap:main
-    - LariatMapper-build: LariatMapper.build_references:main
+    - lariatmapper = LariatMapper.larmap:main
+    - lariatmapper-build = LariatMapper.build_references:main
   pin_depends: record
 
 channels:
@@ -23,8 +22,9 @@ channels:
 requirements:
   host:
     - git
-    - python >=3.9, <=3.11
-    - r-base =4.1.*         # Explicitly define the r-base version to prevent breakage if something changes in newer versions
+    # - python >=3.9, <=3.11  # Python 3.12 add a DeprecationWarning  
+    - python 
+    - r-base =4.1.*        # Explicitly define the r-base version to prevent breakage if something changes in newer versions
     - numpy =2.2.*         # Explicitly define numpy version to address numpy-specific quirks in conda-build
   run:
     - bcftools
@@ -52,9 +52,6 @@ requirements:
 
 test:
   files:
-    - LariatMapper/build_references.py
-    - LariatMapper/larmap.py
-    - LariatMapper/scripts/*
     - tests/*
   requires:
     - pytest
