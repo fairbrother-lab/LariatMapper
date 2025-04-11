@@ -124,7 +124,7 @@ class Settings:
 		else:
 			for char in FORBIDDEN_CHARS:
 				if char in str(self.output_prefix):
-					parser.error(f'Illegal character in output prefix: {char}')
+					raise ValueError(f'Illegal character in output prefix: {char}')
 			self.output_base = f'{self.output_dir/self.output_prefix}_'
 
 		# pwm_correction and model_correction
