@@ -103,6 +103,13 @@ def align_orient(flag:int) -> bool:
 	return orient
 
 
+def get_LariatMapper_path() -> str:
+	'''
+	Return the path to the LariatMapper directory
+	'''
+	return pl.Path(__file__).parent.parent.resolve()
+
+
 def get_logger(level:str) -> logging.Logger:
 	'''
 	Configure logging settings based on <pipeline_dir>/resources/log_config.json file, and return a logging.Logger object for the specified <level>
