@@ -42,7 +42,7 @@ The software dependencies are detailed in `requirements.txt`. We recommend creat
 
 If you have mamba installed, you can create a new environment named "larmap" by running
 ```
-mamba create --name "larmap" --file requirements.txt --channel conda-forge --channel bioconda
+mamba create --name "larmap" --file LariatMapper/requirements.txt --channel conda-forge --channel bioconda
 ```
 
 The environment can then be activated by running

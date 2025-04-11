@@ -1,5 +1,9 @@
 # Demo
-Here, we take a look at running LariatMapper via the command line. To follow this demonstration, open a Linux or MacOS command line terminal. As you read, copy the blocks of code into the terminal and run them. You will need to have [LariatMapper](https://github.com/fairbrother-lab/LariatMapper) and [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) installed. 
+Here, we take a look at running LariatMapper via the command line. To follow this demonstration, open a Linux or MacOS command line terminal. As you read, copy the blocks of code into the terminal and run them. You will need to have the package-manager [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) installed and access to [github.com](https://github.com). 
+
+
+
+
 
 First, download the demo data at https://github.com/fairbrother-lab/LariatMapper_aux. You can do this command line with `git`:
 
