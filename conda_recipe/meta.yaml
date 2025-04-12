@@ -24,8 +24,8 @@ requirements:
     - git
     # - python >=3.9, <=3.11  # Python 3.12 add a DeprecationWarning  
     - python 
-    - r-base =4.1.*        # Explicitly define the r-base version to prevent breakage if something changes in newer versions
-    - numpy =2.2.*         # Explicitly define numpy version to address numpy-specific quirks in conda-build
+    - r-base =4.*        # Explicitly define the r-base version to prevent breakage if something changes in newer versions
+    - numpy =2.*         # Explicitly define numpy version to address numpy-specific quirks in conda-build
   run:
     - bcftools
     - bedtools

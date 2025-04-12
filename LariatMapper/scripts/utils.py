@@ -197,7 +197,7 @@ def version() -> str:
 	'''
 	Return the current version of LariatMapper (format Major.Minor.Patch)
 	'''
-	meta_file = pl.Path(__file__).parent.parent.parent.resolve()/'recipe'/'meta.yaml'
+	meta_file = pl.Path(__file__).parent.parent.parent.resolve()/'conda_recipe'/'meta.yaml'
 	with open(meta_file) as file_in:
 		version_line = file_in.readline().strip()
 	
