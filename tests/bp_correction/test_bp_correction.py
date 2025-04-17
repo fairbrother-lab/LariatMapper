@@ -13,7 +13,7 @@ import test_utils
 #                                  Globals                                     #
 # =============================================================================#
 PACKAGE_DIR = pathlib.Path(__file__).parent.parent.parent.resolve()
-SCRIPTS_DIR = PACKAGE_DIR/'LariatMapper'/'scripts'
+SCRIPTS_DIR = PACKAGE_DIR/'lariatmapper'/'scripts'
 TEST_DIR = PACKAGE_DIR/'tests'/'bp_correction'
 Method_Combo = collections.namedtuple('Method_Combo', ['method_arg', 'path_arg', 'output'])
 

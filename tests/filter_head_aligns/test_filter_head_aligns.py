@@ -14,7 +14,7 @@ import test_utils
 #                                  Globals                                     #
 # =============================================================================#
 PACKAGE_DIR = pathlib.Path(__file__).parent.parent.parent.resolve()
-SCRIPTS_DIR = PACKAGE_DIR/'LariatMapper'/'scripts'
+SCRIPTS_DIR = PACKAGE_DIR/'lariatmapper'/'scripts'
 TEST_DIR = PACKAGE_DIR/'tests'/'filter_head_aligns'
 
 

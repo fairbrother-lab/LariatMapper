@@ -14,7 +14,7 @@ import test_utils
 #                                  Globals                                     #
 # =============================================================================#
 PACKAGE_DIR = pathlib.Path(__file__).parent.parent.parent.resolve()
-SCRIPTS_DIR = PACKAGE_DIR/'LariatMapper'/'scripts'
+SCRIPTS_DIR = PACKAGE_DIR/'lariatmapper'/'scripts'
 TEST_DIR = PACKAGE_DIR/'tests'/'build_references'
 
 # =============================================================================#
@@ -44,7 +44,7 @@ TEST_DIR = PACKAGE_DIR/'tests'/'build_references'
 					[None, 
 					'--debug'])
 def test_build_references(fasta, anno, repeatmasker_bed, threads, copy, verbosity, tmp_path):
-	command = f"python {PACKAGE_DIR/'LariatMapper'/'build_references.py'} --skip_r" +\
+	command = f"python {PACKAGE_DIR/'lariatmapper'/'build_references.py'} --skip_r" +\
 			f" --hisat2_index {TEST_DIR/'inputs'/'hisat2_index'}" +\
 			f" --genome_fasta {fasta}" +\
 			f" {anno} -o {tmp_path}"
