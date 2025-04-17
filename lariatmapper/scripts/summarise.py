@@ -1,3 +1,15 @@
+
+# This script summarizes the pipeline run and the results produced, including a few summary statistics.
+# This script is called after the main pipeline is complete.
+# This script produces 2 output files:
+# 	- summary.txt, a human-friendly text file detailing the settings of the run, the read class 
+# counts, and several summary statistics
+# 	- read_counts.tsv, a machine-friendly table of the read counts for read classes, different 
+# stages of the pipeline, and other read counts that may be of interest
+# If the pipeline run ended early due to running out of reads, this script will also produce empty
+# tables for the files lariat_reads.tsv, template_switching_reads.tsv, and 
+# circularized_intron_reads.tsv, to maintain consistency in the output files
+
 import os
 import sys
 import json

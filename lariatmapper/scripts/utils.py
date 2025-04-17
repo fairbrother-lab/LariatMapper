@@ -1,3 +1,7 @@
+
+# This script contains functions that are used in multiple python scripts in LariatMapper.
+# It also contains a custom Exception class for commands run with subprocess.run().
+
 import os
 import logging
 import logging.config

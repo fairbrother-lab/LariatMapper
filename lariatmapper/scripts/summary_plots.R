@@ -1,3 +1,9 @@
+
+# This script produces plots that summarize aspects of interest in the pipeline's output.
+# This script is called after the main pipeline is complete.
+# This script makes a subdirectory in the output directory named "plots", and writes plots to file
+# within that subdirectory.
+
 suppressPackageStartupMessages(require(optparse))
 suppressPackageStartupMessages(require(ggplot2))
 suppressPackageStartupMessages(require(tidyverse))

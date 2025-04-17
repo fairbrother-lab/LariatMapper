@@ -1,6 +1,20 @@
 
-# This script 
-# 
+# This script processes the alignments produced by mapping 5' splice site sequences to all unmapped
+# reads, filtering out alignments that aren't indicative of a lariat read. Alignments to each read
+# are grouped by alignment orientation (forward or reverse), and each read + orientation is treated
+# as a separate read from now through the filter_head_aligns.py script. The location of the 5'ss 
+# sequence in the read determines how the read is split into "head" and "tail" fragments, with the
+# first base in the 5'ss marking the start of the tail and leaving the sequence upstream as the head.
+# For speed, the processing is parallelized such that each thread is assigned an equal chunk 
+# of alignments, with some correction at the start and end of the chunk to ensure that, for each 
+# read, all the 5'ss that aligned to it are processed together. This depends on the alignments file
+# having been sorted by read ID (i.e. the reference in the alignment).
+# This script outputs 3 files: 
+# 	- failed_fivep_alignments.tsv, a table of all the 5'ss alignments that failed one of the filters
+# 	- tails.tsv, a table of all the instances of read + orientation + 5' splice sites tha passed 
+# the filters
+# 	- heads.fa, a FASTA file of the head sequences for each read + orientation, which will be mapped
+# to the genome in the next step of the pipeline.
 
 
 

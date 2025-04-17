@@ -1,3 +1,27 @@
+
+# This script processes the alignments produced by mapping all head sequences to the genome.
+# It behaves similarly to filter_fivep_aligns.py, in that it load reference data, assigns a chunk
+# of the alignment file to each thread, and each thread proceeds to gather information for each
+# alignment and run it through several filters. That being said, this script is significantly 
+# more complicated. 
+# For clarity, custom dataclasses are used to carry conceptually distinct components:
+# 	- FivepSite: Represents a 5'ss annotation
+# 	- ReadTail: Represents a particular read + orientation, and its tail in particular
+# 	- ReadHeadAlignment: Represents an alignment of a head sequence to the genome
+# The ReadHeadAlignments are grouped together into ReadTail objects to infer some information about
+# them, like the read + orientation grouping in filter_fivep_aligns.py, but then the alignments
+# are processed seperately. After all of the alignments are processed in parallel, the script
+# infers the classification of each read by which output file(s) its alignments ended up in. 
+# The script produces 4 output files:
+# 	- failed_head_alignments.tsv, a table of the ReadHeadAlignments that failed one of the filters
+# 	- template_switching_reads.tsv, a table of the ReadHeadAlignments that are indicative of a 
+# template-switching event. Altered in the post-processing step
+# 	- circularized_intron_reads.tsv, a table of the ReadHeadAlignments that are indicative of a
+# circularized intron. Altered in the post-processing step
+# 	- putative_lariats.tsv, a table of the ReadHeadAlignments that are indicative of a lariat. This
+# table will be processed by the filter_lariats.py script in the next step of the pipeline.
+
+
 import bisect
 import dataclasses
 import itertools as it

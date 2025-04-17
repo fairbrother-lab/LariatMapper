@@ -1,3 +1,11 @@
+
+# This script produces a .bed file formatted to act as a custom track in the UCSC genome browser,
+# the items in the track being the lariat alignments in lariat_reads.tsv. 
+# This script is called after the main pipeline is complete.
+# This script produces 1 output file, lariat_reads.bed.
+
+
+
 import sys
 
 import pandas as pd

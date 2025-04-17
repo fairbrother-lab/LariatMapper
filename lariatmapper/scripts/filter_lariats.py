@@ -1,3 +1,13 @@
+
+# This script processes the putative lariat alignments produced by the filter_head_aligns.py script.
+# If a read has multiple valid lariat alignments, it chooses just to keep in the output.
+# This script produces 2 output files:
+# 	- failed_lariat_alignments.tsv, a table of the putative lariat alignments that failed one of
+# the filters
+# 	- lariat_reads.tsv, a table of the confirmed lariat reads and their alignment information
+
+
+
 import sys
 import gzip
 import random
@@ -23,7 +33,6 @@ PUTATITVE_LARIATS_FILE = "{}putative_lariats.tsv"
 # Out files
 FAILED_LARIATS_FILE = "{}failed_lariat_alignments.tsv"
 LARIATS_FILE = "{}lariat_reads.tsv"
-RUN_DATA_FILE = "{}read_counts.tsv"
 
 FINAL_RESULTS_COLS = ['read_id',
                         'gene_id',
