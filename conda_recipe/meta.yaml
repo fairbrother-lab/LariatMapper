@@ -7,8 +7,9 @@ package:
 source:
   # You can use the path to the source code on your machine when testing modifications 
   path: /home/mrdawn/Lariat_mapping/LariatMapper
-  ## The url below points to the set release on GitHub. Make sure to update the sha256 hash when 
+  ## The url below points to the release on GitHub
   # url: https://github.com/fairbrother-lab/LariatMapper/archive/refs/tags/v{{ version }}.tar.gz
+  ## Make sure to update the sha256
   # sha256: 
 
 build:
@@ -16,9 +17,8 @@ build:
   entry_points:
     - lariatmapper-run = lariatmapper.larmap:main
     - lariatmapper-build = lariatmapper.build_references:main
-  pin_depends: record
   noarch: generic       # Bioconductor wants this line
-  run_exports:          # Bioconductor also wants this line
+  run_exports:          # Bioconductor also wants these 2 lines
       - {{ pin_subpackage('lariatmapper', max_pin="x.x") }}
 
 channels:
@@ -55,20 +55,14 @@ requirements:
     - r-tidyverse
     - samtools
 
-test:
-  files:
-    - tests/*
-  requires:
-    - pytest
-    - pytest-xdist
-  # Test commands (including pytest) need to be put in run_test.sh
+# test:
+#   files:
+#     - tests/*
+#   requires:
+#     - pytest
+#     - pytest-xdist
+#   # Test commands (including pytest) need to be put in run_test.sh
   # to follow bioconda rules (https://bioconda.github.io/contributor/guidelines.html#test-dependencies)
-
-outputs:
-  - name: lariatmapper
-    files:
-      exclude:
-        - tests/*
 
 about:
   home: https://github.com/fairbrother-lab/LariatMapper

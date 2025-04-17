@@ -11,6 +11,6 @@ lariatmapper-run --help 1> /dev/null
 lariatmapper-build --help 1> /dev/null
 
 # # Run the script tests
-# pytest --numprocesses auto -x $PREFIX/bin/tests
+# pytest --numprocesses auto $PREFIX/bin/tests
 
 echo "Testing complete."
