@@ -328,7 +328,7 @@ def main():
 	log.info(f'Arguments: \n{arg_message}')
 
 	# Validate the args and determine additional variables
-	hisat2_extensions, anno_type, anno_gzip, genome_fasta_out = process_args(args, parser, log)
+	hisat2_extensions, anno_type, anno_gzip, genome_fasta_out = process_args(args, parser)
 
 	# Unpack args
 	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, out_dir, threads, copy, t_attr, g_attr  = args.genome_fasta, args.genome_anno, args.repeatmasker_bed, args.hisat2_index, args.out_dir, args.threads, args.copy, args.t_attr, args.g_attr
