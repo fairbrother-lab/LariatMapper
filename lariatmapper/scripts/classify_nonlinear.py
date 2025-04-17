@@ -1,3 +1,11 @@
+
+# This script creates a table of all input reads that didn't map linearly, assigning each read
+# a read class and recording the furthest stage they reached in the pipeline before being filtered 
+# out (or "To the end", for lariat reads). See OUT_COLS for the full list of columns in the table.
+# The read classes and stages are determined by working backwards through the pipeline, starting with
+# the lariat reads and ending with the FASTA of unmapped reads from the initial mapping step,
+# classifying each read by the last output file it appears in. 
+
 import sys
 import os
 
@@ -18,12 +26,11 @@ STAGES = ('Linear mapping', "Fivep mapping", "Fivep alignment filtering",
 READ_CLASSES = ("Linear", "No alignment", "Fivep alignment", 'Template-switching', 
 				'Circularized intron', 'Lariat',)
 
-OUT_COLS = ['read_id',
-			'read_class',
-			'stage_reached',
-			'filter_failed',
-			'spliced',
-			'gene_id',
+OUT_COLS = ['read_id', 			# Unique
+			'read_class', 		# One of READ_CLASSES
+			'stage_reached',	# One of STAGES
+			'filter_failed',	# Comma-delimited list of filters the read failed, or "N/A" 
+			'gene_id',			# Comma-delimited list of Gene ID(s) associated the read, or "N/A"
 			]
 
 
@@ -160,7 +167,7 @@ if __name__ == '__main__':
 		log.warning('0 nonlinear read alignments')
 
 	# Convert to DataFrame
-	read_classes = pd.DataFrame(read_classes, columns=['read_id', 'read_class', 'stage_reached', 'filter_failed', 'gene_id'])
+	read_classes = pd.DataFrame(read_classes, columns=OUT_COLS)
 	log.debug(f'read class counts: {read_classes.read_class.astype("str").value_counts().sort_index().to_dict()}')
 
 	# Do this to prevent ('id_a', 'id_a,id_b') -> 'id_a,id_a,id_b' since the gene_id col may already be comma-delimited

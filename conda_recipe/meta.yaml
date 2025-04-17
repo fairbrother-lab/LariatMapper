@@ -1,19 +1,25 @@
-{% set version = "0.16.1" %}
+{% set version = "0.17.0" %}
 
 package:
   name: lariatmapper
   version: {{ version }}
 
 source:
-  path: ../     # You can use the local path to the source code when testing the conda build process after modifying the package 
+  # You can use the path to the source code on your machine when testing modifications 
+  path: /home/mrdawn/Lariat_mapping/LariatMapper
+  ## The url below points to the set release on GitHub. Make sure to update the sha256 hash when 
   # url: https://github.com/fairbrother-lab/LariatMapper/archive/refs/tags/v{{ version }}.tar.gz
+  # sha256: 
 
 build:
   number: 0
   entry_points:
-    - lariatmapper = LariatMapper.larmap:main
-    - lariatmapper-build = LariatMapper.build_references:main
+    - lariatmapper-run = lariatmapper.larmap:main
+    - lariatmapper-build = lariatmapper.build_references:main
   pin_depends: record
+  noarch: generic       # Bioconductor wants this line
+  run_exports:          # Bioconductor also wants this line
+      - {{ pin_subpackage('lariatmapper', max_pin="x.x") }}
 
 channels:
   - conda-forge
@@ -22,10 +28,9 @@ channels:
 requirements:
   host:
     - git
-    # - python >=3.9, <=3.11  # Python 3.12 add a DeprecationWarning  
-    - python 
-    - r-base =4.*        # Explicitly define the r-base version to prevent breakage if something changes in newer versions
-    - numpy =2.*         # Explicitly define numpy version to address numpy-specific quirks in conda-build
+    - python =3.10.*  # Explicitly define the python version to prevent breakage
+    - r-base =4.4.*        # Explicitly define the r-base version to prevent breakage 
+    - numpy =2.2.*         # Explicitly define numpy version to address numpy-specific quirks in conda-build
   run:
     - bcftools
     - bedtools
@@ -58,6 +63,12 @@ test:
     - pytest-xdist
   # Test commands (including pytest) need to be put in run_test.sh
   # to follow bioconda rules (https://bioconda.github.io/contributor/guidelines.html#test-dependencies)
+
+outputs:
+  - name: lariatmapper
+    files:
+      exclude:
+        - tests/*
 
 about:
   home: https://github.com/fairbrother-lab/LariatMapper

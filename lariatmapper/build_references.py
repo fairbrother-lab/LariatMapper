@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+
+# This is a script for building a reference directory for LariatMapper runs. 
+# It takes command-line arguments with argparse.
+# In addition to the reference files for LariatMapepr, it creates a metadata file file named 
+# "meta.txt" that records the LariatMapper version, the run time, and the settings used.
+# Run "python build_references.py -h" to see all the arguments.
+
 import argparse
 import datetime
 import gzip
@@ -59,7 +66,7 @@ def write_metadata(args:argparse.Namespace, out_dir:str):
 			meta_out.write(f'{key}: {val}\n')
 
 
-def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
+def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser):
 	# Confirm that input files exist
 	ref_names = ['Genome fasta', 'Reference annotation']
 	ref_files = [args.genome_fasta, args.genome_anno]

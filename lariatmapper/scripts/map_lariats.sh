@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# This script runs the LariatMapper pipeline step-by-step. 
+# Each step is either a call to a command-line tool or a call to a script with custom logic.
+# Currently only python and R scripts are used.
+
 
 
 #=============================================================================#
@@ -188,16 +192,16 @@ elif [ "$SEQ_TYPE" == "paired" ]; then
 
 fi
 
-# 
+### Index the output BAM file so it can be read
 samtools index $output_bam
 check_exitcode
 
-# 
+### Get counts for each class of linearly-mapped reads from alignment data 
 print_message "Classifying linearly aligned reads..."
 Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE
 check_exitcode
 
-# 
+### Check if there are 0 unmapped reads (this will usually never happen with real RNA-seq data)
 unmapped_read_count=$(samtools view --count --require-flags 4 $output_bam)
 if [ $unmapped_read_count == 0 ];then
 	print_message "All reads mapped linearly to genome."
@@ -205,7 +209,7 @@ if [ $unmapped_read_count == 0 ];then
 fi
 
 
-### Create fasta file of unmapped reads 
+### Create fasta file of unmapped reads and index them
 print_message "Creating fasta file of unmapped reads..."
 samtools fasta -N --require-flags 4 -o $unmapped_fasta $output_bam >/dev/null 2>&1
 check_exitcode
@@ -220,22 +224,20 @@ check_exitcode
 
 
 ## Align fasta file of all 5' splice sites (first 20nts of introns) to unmapped reads index
-# We need to order the output SAM by read_id (which is the reference in this case)
-# so we can process all the alignments to each read together in the following filtering 
 print_message "Mapping 5' splice sites to reads..."
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
 	> $fivep_to_reads.tmp
 check_exitcode
+# We need to order the output SAM by read_id (which is the reference in this case)
+# so we can process all the alignments to each read together in the following filtering step
 samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $fivep_to_reads.tmp \
 	| samtools view \
 	> $fivep_to_reads
 check_exitcode
 
 
-## Extract reads with a mapped 5' splice site and trim it off
+### Extract reads with a mapped 5' splice site and trim it off
 print_message "Finding 5' read alignments and trimming reads..."
-# scalene --html --outfile "$OUTPUT_BASE"filter_fivep_aligns.html \
-# 	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
 python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
 check_exitcode
 
@@ -253,10 +255,8 @@ samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_gen
 check_exitcode
 
 
-### Filter head alignments
+### Filter head alignments, writing circularized introns & template-switching reads to output
 print_message "Analyzing head alignments and outputting lariat table..."
-# scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
-# 	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
 python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
 check_exitcode
 

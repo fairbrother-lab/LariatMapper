@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 
+# This is the top-level script for running LariatMapper.
+# It takes command-line arguments with argparse and validates them. It does a few setup tasks like
+# creating the output directory, initializing the logger, and setting the multiprocessing start
+# method to "spawn" for downstream scripts that use multiprocessing (currently 
+# filter_fivep_aligns.py and filter_head_aligns.py)
+# The parameters for the run are stored in a dataclass named Settings.
+# Finally, it calls the map_lariats.sh script to do the actual work. 
+# Run "python larmap.py -h" to see all the arguments.
+
 import argparse
 import json
 import os
