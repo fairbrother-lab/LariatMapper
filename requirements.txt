@@ -1,0 +1,24 @@
+bedtools
+bioconductor-biostrings
+bioconductor-genomicalignments
+bioconductor-genomicfeatures
+bioconductor-genomicranges
+bioconductor-rtracklayer
+bioconductor-txdbmaker         # Required by GenomicFeatures makeTxDbFromGRanges function
+bowtie2
+fsspec
+hisat2
+intervaltree
+numpy=2.2.*         # Explicitly define numpy version to address numpy-specific quirks in conda-build
+pandas
+pyarrow
+pyfaidx
+pysam
+python=3.10.*  # Explicitly define the python version to prevent breakage
+r-base=4.4.*
+r-bedtoolsr
+r-ggplot2
+r-magrittr
+r-optparse
+r-tidyverse
+samtools
