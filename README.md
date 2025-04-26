@@ -8,23 +8,28 @@ NOTE: LariatMapper is currently in development. If you encounter any problems wh
 
 
 ## Installation
-LariatMapper can be installed in a Linux or macOS system. It does not work in Windows. 
+LariatMapper can be installed in a Linux or macOS system. It will not work in Windows.
 
-You can download it in a command line terminal with [git](https://git-scm.com/):
+You can download it in a command line terminal with [git](https://git-scm.com/) by running
 
 ```
 git clone https://github.com/fairbrother-lab/LariatMapper
 ```
-
+and then 
+```
+cd LariatMapper
+```
+to enter the cloned directory.
 
 
 ## Setup
 ### Dependencies
-The software dependencies are detailed in `requirements.txt`. We recommend creating a dedicated programming environment for LariatMapper with [mamba](https://mamba.readthedocs.io/en/latest/user_guide/mamba.html) to avoid dependency-related problems during use. 
+LariatMapper's software dependencies are detailed in `requirements.txt`. Please note that the dependencies are named according to their package name in [conda](https://docs.conda.io/en/latest/), which may differ from their official name (for example, ggplot2 is named `r-ggplot2`). 
+All the dependencies can be obtained from the conda channels `conda-forge` or `bioconda`. We **STRONGLY** recommend creating a dedicated environment for LariatMapper with [mamba](https://mamba.readthedocs.io/en/latest/user_guide/mamba.html) to avoid dependency-related problems. 
 
-If you have mamba installed, you can create a new environment named "larmap" by running
+With mamba installed, you can create a new environment named "larmap" by running
 ```
-mamba create --name "larmap" --file LariatMapper/requirements.txt --channel conda-forge --channel bioconda
+mamba create --name "larmap" --file requirements.txt --channel conda-forge --channel bioconda
 ```
 
 The environment can then be activated by running
@@ -35,43 +40,55 @@ before using LariatMapper.
 
 
 ### Reference files
-LariatMapper needs a set of reference files to run.
+LariatMapper needs a set of reference files to process RNA-seq data. You will have to build a "reference directory" that contains these files from an appropriate reference genome.
 
 You will need:
 - A FASTA file of the reference genome (`GENOME_FASTA`)
 - A GTF or GFF file of annotations for the reference genome (`GENOME_ANNO`)
-- A hisat2 index of the reference genome (`HISAT2_INDEX`)
+- A [HISAT2 index](https://daehwankimlab.github.io/hisat2/) of the reference genome (`HISAT2_INDEX`)
+- An output path for the reference directory (`REF_DIR`) 
 
-Run `build_references.py` with the paths to each file and the desired output path (`REF_DIR`):
-
+With these items determined, run
 ```
 python build_references.py -f GENOME_FASTA -a GENOME_ANNO -i HISAT2_INDEX -o REF_DIR
 ```
 
+You can then use `REF_DIR` as the reference directory when running LariatMapper.
+
 `build_references.py` creates symbolic links to the input files by default. To copy the input files to `REF_DIR` instead, you can use the argument `-c, --copy`.
 
-You can then use `REF_DIR` as the reference files directory when running LariatMapper.
+If you have a BED file of repetitive regions from RepeatMasker, you can use the argument `-r, --repeatmasker_bed` to include it in the reference directory. You can find RepeatMasker files for several reference genomes on the [UCSC Genome Browser](https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker". If a RepeatMasker file is included in a run, LariatMapper will check putative lariat alignments for false positives which arise from repetitive regions. If the 5' splice site and branchpoint are both located in a reptitive region, the alignment will be filtered out.
 
-If you have a BED file of repetitive regions from RepeatMasker, you can use the argument `-r, --repeatmasker_bed` to copy it to the reference directory. You can find RepeatMasker files for several reference genomes on the [UCSC Genome Browser](https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker". 
-
-If a RepeatMasker file is included in a run, LariatMapper will check putative lariat alignments for false positives which arise from repetitive regions. If the 5' splice site and branchpoint are both located in a reptitive region, the alignment will be filtered out.
-
+To see all arguments for `build_references.py`, run
+```
+python build_references.py -h
+```
 
 
 ## Running the Pipeline
 ### Required arguments 
-For single-end sequencing data, run
+You will need:
+- A FASTQ file from single-end RNA-seq (`READ_FILE`) **OR** A pair of FASTQ files from paired-end RNA-seq (`READ_ONE`, `READ_TWO`)
+- A reference directory (`REF_DIR`)
+- An output path (`OUTPUT_DIR`)
+
+For single-end RNA-seq data, run
 ```
 python larmap.py -f READ_FILE -r REF_DIR -o OUTPUT_DIR
 ```
-For paired-end sequencing data, run
+For paired-end RNA-seq data, run
 ```
 python larmap.py -1 READ_ONE -2 READ_TWO -r REF_DIR -o OUTPUT_DIR
 ```
-LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers for reliable results. 
+The FASTQ files can be uncompressed or gzip-compressed. The RNA-seq data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers for reliable results.
+
+To see all arguments for `larmap.py`, run
+```
+python larmap.py -h
+```
 
 
-### All optional arguments
+### Optional arguments
 <details>
 <summary> Expand </summary>
 
@@ -119,11 +136,11 @@ LariatMapper accepts FASTQ-format files, uncompressed or gzip-compressed. The da
 ## Additional information
 See DEMO.md for a short demonstration of setting up and then running LariatMapper.
 
-See DETAILS.md for more detailed information about LariatMapper's design and how to use it.
+See DETAILS.md for more detailed information about LariatMapper's design and use.
 
 
 
 ## Contact us
-You can reach us via email at 
+You can reach us via email at jeremiah_buerer@brown.edu.
 
-- jeremiah_buerer@brown.edu
+You can also [create an issue on GitHub](https://github.com/fairbrother-lab/LariatMapper/issues/new) to provide feedback, suggest changes, or report bugs.
