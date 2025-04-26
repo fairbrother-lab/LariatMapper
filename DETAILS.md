@@ -11,20 +11,17 @@
 - [Software attributions](#software-attributions)
 
 
-![A flowchart of the LariatMapper pipeline](./resources/images/LariatMapper%20Flowcharts%20v3.svg)
-
-
 
 ## Concepts
 ### Head and tail
-![A diagram illustrating RNA-seq reads split into a head and a tail, and linear vs inverted gapped alignments](./resources/images/Linear%20vs%20Inverted%20alignments.svg)
+![A diagram illustrating RNA-seq reads split into a head and a tail, and linear vs inverted gapped alignments](./images/Linear%20vs%20Inverted%20alignments.svg)
 
 The fundamental goal of LariatMapper is to identify lariat reads by their inverted gapped alignment to the genome. To find those alignments, we split RNA-seq reads into two fragments. For practicality, we name the 5'-end fragment the **head** and the 3'-end fragment the **tail**.
 
 In the diagram above, we illustrate an mRNA read alignment as an example of a linear gapped alignment, with the head at the end of an exon and the tail at the start of a downstream exon. A lariat read alignment is used as an example of an inverted gapped alignment, with the head inside an intron and the tail at an upstream 5' splice site. 
 
 ### Read classes
-LariatMapper assigns a "read class" to all input reads which describes their RNA template. Some classes don't represent any particular type of RNA, but rather the extent of information that LariatMapper was able to obtain before the read got filtered out (e.g. **Fivep alignment**). Read classes can be divided into 2 groups based on whether or not the read aligned linearly to the genome in LariatMapper's first step:
+LariatMapper assigns a "read class" to all input reads which describes their RNA template. Some classes don't represent any particular type of RNA, but rather the extent of information that LariatMapper was able to obtain before the read got filtered out (e.g. **Fivep alignment**). Read classes can be divided into two groups based on whether or not the read aligned linearly to the genome in LariatMapper's first step:
 
 1. The read *does* have a valid linear alignment to the genome, and...
 	- **Exon-exon junction**: ... contains an exon-exon splice junction but no exon-intron junctions.
@@ -41,9 +38,15 @@ LariatMapper assigns a "read class" to all input reads which describes their RNA
 
 
 
-## Running the Pipeline
-### Steps
+<details>
+<summary> Classification flowchart </summary>
 
+![A flowchart showing LariatMapper's logic for determining the read class of input RNA-seq reads](./images/LariatMapper%20Flowcharts%20v5.svg)
+
+</details>
+
+
+## Running the Pipeline
 ### Branchpoint correction
 LariatMapper includes an option to try to correct the apparent branchpoint position of lariat reads to account for sequencing errors. When applied, LariatMapper will check a 3nt window downstream of the head's end position (the apparent branchpoint) to see if any of them are more likely to be the true branchpoint position. If there *is* a more likely branchpoint position, it will record that corrected position. 
 
@@ -56,21 +59,23 @@ Including branchpoint correction in a LariatMapper run will add the following co
  - `corrected_bp_mismatch `: `True` if `read_bp_nt` ≠ `corrected_genomic_bp_nt`, otherwise `False`. Identical to `bp_mismatch` if `corrected` = `False`
  - `corrected`: `True` if a more likely candidate for the branchpoint position was discovered, otherwise `False`
 
-LariatMapper can use different 2 approaches to branchpoint correction:
+LariatMapper can use different two approaches to branchpoint correction:
 
 **1. Position Weight Matrix (PWM)-based correction**
 
-This uses a PWM of the expected branchpoint motif, including a marker for the location of the branchpoint within the PWM. The PWM is matched against the genomic sequence of the apparent branchpoint and each other position within the 3nt window. If a position in the window gets a higher match score than the apparent branchpoint position and the score is 0.8 or greater, it is deemed the correct branchpoint position. Multiple PWMs can be used, in which case the highest-scoring position across all PWMs is chosen. 
+This uses a PWM of the expected branchpoint motif, including a marker for the location of the branchpoint within the PWM. The PWM is matched against the genomic sequence of the apparent branchpoint and each other position within the 3nt window. If a position in the window gets a higher match score than the apparent branchpoint position and the score is 0.8 or greater, it is deemed the correct branchpoint position. Multiple PWMs can be used, in which case the highest-scoring position across all PWMs is deemed the correct branchpoint position. 
 
-See https://doi.org/10.5281/zenodo.14735947 to download prebuilt PWMs for commonly-used reference genomes. See `scripts/pwm_build.R` to build a custom PWM from a FASTA file of branchpoint sequences.
+See https://doi.org/10.5281/zenodo.14735947 to download prebuilt PWMs for commonly used reference genomes. See `scripts/pwm_build.R` to build a custom PWM from a FASTA file of branchpoint sequences.
 
 Applied with `-P, --pwm_correction`
 
 **2. Model-based correction**
 
-This uses predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. A 3nt window downstream of the apparent branchpoint is checked, and if the apparent branchpoint is *not* predicted to be a branchpoint but a position within the 3nt window *is*, the later is deemed the correct branchpoint. 
+This uses predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. A 3nt window downstream of the apparent branchpoint is checked, and if the apparent branchpoint is *not* predicted to be a branchpoint but a position within the 3nt window *is*, the latter is deemed the correct branchpoint. 
 
-See https://doi.org/10.5281/zenodo.14735947 to download precalculated predictions for commonly-used reference genomes. 
+Please note that DeepEnsemble was trained and tested on branchpoints from the human genome **only**, so we recommend limiting its use to human samples.
+
+See https://doi.org/10.5281/zenodo.14735947 to download precalculated predictions for commonly used reference genomes. 
 
 Applied with `-M, --model_correction`
 
