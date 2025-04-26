@@ -15,10 +15,13 @@ You can download it in a command line terminal with [git](https://git-scm.com/) 
 ```
 git clone https://github.com/fairbrother-lab/LariatMapper
 ```
+
 and then 
+
 ```
 cd LariatMapper
 ```
+
 to enter the cloned directory.
 
 
@@ -57,7 +60,7 @@ You can then use `REF_DIR` as the reference directory when running LariatMapper.
 
 `build_references.py` creates symbolic links to the input files by default. To copy the input files to `REF_DIR` instead, you can use the argument `-c, --copy`.
 
-If you have a BED file of repetitive regions from RepeatMasker, you can use the argument `-r, --repeatmasker_bed` to include it in the reference directory. You can find RepeatMasker files for several reference genomes on the [UCSC Genome Browser](https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker". If a RepeatMasker file is included in a run, LariatMapper will check putative lariat alignments for false positives which arise from repetitive regions. If the 5' splice site and branchpoint are both located in a reptitive region, the alignment will be filtered out.
+If you have a BED file of repetitive regions from RepeatMasker, you can use the argument `-r, --repeatmasker_bed` to include it in the reference directory. You can find RepeatMasker files for several reference genomes on the [UCSC Genome Browser](https://genome.ucsc.edu/cgi-bin/hgTables) in group "Repeats", track "RepeatMasker". If a RepeatMasker file is included in a run, LariatMapper will check putative lariat alignments for false positives which arise from repetitive regions. If the 5' splice site and branchpoint are both located in a repetitive region, the alignment will be filtered out.
 
 To see all arguments for `build_references.py`, run
 ```
@@ -108,9 +111,9 @@ python larmap.py -h
 -i REF_INTRONS, --ref_introns REF_INTRONS
                      TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)
 -P PWM_CORRECTION, --pwm_correction PWM_CORRECTION
-                     RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-seperated format. Mutually exclusive with --model_correction. See https://doi.org/10.5281/zenodo.14735947 to download prebuilt PWMs. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
+                     RDS file with a position weight matrix to correct apparent branchpoint positions. Multiple files can be provided in comma-separated format. Mutually exclusive with --model_correction. See https://doi.org/10.5281/zenodo.14735947 to download prebuilt PWMs. See scripts/pwm_build.R to build a custom matrix (Default = no correction)
 -M MODEL_CORRECTION, --model_correction MODEL_CORRECTION
-                     RDS file with predictions from DeepEnsemble, a deep- learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See https://doi.org/10.5281/zenodo.14735947 to download predictions for specific reference genomes. (Default = no correction)
+                     RDS file with predictions from DeepEnsemble, a deep-learning-based branchpoint prediction model. Mutually exclusive with --pwm_correction. See https://doi.org/10.5281/zenodo.14735947 to download predictions for specific reference genomes. (Default = no correction)
 -p OUTPUT_PREFIX, --output_prefix OUTPUT_PREFIX
                      Add a prefix to output file names (-o OUT -p ABC -> OUT/ABC_lariat_reads.tsv). (Default = no prefix)
 -u, --ucsc_track
@@ -118,7 +121,7 @@ python larmap.py -h
 -b, --keep_bam
                      Keep the BAM file produced in the initial linear mapping step (Default = delete)
 -c, --keep_classes
-                     Keep a file with per-read classification of non- linearly-aligned reads named "read_classes.tsv.gz" in the output (Default = delete)
+                     Keep a file with per-read classification of non-linearly-aligned reads named "read_classes.tsv.gz" in the output (Default = delete)
 -k, --keep_temp
                      Keep all temporary files created while running the pipeline. Forces -c and -b (Default = delete)
 -t THREADS, --threads THREADS
