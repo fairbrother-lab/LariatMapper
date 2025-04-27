@@ -47,7 +47,7 @@ hisat2_index="$demo_dir/reference_genome/hisat2_index"
 repeatmasker_bed="$demo_dir/reference_genome/repeatmasker.bed.gz"
 ref_dir="./LariatMapper_ref_data"
 
-python "$larmap_dir/build_references.py" -f "$genome_fasta" -a "$genome_anno" -i "$hisat2_index" -r "$repeatmasker_bed" -o "$ref_dir"
+python "$larmap_dir/lariatmapper/build_references.py" -f "$genome_fasta" -a "$genome_anno" -i "$hisat2_index" -r "$repeatmasker_bed" -o "$ref_dir"
 ```
 
 That should have created a directory named `LariatMapper_ref_data` in your working directory.
@@ -59,7 +59,7 @@ r1_reads="$demo_dir/sequencing_reads_R1.fastq.gz"
 r2_reads="$demo_dir/sequencing_reads_R2.fastq.gz"
 output_dir="./LariatMapper_output"
 
-python "$larmap_dir/larmap.py" -r "$ref_dir" -1 "$r1_reads" -2 "$r2_reads" -o "$output_dir"
+python "$larmap_dir/lariatmapper/larmap.py" -r "$ref_dir" -1 "$r1_reads" -2 "$r2_reads" -o "$output_dir"
 ```
 
 You should now have a directory named `LariatMapper_output` in your working directory containing the standard output files that LariatMapper produces. You can open the file named `summary.txt` to see metadata for the run and various summary statistics.

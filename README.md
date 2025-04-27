@@ -53,7 +53,7 @@ You will need:
 
 With these items determined, run
 ```
-python build_references.py -f GENOME_FASTA -a GENOME_ANNO -i HISAT2_INDEX -o REF_DIR
+python lariatmapper/build_references.py -f GENOME_FASTA -a GENOME_ANNO -i HISAT2_INDEX -o REF_DIR
 ```
 
 You can then use `REF_DIR` as the reference directory when running LariatMapper.
@@ -64,7 +64,7 @@ If you have a BED file of repetitive regions from RepeatMasker, you can use the 
 
 To see all arguments for `build_references.py`, run
 ```
-python build_references.py -h
+python lariatmapper/build_references.py -h
 ```
 
 
@@ -77,17 +77,17 @@ You will need:
 
 For single-end RNA-seq data, run
 ```
-python larmap.py -f READ_FILE -r REF_DIR -o OUTPUT_DIR
+python lariatmapper/larmap.py -f READ_FILE -r REF_DIR -o OUTPUT_DIR
 ```
 For paired-end RNA-seq data, run
 ```
-python larmap.py -1 READ_ONE -2 READ_TWO -r REF_DIR -o OUTPUT_DIR
+python lariatmapper/larmap.py -1 READ_ONE -2 READ_TWO -r REF_DIR -o OUTPUT_DIR
 ```
 The FASTQ files can be uncompressed or gzip-compressed. The RNA-seq data should be preprocessed to remove low-quality reads, adapter sequences, and unique molecular identifiers for reliable results.
 
 To see all arguments for `larmap.py`, run
 ```
-python larmap.py -h
+python lariatmapper/larmap.py -h
 ```
 
 
