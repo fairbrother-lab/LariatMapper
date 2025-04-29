@@ -320,7 +320,7 @@ class ReadHeadAlignment():
 	
 	def get_nearest_threep_pos(self, threep_sites:dict):
 		# If no threep sites for the given chrom and strand, return np.nan
-		if len(threep_sites[self.chrom][self.strand]) == 0:
+		if self.chrom not in threep_sites or len(threep_sites[self.chrom][self.strand]) == 0:
 			return np.nan
 
 		# If + strand, find the intron closest to the bp on the right-hand side
