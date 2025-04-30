@@ -92,8 +92,12 @@ class Settings:
 
 		# Make sure all paths are absolute
 		for attr in Settings.PATH_SETTINGS:
-			if getattr(self, attr) is not None:
-				setattr(self, attr, pathlib.Path(getattr(self, attr)).resolve())
+			attr_path = getattr(self, attr)
+			if attr_path is not None:
+				if not os.path.islink(attr_path):
+					setattr(self, attr, pathlib.Path(attr_path).resolve())
+				else:
+					setattr(self, attr, pathlib.Path(attr_path).absolute())
 
 		# input_reads and seq_type
 		if self.read_file is not None and self.read_one is None and self.read_two is None:

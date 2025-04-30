@@ -4,6 +4,7 @@ import datetime
 import gzip
 import os
 import shutil
+import pathlib
 
 import pandas as pd
 
@@ -62,11 +63,17 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	for rn, rf in zip(ref_names, ref_files):
 		if not os.path.isfile(rf):
 			raise FileNotFoundError(f'{rn} file does not exist at {rf}')
-	if args.repeatmasker_bed is not None and not os.path.isfile(args.repeatmasker_bed):
-		parser.error(f'RepeatMasker file does not exist at {args.repeatmasker_bed}')
+	genome_fasta, genome_anno = args.genome_fasta.resolve(), args.genome_anno.resolve()
 
+	repeatmasker_bed = args.repeatmasker_bed
+	if repeatmasker_bed is not None:
+		if not os.path.isfile(repeatmasker_bed):
+			parser.error(f'RepeatMasker file does not exist at {repeatmasker_bed}')
+		else:
+			repeatmasker_bed = repeatmasker_bed.resolve()
+	
 	# Determine the genome fasta file format
-	last_ext = '.' + args.genome_fasta.split('.')[-1]
+	last_ext = genome_fasta.suffix
 	if last_ext in REF_GENOME_UNCOMPRESSED_EXTENSIONS:
 		genome_fasta_out = f"{args.out_dir}/{REF_GENOME_FILE}.fa"
 	elif last_ext in REF_GENOME_COMPRESSED_EXTENSIONS:
@@ -76,13 +83,13 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 			   f'{REF_GENOME_UNCOMPRESSED_EXTENSIONS}, {REF_GENOME_COMPRESSED_EXTENSIONS}')
 
 	# Determine the annotation file format
-	prev_ext, last_ext = args.genome_anno.split('.')[-2:]
-	if last_ext == 'gz':
-		anno_type, anno_gzip = prev_ext, True
+	exts = genome_anno.suffixes
+	if exts[-1] == '.gz':
+		anno_type, anno_gzip = exts[-2], True
 	else:
-		anno_type, anno_gzip = last_ext, False
-	if not anno_type in ('gtf', 'gff', 'gff3'):
-		parser.error(f'Annotation file must be in .gtf or .gff format, not .{anno_type}')
+		anno_type, anno_gzip = exts[-1], False
+	if not anno_type in ('.gtf', '.gff', '.gff3'):
+		parser.error(f'Annotation file must be in GTF or GFF format, not {anno_type}')
 
 	# Determine the hisat2 file extensions and confirm the files exist
 	if os.path.isfile(f'{args.hisat2_index}.1.ht2'):
@@ -91,23 +98,24 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 		hisat2_extensions = [f'.{i}.ht2l' for i in range(1,9)]
 	else:
 		raise FileNotFoundError(f'hisat2 index does not exist at {args.hisat2_index}')
+	hisat2_index = args.hisat2_index.resolve()
 	
 	# Validate threads arg
 	if not args.threads>0:
 		parser.error(f'-t/--threads must be a positive integer. Input was "{repr(args.threads)}"')
 		
-	return hisat2_extensions, anno_type, anno_gzip, genome_fasta_out
+	return genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out
 
 
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
-	if file_type == 'gtf':
+	if file_type == '.gtf':
 		attributes = attribute_string.rstrip('";').split('; ')
 		attributes = [attr.split(' ') for attr in attributes]
 		tags = [attr_val.strip('"') for attr_name, attr_val in attributes if attr_name=='tag']
 		attributes = {attr_name: attr_val.strip('"') for attr_name, attr_val in attributes if attr_name!='tag'}
 		attributes['tags'] = tags
 	
-	elif file_type in ('gff', 'gff3'):
+	elif file_type in ('.gff', '.gff3'):
 		attributes = [attr.split('=') for attr in attribute_string.rstrip(';').split(';')]
 		attributes = [(attr[0].lstrip(), attr[1]) for attr in attributes]
 		attributes = dict(attributes)
@@ -273,14 +281,14 @@ if __name__ == '__main__':
 	parser.add_argument('-v', '--version', action='version', version=f'LariatMapper {utils.version()}', help='print the version id and exit')
 	
 	# Required arguments
-	parser.add_argument('-f', '--genome_fasta', required=True, help='FASTA file of the reference genome. May be compressed with bgzip, but not with standard gzip.')
-	parser.add_argument('-a', '--genome_anno', required=True, help='GTF or GFF file of the reference gene annotation. May be gzip-compressed')
-	parser.add_argument('-i', '--hisat2_index', required=True, help='HISAT2 index of the reference genome')
-	parser.add_argument('-o', '--out_dir', required=True, help='Output reference directory. Will be created if it does not exist at runtime')
+	parser.add_argument('-f', '--genome_fasta', type=pathlib.Path, required=True, help='FASTA file of the reference genome. May be compressed with bgzip, but not with standard gzip.')
+	parser.add_argument('-a', '--genome_anno', type=pathlib.Path, required=True, help='GTF or GFF file of the reference gene annotation. May be gzip-compressed')
+	parser.add_argument('-i', '--hisat2_index', type=pathlib.Path, required=True, help='HISAT2 index of the reference genome')
+	parser.add_argument('-o', '--out_dir', type=pathlib.Path, required=True, help='Output reference directory. Will be created if it does not exist at runtime')
 	# Optional arguments
 	optional_args = parser.add_argument_group(title='Optional arguments')
 		# Experimentally-revelant options 
-	optional_args.add_argument('-r', '--repeatmasker_bed', help='Path to BED file with RepeatMasker annotation of reference genome')
+	optional_args.add_argument('-r', '--repeatmasker_bed', type=pathlib.Path, help='Path to BED file with RepeatMasker annotation of reference genome')
 	optional_args.add_argument('-g', '--g_attr', default='gene_id', help='The attribute in the annotation file that uniquely identifies each gene. Each exon feature must have this attribute. (Default = gene_id)',)
 	optional_args.add_argument('-x', '--t_attr', default='transcript_id', help='The attribute in the annotation file that uniquely identifies each transcript. Each exon feature must have this attribute. (Default = transcript_id)',)
 		# Output options
@@ -322,10 +330,10 @@ if __name__ == '__main__':
 	log.info(f'Arguments: \n{arg_message}')
 
 	# Validate the args and determine additional variables
-	hisat2_extensions, anno_type, anno_gzip, genome_fasta_out = process_args(args, parser, log)
+	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out = process_args(args, parser, log)
 
 	# Unpack args
-	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, out_dir, threads, copy, t_attr, g_attr  = args.genome_fasta, args.genome_anno, args.repeatmasker_bed, args.hisat2_index, args.out_dir, args.threads, args.copy, args.t_attr, args.g_attr
+	out_dir, threads, copy, t_attr, g_attr = args.out_dir, args.threads, args.copy, args.t_attr, args.g_attr
 
 	# Make dir
 	if not os.path.isdir(out_dir):
