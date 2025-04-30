@@ -45,7 +45,7 @@ linear_map <- function(file, gene_gr, exon_gr, intron_gr, ...){
     exon_only_counts_by_gene <- exon_only_counts_by_gene[rownames(exon_counts),, drop = F]
 
     exon_intron_counts <- exon_intron_counts %>% as.data.frame()
-    exon_intron_counts$gene_id = (rownames(exon_intron_counts) %>% str_split("_", simplify = T))[,1]
+    exon_intron_counts$gene_id = (rownames(exon_intron_counts) %>% str_split("_exon|_intron", simplify = T))[,1]
 
     exon_intron_counts_by_gene <- aggregate(count ~ gene_id, data = exon_intron_counts, FUN = sum)
     colnames(exon_intron_counts_by_gene) <- c("gene", "count")
@@ -84,11 +84,11 @@ linear_map_integrate <- function(file, gene_gr, exon_gr, intron_gr, gene_sum_cor
     colnames(exon_junc_counts) <- "exon_exon_junc"
     colnames(intron_counts) <- "intron_only"
 
-    gene_counts$gene_id <- (str_split(rownames(gene_counts), "_", simplify = T))[,1]
-    premrna_counts$gene_id <- (str_split(rownames(premrna_counts), "_", simplify = T))[,1]
-    exon_counts$gene_id <- (str_split(rownames(exon_counts), "_", simplify = T))[,1]
-    exon_junc_counts$gene_id <- (str_split(rownames(exon_junc_counts), "_", simplify = T))[,1]
-    intron_counts$gene_id <- (str_split(rownames(intron_counts), "_", simplify = T))[,1]
+    gene_counts$gene_id <- (str_split(rownames(gene_counts), "_exon|_intron", simplify = T))[,1]
+    premrna_counts$gene_id <- (str_split(rownames(premrna_counts), "_exon|_intron", simplify = T))[,1]
+    exon_counts$gene_id <- (str_split(rownames(exon_counts), "_exon|_intron", simplify = T))[,1]
+    exon_junc_counts$gene_id <- (str_split(rownames(exon_junc_counts), "_exon|_intron", simplify = T))[,1]
+    intron_counts$gene_id <- (str_split(rownames(intron_counts), "_exon|_intron", simplify = T))[,1]
 
     count_df <- merge(gene_counts, premrna_counts, by = "gene_id", all = T) %>% 
     merge(exon_counts, by = "gene_id", all = T) %>% 
