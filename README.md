@@ -127,6 +127,8 @@ python larmap.py -h
                      Only print fatal error messages. Mutually exclusive with -w and -d
 -w, --warning
                      Print warning messages and fatal error messages. Mutually exclusive with -q and -d
+-d, --debug
+                     Print extensive status messages. Mutually exclusive with -q and -w
 ```
 
 </details>
