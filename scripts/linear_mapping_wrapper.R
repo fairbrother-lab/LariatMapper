@@ -49,7 +49,7 @@ bam_res <- linear_map_integrate(input_bam,
                                 singleEnd = singleEnd_mode)
 
 n_reads <- total_reads_bam(input_bam, 
-                           isPaired = !singleEnd_mode, 
+                           isPaired = ifelse(!singleEnd_mode, T, NA), 
                            isFirstMateRead = ifelse(!singleEnd_mode, T, NA),
                            hasUnmappedMate = unmapped_mate)
 summary_table <- bam_res[,-1] %>% colSums()
