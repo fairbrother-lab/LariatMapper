@@ -15,7 +15,10 @@ option_list <- list(
     make_option(c("-o", "--output_base"), type = "character", default = NULL, 
                 help = "Path to output", metavar = "OUT_PATH"),
     make_option(c("-l", "--read_layout"), type = "character", default = "paired", 
-                help = "single = single-end sequencing data, paired = paired-end sequencing data", metavar = "READ_LAYOUT")
+                help = "single = single-end sequencing data, paired = paired-end sequencing data", metavar = "READ_LAYOUT"),
+    make_option(c("-s", "--strandness"), type = "character", default = "Unstranded",
+                help = "Unstranded = Unstranded RNA-seq library, First = r1/r match the RNA sequence, Second = r1/r match the reverse-complementary of RNA sequence",
+                metavar = "STRANDNESS")
 )
 
 parser <- OptionParser(option_list = option_list)
@@ -26,9 +29,14 @@ utils_R <- opts$file
 ref_dir <- opts$ref_dir
 output_base <- opts$output_base
 read_layout <- opts$read_layout
+strandness <- opts$strandness
 
 if (is.null(read_layout) || !read_layout %in% c("single", "paired")) {
     stop("--read_layout must be 'single' or 'paired'.")
+}
+
+if (is.null(strandness) || !strandness %in% c("Unstranded", "First", "Second")) {
+    stop("--strandness must be 'Unstranded', 'First' or 'Second'.")
 }
 
 ### Source utils
@@ -44,9 +52,28 @@ intron_gr <- readRDS(file.path(ref_dir, "intron_gr.rds"))
 ### Run counting step
 singleEnd_mode <- ifelse(read_layout == "paired", F, T)
 unmapped_mate <- ifelse(!singleEnd_mode, F, NA)
-bam_res <- linear_map_integrate(input_bam,
-                                gene_gr = gene_gr, exon_gr = exon_gr, intron_gr = intron_gr,
-                                singleEnd = singleEnd_mode)
+
+check_invert <- function(strandness){
+    if(strandness %in% c("Unstranded", "First")){
+        return(NULL)
+    }else{
+        return(invertStrand)
+    }
+}
+
+if(singleEnd_mode){
+    bam_res <- linear_map_integrate(input_bam,
+                                    gene_gr = gene_gr, exon_gr = exon_gr, intron_gr = intron_gr,
+                                    singleEnd = singleEnd_mode,
+                                    ignore.strand = ifelse(strandness == "Unstranded", T, F),
+                                    preprocess.reads = check_invert(strandness))
+} else{
+    bam_res <- linear_map_integrate(input_bam,
+                                    gene_gr = gene_gr, exon_gr = exon_gr, intron_gr = intron_gr,
+                                    singleEnd = singleEnd_mode,
+                                    strandMode = ifelse(strandness == "Unstranded", 0,
+                                                        ifelse(strandness == "First", 1, 2)))
+}
 
 n_reads <- total_reads_bam(input_bam, 
                            isPaired = ifelse(!singleEnd_mode, T, NA), 

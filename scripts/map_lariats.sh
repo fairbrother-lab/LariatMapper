@@ -61,13 +61,13 @@ heads_to_genome="$OUTPUT_BASE"heads_to_genome.sam
 
 if [ "$STRAND" == "Unstranded" ]; then
 	hisat2_strand_arg=""
-elif [ "$STRAND" == "Forward" ] & [ "$SEQ_TYPE" == "single" ]; then
+elif [ "$STRAND" == "First" ] && [ "$SEQ_TYPE" == "single" ]; then
 	hisat2_strand_arg="--rna-strandness F"
-elif [ "$STRAND" == "Forward" ] & [ "$SEQ_TYPE" == "paired" ]; then
+elif [ "$STRAND" == "First" ] && [ "$SEQ_TYPE" == "paired" ]; then
 	hisat2_strand_arg="--rna-strandness FR"
-elif [ "$STRAND" == "Reverse" ] & [ "$SEQ_TYPE" == "single" ]; then
+elif [ "$STRAND" == "Second" ] && [ "$SEQ_TYPE" == "single" ]; then
 	hisat2_strand_arg="--rna-strandness R"
-elif [ "$STRAND" == "Reverse" ] & [ "$SEQ_TYPE" == "paired" ]; then
+elif [ "$STRAND" == "Second" ] && [ "$SEQ_TYPE" == "paired" ]; then
 	hisat2_strand_arg="--rna-strandness RF"
 fi
 
@@ -109,7 +109,7 @@ delete_temp_files(){
 end_run() {
 	### Classify reads
 	print_message "Classifying linearly-aligned reads..."
-	Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -o $OUTPUT_BASE
+	Rscript $PIPELINE_DIR/scripts/linear_mapping_wrapper.R -i $output_bam -f $PIPELINE_DIR/scripts/linear_mapping.R -r $REF_DIR -l $SEQ_TYPE -s $STRAND -o $OUTPUT_BASE
 	check_exitcode
 	print_message "Classifying non-linearly-aligned reads..."
 	python -u $PIPELINE_DIR/scripts/classify_nonlinear.py $OUTPUT_BASE $SEQ_TYPE $LOG_LEVEL 
