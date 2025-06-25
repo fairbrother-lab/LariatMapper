@@ -137,6 +137,6 @@ corrected_bp_mismatch = ifelse(file$read_bp_nt != file$corrected_genomic_bp_nt, 
 file <- as.data.frame(append(file, list("corrected_bp_mismatch" = corrected_bp_mismatch), after = 17))
 file$corrected <- ifelse(corrected_gr$status == "corrected", "True", "False")
 
-write.table(file, file.path(output_dir, "lariat_reads.tsv"),
+write.table(file, paste0(output_dir, "lariat_reads.tsv"),
             sep = "\t", quote = FALSE, row.names = FALSE)
 ###

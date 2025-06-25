@@ -31,7 +31,7 @@ output_base <- opts$output_base
 
 
 # Variable paths
-lariats_file = paste(output_base, "lariat_reads.tsv", sep='')
+lariats_file = paste0(output_base, "lariat_reads.tsv")
 plots_dir = paste0(output_base, "plots/")
 base_table_path = paste0(plots_dir, "Branchpoint_base_composition.png")
 dists_path = paste0(plots_dir, "Branchpoint_threep_distance.png")
