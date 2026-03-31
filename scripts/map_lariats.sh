@@ -9,76 +9,66 @@
 INPUT_FILES="${1}"
 # Reference directory
 REF_DIR="${2}"
+# STAR index of reference genome
+STAR_GENOME_INDEX="${3}"
 # hisat2 index of reference genome
-GENOME_INDEX="${3}"
+HISAT2_GENOME_INDEX="${4}"
 # Reference genome FASTA file
-GENOME_FASTA="${4}"
+GENOME_FASTA="${5}"
 # FASTA file of 5' splice sites (first 20nts of all introns)
-FIVEP_FASTA="${5}"
+FIVEP_FASTA="${6}"
 # Annotated exons
-EXONS_TSV="${6}"
+EXONS_TSV="${7}"
 # Annotated introns
-INTRONS_TSV="${7}"
+INTRONS_TSV="${8}"
 # Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
-STRAND="${8}"
+STRAND="${9}"
 # Parameters of the template-switching filter
-TEMP_SWITCH_FILTER="${9}"
+TEMP_SWITCH_FILTER="${10}"
 # Annotated repeat regions
-REPEATS_BED="${10}"
+REPEATS_BED="${11}"
 # A comma-seperated list of PWM files or a single model file
-PWM_FILES="${11}"
-MODEL_FILE="${12}"
+PWM_FILES="${12}"
+MODEL_FILE="${13}"
 # Run make_track.py after filter_lariats.py. true or false, default false
-UCSC_TRACK="${13}"
+UCSC_TRACK="${14}"
 # Keep output.bam
-KEEP_BAM="${14}"
+KEEP_BAM="${15}"
 # Keep read_classes.tsv.gz. true or false, default false
-KEEP_CLASSES="${15}"
+KEEP_CLASSES="${16}"
 # Keep the temp files created during the run. true or false, default false
-KEEP_TEMP="${16}"
+KEEP_TEMP="${17}"
 # Number of threads to use
-THREADS="${17}"
+THREADS="${18}"
 # Type of sequencing data. "single" or "paired"
-SEQ_TYPE="${18}"
+SEQ_TYPE="${19}"
 # Output directory 
-OUTPUT_BASE="${19}"
+OUTPUT_BASE="${20}"
 # Level for python logging. "DEBUG", "INFO", "WARNING", or "ERROR"
-LOG_LEVEL="${20}"
+LOG_LEVEL="${21}"
 # Directory containing lariat mapping pipeline files
-PIPELINE_DIR="${21}"
+PIPELINE_DIR="${22}"
 
 
 
 #=============================================================================#
 #                                  Variables                                  #
 #=============================================================================#
-output_sam="$OUTPUT_BASE"output.sam
+output_bam_unsorted="$OUTPUT_BASE"Aligned.out.bam
 output_bam="$OUTPUT_BASE"output.bam
 unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
 fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
 heads_fasta="$OUTPUT_BASE"heads.fa
 heads_to_genome="$OUTPUT_BASE"heads_to_genome.sam
 
-if [ "$STRAND" == "Unstranded" ]; then
-	hisat2_strand_arg=""
-elif [ "$STRAND" == "First" ] && [ "$SEQ_TYPE" == "single" ]; then
-	hisat2_strand_arg="--rna-strandness F"
-elif [ "$STRAND" == "First" ] && [ "$SEQ_TYPE" == "paired" ]; then
-	hisat2_strand_arg="--rna-strandness FR"
-elif [ "$STRAND" == "Second" ] && [ "$SEQ_TYPE" == "single" ]; then
-	hisat2_strand_arg="--rna-strandness R"
-elif [ "$STRAND" == "Second" ] && [ "$SEQ_TYPE" == "paired" ]; then
-	hisat2_strand_arg="--rna-strandness RF"
-fi
-
 # List of temporary files to delete at the end of the run if KEEP_TEMP is false
 temp_files=(
-	$output_sam $output_bam $output_bam.bai $unmapped_fasta $unmapped_fasta.fai
+	"$output_bam_unsorted" "$OUTPUT_BASE"_STARtmp "$output_bam" "$output_bam".bai "$unmapped_fasta" "$unmapped_fasta".fai
 	# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
-	$unmapped_fasta.1.bt* $unmapped_fasta.2.bt* $unmapped_fasta.3.bt* $unmapped_fasta.4.bt* 
-	$unmapped_fasta.rev.1.bt* $unmapped_fasta.rev.2.bt* $fivep_to_reads $fivep_to_reads.tmp 
-	$heads_fasta $heads_to_genome $heads_to_genome.tmp "$OUTPUT_BASE"tails.tsv "$OUTPUT_BASE"putative_lariats.tsv
-	$OUTPUT_BASE"settings.json" $OUTPUT_BASE"read_classes.tsv.gz" $OUTPUT_BASE"output.bam_summary_count.tsv"
+	"$unmapped_fasta".1.bt* "$unmapped_fasta".2.bt* "$unmapped_fasta".3.bt* "$unmapped_fasta".4.bt* 
+	"$unmapped_fasta".rev.1.bt* "$unmapped_fasta".rev.2.bt* "$fivep_to_reads" "$fivep_to_reads".tmp 
+	"$heads_fasta" "$heads_to_genome" "$heads_to_genome".tmp "$OUTPUT_BASE"tails.tsv "$OUTPUT_BASE"putative_lariats.tsv
+	"$OUTPUT_BASE"settings.json "$OUTPUT_BASE"read_classes.tsv.gz "$OUTPUT_BASE"output.bam_summary_count.tsv
 	"$OUTPUT_BASE"failed_fivep_alignments.tsv "$OUTPUT_BASE"failed_head_alignments.tsv "$OUTPUT_BASE"failed_lariat_alignments.tsv
 )
 
@@ -96,12 +86,12 @@ print_message(){
 delete_temp_files(){
 	print_message "Deleting temporary files..."
 	for file in "${temp_files[@]}"; do
-		if [ $file == $OUTPUT_BASE"read_classes.tsv.gz" ] & $KEEP_CLASSES; then
+		if [ $file == $OUTPUT_BASE"read_classes.tsv.gz" ] && $KEEP_CLASSES; then
 			continue
-		elif [ $file == $OUTPUT_BASE"output.bam" ] & $KEEP_BAM; then
+		elif [ $file == $output_bam ] && $KEEP_BAM; then
 			continue
 		else
-			rm $file
+			rm -rf $file
 		fi
 	done
 }
@@ -136,7 +126,7 @@ end_run() {
 	if [ "${OUTPUT_BASE: -1}" == "/" ];then
 		print_message "Lariat mapping complete."
 	else
-		print_message "Lariat mapping complete for "$(echo ${OUTPUT_BASE:0:-1} | sed "s:.*/::")"."
+		print_message "Lariat mapping complete for $(echo ${OUTPUT_BASE:0:-1} | sed "s:.*/::")."
 	fi
 
 	### Exit
@@ -165,31 +155,35 @@ check_exitcode() {
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
 print_message "Mapping reads to genome..."
-if [ "$SEQ_TYPE" == "single" ]; then
-	# Map
-	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
-	       $hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -U $INPUT_FILES \
-		> $output_sam
-	check_exitcode
-	samtools view --bam --with-header --add-flags PAIRED,READ1 $output_sam \
-		| samtools sort --threads $THREADS --verbosity 0 \
-		> $output_bam 
-	check_exitcode
 
+star_options="--genomeDir $STAR_GENOME_INDEX --outFileNamePrefix $OUTPUT_BASE --runThreadN $THREADS --alignEndsType EndToEnd --outSAMtype BAM Unsorted --outSAMunmapped Within"
+
+if [ "$SEQ_TYPE" == "single" ]; then
+	# Check if read file is compressed
+	if gzip --list $INPUT_FILES > /dev/null 2>&1; then
+		star_options=$star_options" --readFilesCommand zcat"
+	fi
+	star_options=$star_options" --readFilesIn $INPUT_FILES"
+	samtools_extra_options="--add-flags PAIRED,READ1"
+	
 elif [ "$SEQ_TYPE" == "paired" ]; then
 	# Get the two read files from the comma-separated list
 	IFS=',' read -r read_one read_two <<< "$INPUT_FILES"
-	# Map
-	hisat2 --no-softclip -k 1 --max-seeds 20 --pen-noncansplice 0 --n-ceil L,0,0.05 --score-min L,0,-0.24 --bowtie2-dp 1 \
-			$hisat2_strand_arg --threads $THREADS -x $GENOME_INDEX -1 $read_one -2 $read_two \
-		> $output_sam
-	check_exitcode
-	samtools view --bam --with-header $output_sam \
-		| samtools sort --threads $THREADS --verbosity 0 \
-		> $output_bam
-	check_exitcode
-
+	# Check if read file is compressed
+	if gzip --list $read_one > /dev/null 2>&1; then
+		star_options=$star_options" --readFilesCommand zcat"
+	fi
+	star_options=$star_options" --readFilesIn $read_one $read_two"
+	samtools_extra_options=""
 fi
+
+# Map
+STAR $star_options
+check_exitcode
+samtools view --bam --with-header $samtools_extra_options $output_bam_unsorted \
+	| samtools sort --threads $THREADS --verbosity 0 \
+	> $output_bam 
+check_exitcode
 
 samtools index $output_bam
 check_exitcode
@@ -239,7 +233,7 @@ check_exitcode
 ### Map read heads to genome
 print_message "Mapping heads to genome..."
 hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
-	   --no-unal --threads $THREADS -f -x $GENOME_INDEX -U $heads_fasta \
+	   --no-unal --threads $THREADS -f -x $HISAT2_GENOME_INDEX -U $heads_fasta \
 	> $heads_to_genome.tmp
 check_exitcode
 # We need to order the output SAM by read_id (which is the reference in this case)

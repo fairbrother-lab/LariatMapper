@@ -11,9 +11,6 @@ from filter_head_aligns import TEMP_SWITCH_COLS, CIRCULARS_COLS
 from filter_lariats import FINAL_RESULTS_COLS
 
 
-
-
-
 #=============================================================================#
 #                                   Globals                                   #
 #=============================================================================#
@@ -40,7 +37,8 @@ SUMMARY_TEMPLATE = (
 					"Input type: {seq_type}\n"
 					"Input strandedness: {strand}\n"
 					"Reference directory: {ref_dir}\n"
-					"Reference HISAT2 index: {ref_h2index}\n"
+					"Reference STAR index: {ref_STAR_index}\n"
+					"Reference HISAT2 index: {ref_hisat2_index}\n"
 					"Reference genome FASTA: {ref_fasta}\n"
 					"Reference 5'ss FASTA: {ref_5p_fasta}\n"
 					"Reference exons: {ref_exons}\n"

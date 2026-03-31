@@ -22,3 +22,4 @@ r-magrittr
 r-optparse
 r-tidyverse
 samtools
+star

@@ -23,7 +23,6 @@ REF_FIVEP_FILE = 'fivep_sites' # ends up as fivep_sites.fa.gz, accompanied by th
 REF_INTRONS_FILE = 'introns.tsv.gz'
 REF_EXONS_FILE = 'exons.tsv.gz'
 REF_REPEATMASKER_FILE = 'repeatmasker.bed'
-REF_HISAT2_INDEX = 'hisat2_index'
 REF_GENOME_UNCOMPRESSED_EXTENSIONS = ('.fa', '.fasta', '.fas', '.fna', '.ffn', '.faa', '.mpfa')
 REF_GENOME_COMPRESSED_EXTENSIONS = ('.gz', '.bgzip')
 
@@ -92,19 +91,25 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 		parser.error(f'Annotation file must be in GTF or GFF format, not {anno_type}')
 
 	# Determine the hisat2 file extensions and confirm the files exist
-	if os.path.isfile(f'{args.hisat2_index}.1.ht2'):
+	if os.path.isfile(f'{args.ref_hisat2_index}.1.ht2'):
 		hisat2_extensions = [f'.{i}.ht2' for i in range(1,9)]
-	elif os.path.isfile(f'{args.hisat2_index}.1.ht2l'):
+	elif os.path.isfile(f'{args.ref_hisat2_index}.1.ht2l'):
 		hisat2_extensions = [f'.{i}.ht2l' for i in range(1,9)]
 	else:
-		raise FileNotFoundError(f'hisat2 index does not exist at {args.hisat2_index}')
-	hisat2_index = args.hisat2_index.resolve()
+		raise FileNotFoundError(f'hisat2 index does not exist at {args.ref_hisat2_index}')
+	ref_hisat2_index = args.ref_hisat2_index.resolve()
+
+	# Confirm the STAR index exists
+	if os.path.isfile(f'{args.ref_STAR_index}/SA') and os.path.isfile(f'{args.ref_STAR_index}/SAindex'):
+		ref_STAR_index = args.ref_STAR_index.resolve()
+	else:
+		raise FileNotFoundError(f'STAR index does not exist at {args.ref_STAR_index}')
 	
 	# Validate threads arg
 	if not args.threads>0:
 		parser.error(f'-t/--threads must be a positive integer. Input was "{repr(args.threads)}"')
 		
-	return genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out
+	return genome_fasta, genome_anno, repeatmasker_bed, ref_STAR_index, ref_hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out
 
 
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
@@ -283,7 +288,8 @@ if __name__ == '__main__':
 	# Required arguments
 	parser.add_argument('-f', '--genome_fasta', type=pathlib.Path, required=True, help='FASTA file of the reference genome. May be compressed with bgzip, but not with standard gzip.')
 	parser.add_argument('-a', '--genome_anno', type=pathlib.Path, required=True, help='GTF or GFF file of the reference gene annotation. May be gzip-compressed')
-	parser.add_argument('-i', '--hisat2_index', type=pathlib.Path, required=True, help='HISAT2 index of the reference genome')
+	parser.add_argument('-S', '--ref_STAR_index', type=pathlib.Path, required=True, help='STAR index of the reference genome')
+	parser.add_argument('-H', '--ref_hisat2_index', type=pathlib.Path, required=True, help='HISAT2 index of the reference genome')
 	parser.add_argument('-o', '--out_dir', type=pathlib.Path, required=True, help='Output reference directory. Will be created if it does not exist at runtime')
 	# Optional arguments
 	optional_args = parser.add_argument_group(title='Optional arguments')
@@ -330,14 +336,13 @@ if __name__ == '__main__':
 	log.info(f'Arguments: \n{arg_message}')
 
 	# Validate the args and determine additional variables
-	genome_fasta, genome_anno, repeatmasker_bed, hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out = process_args(args, parser, log)
+	genome_fasta, genome_anno, repeatmasker_bed, ref_STAR_index, ref_hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out = process_args(args, parser, log)
 
 	# Unpack args
 	out_dir, threads, copy, t_attr, g_attr = args.out_dir, args.threads, args.copy, args.t_attr, args.g_attr
 
 	# Make dir
-	if not os.path.isdir(out_dir):
-		os.mkdir(out_dir)
+	os.makedirs(out_dir, exist_ok=True)
 
 	# Write metadata file
 	log.info('Recording metadata...')
@@ -345,17 +350,25 @@ if __name__ == '__main__':
 
 	# Link or copy the neccesary input files
 	# Copying
+	ref_hisat2_index_prefix = str(ref_hisat2_index).removeprefix(f'{ref_hisat2_index.parent}/')
 	if copy is True:
 		log.info('Copying input files...')
 		if os.path.isfile(genome_fasta_out):
 			log.warning(f'Overwriting existing file at {genome_fasta_out}')
 		shutil.copyfile(genome_fasta, genome_fasta_out, follow_symlinks=False)
 
+		ref_hisat2_index_dir = os.path.join(out_dir, 'hisat2_index')
+		os.makedirs(ref_hisat2_index_dir, exist_ok=True)
 		for ext in hisat2_extensions:
-			out_file = f'{out_dir}/{REF_HISAT2_INDEX}{ext}'
+			out_file = os.path.join(ref_hisat2_index_dir, f'genome{ext}')
 			if os.path.isfile(out_file):
 				log.warning(f'Overwriting existing file at {out_file}')
-			shutil.copyfile(f'{hisat2_index}{ext}', f'{out_dir}/{REF_HISAT2_INDEX}{ext}', follow_symlinks=False)
+			shutil.copyfile(f'{ref_hisat2_index}{ext}', out_file, follow_symlinks=False)
+		
+		ref_STAR_index_dir = os.path.join(out_dir, 'STAR_index')
+		if os.path.exists(ref_STAR_index_dir):
+			log.warning(f'Overwriting existing STAR index directory at {ref_STAR_index_dir}')
+		shutil.copytree(ref_STAR_index, ref_STAR_index_dir, symlinks=False, dirs_exist_ok=True)
 
 		if repeatmasker_bed is not None:
 			if os.path.isfile(f'{out_dir}/{REF_REPEATMASKER_FILE}'):
@@ -369,12 +382,20 @@ if __name__ == '__main__':
 			os.remove(genome_fasta_out) 
 		os.symlink(genome_fasta, genome_fasta_out)
 
+		ref_hisat2_index_dir = os.path.join(out_dir, 'hisat2_index')
+		os.makedirs(ref_hisat2_index_dir, exist_ok=True)
 		for ext in hisat2_extensions:
-			out_file = f'{out_dir}/{REF_HISAT2_INDEX}{ext}'
+			out_file = os.path.join(ref_hisat2_index_dir, f'genome{ext}')
 			if os.path.isfile(out_file):
 				log.warning(f'Overwriting existing symbolic link at {out_file}')
 				os.remove(out_file)
-			os.symlink(f'{hisat2_index}{ext}', out_file)
+			os.symlink(f'{ref_hisat2_index}{ext}', out_file)
+		
+		ref_STAR_index_dir = os.path.join(out_dir, 'STAR_index')
+		if os.path.exists(ref_STAR_index_dir):
+			log.warning(f'Overwriting existing symbolic link at {ref_STAR_index_dir}')
+			os.remove(ref_STAR_index_dir)
+		os.symlink(ref_STAR_index, ref_STAR_index_dir, target_is_directory=True)
 
 		if repeatmasker_bed is not None:
 			if os.path.isfile(f'{out_dir}/{REF_REPEATMASKER_FILE}'):

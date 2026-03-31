@@ -23,15 +23,16 @@ FORBIDDEN_CHARS = (" ", '\\', '>', '<', '&', '~', '*', '?', '[', ']', ',', ';', 
 
 @dataclasses.dataclass
 class Settings:
-	REQ_REFS = (('ref_h2index', 'hisat2_index'), 
-				('ref_fasta', 'genome.fa'), 
+	REQ_REFS = (('ref_STAR_index', 'STAR_index'), 
+			 	('ref_hisat2_index', 'hisat2_index/genome'),
+				('ref_fasta', 'genome.fa'),
 				('ref_5p_fasta', 'fivep_sites.fa'),
 				('ref_exons', 'exons.tsv.gz'),
 				('ref_introns', 'introns.tsv.gz'))
-	PATH_SETTINGS = ('read_file', 'read_one', 'read_two', 'ref_dir', 'ref_h2index', 'ref_fasta', 
+	PATH_SETTINGS = ('read_file', 'read_one', 'read_two', 'ref_dir', 'ref_STAR_index', 'ref_fasta', 
 					'ref_5p_fasta', 'ref_exons', 'ref_introns', 'output_dir', 'ref_repeatmasker', 
 					'model_correction', 'pipeline_dir')
-	ARGS_TO_MAP_LARIATS = ('input_reads', 'ref_dir', 'ref_h2index', 'ref_fasta', 'ref_5p_fasta', 
+	ARGS_TO_MAP_LARIATS = ('input_reads', 'ref_dir', 'ref_STAR_index', 'ref_hisat2_index', 'ref_fasta', 'ref_5p_fasta', 
 						'ref_exons', 'ref_introns', 'strand', 'temp_switch_filter', 
 						'ref_repeatmasker', 'pwm_correction', 'model_correction', 'ucsc_track', 
 						'keep_bam', 'keep_classes', 'keep_temp', 'threads', 'seq_type', 
@@ -43,7 +44,8 @@ class Settings:
 	read_one: pathlib.Path
 	read_two: pathlib.Path
 	ref_dir: pathlib.Path
-	ref_h2index: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/hisat2_index
+	ref_STAR_index: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/STAR_index
+	ref_hisat2_index: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/hisat2_index
 	ref_fasta: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/genome.fa
 	ref_5p_fasta: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/fivep_sites.fa
 	ref_exons: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/exons.tsv.gz
@@ -152,8 +154,10 @@ class Settings:
 			for char in FORBIDDEN_CHARS:
 				if char in str(file):
 					raise ValueError(f'Illegal character in {file}: "{char}"')
-		if (not os.path.isfile(f'{self.ref_h2index}.1.ht2')) and (not os.path.isfile(f'{self.ref_h2index}.1.ht2l')):
-			raise ValueError(f'"{self.ref_h2index}" is not an existing hisat2 index')
+		if (not os.path.isfile(f'{self.ref_STAR_index}/SA')) or (not os.path.isfile(f'{self.ref_STAR_index}/SAindex')):
+			raise ValueError(f'"{self.ref_STAR_index}" is not an existing STAR index')
+		if (not os.path.isfile(f'{self.ref_hisat2_index}.1.ht2')) and (not os.path.isfile(f'{self.ref_hisat2_index}.1.ht2l')):
+			raise ValueError(f'"{self.ref_hisat2_index}" is not an existing hisat2 index')
 		
 		# Confirm that the output directory parent exists and it doesn't have forbidden characters
 		if self.output_dir.parent.is_dir() is False:
@@ -240,7 +244,8 @@ if __name__ == '__main__':
 	optional_args.add_argument('-s', '--strand', choices=('Unstranded', 'First', 'Second'), default='Unstranded', help='Strandedness of the input reads. Choices: Unstranded = Library preparation not strand-specific; First = READ_ONE/READ_FILE reads match the RNA sequence (i.e. 2nd cDNA synthesis strand); Second = READ_ONE/READ_FILE reads are reverse-complementary to the RNA sequence (i.e. 1st cDNA synthesis strand) (Default = Unstranded)')
 	optional_args.add_argument('-T', '--temp_switch_filter', default='2,2', help='Set the parameters of the template-switching filter in the head-filtering step. Format = "N,M", where N is the number of downstream bases to check, and M is the minimum number of matches required to identify an alignment as template-switching. (Default = 2,2)')
 	optional_args.add_argument('-m', '--ref_repeatmasker', type=pathlib.Path, help="BED file of repetitive regions in the genome. Putative lariats that map to a repetitive region will be filtered out as false positives. May be gzip-compressed. (Default = REF_DIR/repeatmasker.bed if it's an existing file, otherwise skip repetitive region filtering)")
-	optional_args.add_argument('-H', '--ref_h2index', type=pathlib.Path, help='HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)')
+	optional_args.add_argument('-S', '--ref_STAR_index', type=pathlib.Path, help='STAR index of the reference genome. (Default = REF_DIR/STAR_index)')
+	optional_args.add_argument('-H', '--ref_hisat2_index', type=pathlib.Path, help='HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)')
 	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome. May be gzip-compressed. (Default = REF_DIR/genome.fa.gz)')
 	optional_args.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help="FASTA file of 5' splice site sequences, i.e. the first 20nt of all annotated introns. (Default = REF_DIR/fivep_sites.fa)")
 	optional_args.add_argument('-e', '--ref_exons', type=pathlib.Path, help='TSV file of all annotated introns. (Default = REF_DIR/exons.tsv.gz)')
