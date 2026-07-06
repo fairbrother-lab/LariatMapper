@@ -593,6 +593,7 @@ def filter_head_alignment(align:ReadHeadAlignment,
 						exons:dict,
 						introns:dict,
 						threep_sites:dict,
+						chrom_lengths:dict,
 						temp_switch_range:int,
 						temp_switch_min_matches:int
 						) -> None:
@@ -606,8 +607,8 @@ def filter_head_alignment(align:ReadHeadAlignment,
 	if align.bp_pos - BP_CONTEXT_LENGTH < 0:
 		align.write_failed_out('bp_window_less_than_0')
 		return
-	chrom_len = utils.get_chrom_length(f'{genome_fasta}.fai', align.chrom)
-	if align.bp_pos + BP_CONTEXT_LENGTH > chrom_len:
+
+	if align.bp_pos + BP_CONTEXT_LENGTH > chrom_lengths[align.chrom]:
 		align.write_failed_out('bp_window_past_chrom_end')
 		return
 	
@@ -701,6 +702,7 @@ def filter_alignments_chunk(genome_fasta:str,
 						exons:dict, 
 						introns: dict,
 						threep_sites:dict,
+						chrom_lengths:dict,
 						temp_switch_range:int, 
 						temp_switch_min_matches:int,
 						chunk_start:int, 
@@ -738,7 +740,7 @@ def filter_alignments_chunk(genome_fasta:str,
 			elif align.read_orient_to_gene == 'Reverse' and align.align_is_reverse is True:
 				align.strand = '+'
 
-			filter_head_alignment(align, genome_fasta, exons, introns, threep_sites, temp_switch_range, temp_switch_min_matches)
+			filter_head_alignment(align, genome_fasta, exons, introns, threep_sites, chrom_lengths, temp_switch_range, temp_switch_min_matches)
 	
 	log.debug(f'Process {os.getpid()}: Finished')
 
@@ -844,6 +846,7 @@ if __name__ == '__main__':
 	# Load reference data for processing alignments
 	log.debug('Loading reference data...')
 	exons, introns, threep_sites, fivep_genes = parse_exons_introns(ref_exons, ref_introns, log)
+	chrom_lengths = utils.get_chrom_lengths(f'{genome_fasta}.fai')
 	log.debug('Loading read tails...')
 	tails = parse_tails(fivep_genes)
 
@@ -863,7 +866,7 @@ if __name__ == '__main__':
 	processes = []
 	for chunk_start, chunk_end in chunk_ranges[1:]:
 		process = mp.Process(target=filter_alignments_chunk, 
-							args=(genome_fasta, tails, exons, introns, threep_sites,
+							args=(genome_fasta, tails, exons, introns, threep_sites, chrom_lengths,
 			 					temp_switch_range, temp_switch_min_matches, chunk_start, chunk_end, 
 								log_level,))
 		process.start()
@@ -871,7 +874,7 @@ if __name__ == '__main__':
 
 	# Process the first chunk in the main process
 	chunk_start, chunk_end = chunk_ranges[0]
-	filter_alignments_chunk(genome_fasta, tails, exons, introns, threep_sites, 
+	filter_alignments_chunk(genome_fasta, tails, exons, introns, threep_sites, chrom_lengths,
 						 	temp_switch_range, temp_switch_min_matches, chunk_start, chunk_end, 
 							log_level,)
 

@@ -17,37 +17,41 @@ HISAT2_GENOME_INDEX="${4}"
 GENOME_FASTA="${5}"
 # FASTA file of 5' splice sites (first 20nts of all introns)
 FIVEP_FASTA="${6}"
+# FASTA file of branchpoint sites (25nts upstream of BP)
+BP_FASTA="${7}"
+# Annotated genes
+GENES_TSV="${8}"
 # Annotated exons
-EXONS_TSV="${7}"
+EXONS_TSV="${9}"
 # Annotated introns
-INTRONS_TSV="${8}"
+INTRONS_TSV="${10}"
 # Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
-STRAND="${9}"
+STRAND="${11}"
 # Parameters of the template-switching filter
-TEMP_SWITCH_FILTER="${10}"
+TEMP_SWITCH_FILTER="${12}"
 # Annotated repeat regions
-REPEATS_BED="${11}"
+REPEATS_BED="${13}"
 # A comma-seperated list of PWM files or a single model file
-PWM_FILES="${12}"
-MODEL_FILE="${13}"
+PWM_FILES="${14}"
+MODEL_FILE="${15}"
 # Run make_track.py after filter_lariats.py. true or false, default false
-UCSC_TRACK="${14}"
+UCSC_TRACK="${16}"
 # Keep output.bam
-KEEP_BAM="${15}"
+KEEP_BAM="${17}"
 # Keep read_classes.tsv.gz. true or false, default false
-KEEP_CLASSES="${16}"
+KEEP_CLASSES="${18}"
 # Keep the temp files created during the run. true or false, default false
-KEEP_TEMP="${17}"
+KEEP_TEMP="${19}"
 # Number of threads to use
-THREADS="${18}"
+THREADS="${20}"
 # Type of sequencing data. "single" or "paired"
-SEQ_TYPE="${19}"
+SEQ_TYPE="${21}"
 # Output directory 
-OUTPUT_BASE="${20}"
+OUTPUT_BASE="${22}"
 # Level for python logging. "DEBUG", "INFO", "WARNING", or "ERROR"
-LOG_LEVEL="${21}"
+LOG_LEVEL="${23}"
 # Directory containing lariat mapping pipeline files
-PIPELINE_DIR="${22}"
+PIPELINE_DIR="${24}"
 
 
 
@@ -58,15 +62,18 @@ output_bam_unsorted="$OUTPUT_BASE"Aligned.out.bam
 output_bam="$OUTPUT_BASE"output.bam
 unmapped_fasta="$OUTPUT_BASE"unmapped_reads.fa
 fivep_to_reads="$OUTPUT_BASE"fivep_to_reads.sam
+bp_to_reads="$OUTPUT_BASE"bp_to_reads.sam
 heads_fasta="$OUTPUT_BASE"heads.fa
 heads_to_genome="$OUTPUT_BASE"heads_to_genome.sam
+tails_fasta="$OUTPUT_BASE"tails.fa
+tails_to_genome="$OUTPUT_BASE"tails_to_genome.sam
 
 # List of temporary files to delete at the end of the run if KEEP_TEMP is false
 temp_files=(
 	"$output_bam_unsorted" "$OUTPUT_BASE"_STARtmp "$output_bam" "$output_bam".bai "$unmapped_fasta" "$unmapped_fasta".fai
 	# Have to use * because bowtie2 index could be small (X.bt2) or large (X.bt2l)
 	"$unmapped_fasta".1.bt* "$unmapped_fasta".2.bt* "$unmapped_fasta".3.bt* "$unmapped_fasta".4.bt* 
-	"$unmapped_fasta".rev.1.bt* "$unmapped_fasta".rev.2.bt* "$fivep_to_reads" "$fivep_to_reads".tmp 
+	"$unmapped_fasta".rev.1.bt* "$unmapped_fasta".rev.2.bt* "$fivep_to_reads" "$fivep_to_reads".tmp "$bp_to_reads" "$bp_to_reads".tmp 
 	"$heads_fasta" "$heads_to_genome" "$heads_to_genome".tmp "$OUTPUT_BASE"tails.tsv "$OUTPUT_BASE"putative_lariats.tsv
 	"$OUTPUT_BASE"settings.json "$OUTPUT_BASE"read_classes.tsv.gz "$OUTPUT_BASE"output.bam_summary_count.tsv
 	"$OUTPUT_BASE"failed_fivep_alignments.tsv "$OUTPUT_BASE"failed_head_alignments.tsv "$OUTPUT_BASE"failed_lariat_alignments.tsv
@@ -149,14 +156,15 @@ check_exitcode() {
 }
 
 
-
 #=============================================================================#
 #                                    Calls                                    #
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
+
 print_message "Mapping reads to genome..."
 
 star_options="--genomeDir $STAR_GENOME_INDEX --outFileNamePrefix $OUTPUT_BASE --runThreadN $THREADS --alignEndsType EndToEnd --outSAMtype BAM Unsorted --outSAMunmapped Within"
+star_options=$star_options" --outSJfilterReads Unique --outFilterMultimapNmax 100 --outSAMmultNmax 1 --winAnchorMultimapNmax 100"
 
 if [ "$SEQ_TYPE" == "single" ]; then
 	# Check if read file is compressed
@@ -194,10 +202,9 @@ if [ $unmapped_read_count == 0 ];then
 	end_run
 fi
 
-
 ### Create fasta file of unmapped reads 
 print_message "Creating fasta file of unmapped reads..."
-samtools fasta -N --require-flags 4 -o $unmapped_fasta $output_bam >/dev/null 2>&1
+samtools fasta -N --require-flags 4 -o $unmapped_fasta $output_bam #>/dev/null 2>&1
 check_exitcode
 print_message "Indexing unmapped reads fasta file..."
 samtools faidx $unmapped_fasta 
@@ -212,49 +219,96 @@ check_exitcode
 ## Align fasta file of all 5' splice sites (first 20nts of introns) to unmapped reads index
 # We need to order the output SAM by read_id (which is the reference in this case)
 # so we can process all the alignments to each read together in the following filtering 
-print_message "Mapping 5' splice sites to reads..."
-bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
-	> $fivep_to_reads.tmp
+#print_message "Mapping 5' splice sites to reads..."
+#bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
+#	> $fivep_to_reads.tmp
+#check_exitcode
+#samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $fivep_to_reads.tmp \
+#	| samtools view \
+#	> $fivep_to_reads
+#check_exitcode
+
+print_message "Mapping branchpoint upstream sequences to reads..."
+bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $BP_FASTA \
+	> $bp_to_reads.tmp
+#check_exitcode
+
+#bowtie2 --local --sensitive-local --no-unal -f -k 10000 -L 19 --mp 3,3 --score-min C,36,0 -i C,1,0 --threads $THREADS -x $unmapped_fasta -U $BP_FASTA \
+#	> $bp_to_reads.tmp
 check_exitcode
-samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $fivep_to_reads.tmp \
+
+samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $bp_to_reads.tmp \
 	| samtools view \
-	> $fivep_to_reads
+	> $bp_to_reads
 check_exitcode
 
 
 ## Extract reads with a mapped 5' splice site and trim it off
-print_message "Finding 5' read alignments and trimming reads..."
-# scalene --html --outfile "$OUTPUT_BASE"filter_fivep_aligns.html \
-# 	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
-python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $FIVEP_FASTA $STRAND $THREADS
-check_exitcode
+#print_message "Finding 5' read alignments and trimming reads..."
+# scalene --profile-interval 5 --json --outfile "$OUTPUT_BASE"filter_fivep_aligns.json \
+#	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
+#python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
+#check_exitcode
 
+
+## Extract reads with a mapped 5' splice site and trim it off
+print_message "Finding branchpoint alignments and trimming reads..."
+# scalene --profile-interval 5 --json --outfile "$OUTPUT_BASE"filter_fivep_aligns.json \
+#	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
+python -u $PIPELINE_DIR/scripts/filter_bp_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
+check_exitcode
 
 ### Map read heads to genome
-print_message "Mapping heads to genome..."
-hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
-	   --no-unal --threads $THREADS -f -x $HISAT2_GENOME_INDEX -U $heads_fasta \
-	> $heads_to_genome.tmp
-check_exitcode
-# We need to order the output SAM by read_id (which is the reference in this case)
+#print_message "Mapping heads to genome..."
+#hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
+#	   --no-unal --threads $THREADS -f -x $HISAT2_GENOME_INDEX -U $heads_to_genome \
+#	> $heads_to_genome.tmp
+#check_exitcode
+# We need to order the output SAM by read_id 
 # so we can process all the alignments to each read together in the following filtering 
-samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_genome.tmp \
-	> $heads_to_genome
+#samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_genome.tmp \
+#	> $heads_to_genome
+#check_exitcode
+
+### Map read tails to genome
+print_message "Mapping tails to genome..."
+hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
+	   --no-unal --threads $THREADS -f -x $HISAT2_GENOME_INDEX -U $tails_fasta \
+	> $tails_to_genome.tmp
+check_exitcode
+# We need to order the output SAM by read_id
+# so we can process all the alignments to each read together in the following filtering 
+samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $tails_to_genome.tmp \
+	> $tails_to_genome
 check_exitcode
 
 
 ### Filter head alignments
-print_message "Analyzing head alignments and outputting lariat table..."
+#print_message "Analyzing head alignments and outputting lariat table..."
 # scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
-# 	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
-python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
+#	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
+#python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
+#check_exitcode
+
+### Filter tail alignments
+print_message "Analyzing tail alignments and outputting lariat table..."
+# scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
+#	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
+python -u $PIPELINE_DIR/scripts/filter_tail_aligns.py $THREADS $GENES_TSV $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
 check_exitcode
 
 
 ### Filter lariat mappings and choose 1 for each read
 print_message "Filtering putative lariat alignments..."
-python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED
+python -u $PIPELINE_DIR/scripts/filter_reverse_map_lariats.py $THREADS $OUTPUT_BASE $HISAT2_GENOME_INDEX $GENES_TSV $INTRONS_TSV $LOG_LEVEL
 check_exitcode
+
+exit
+
+### Filter lariat mappings and choose 1 for each read
+#print_message "Filtering putative lariat alignments..."
+#python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED
+#check_exitcode
 
 
 ### Correct branchpoint positions, if extra files are provided

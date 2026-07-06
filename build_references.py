@@ -20,6 +20,8 @@ from scripts import utils
 EXON_INTRON_COLUMNS = ('chrom', 'strand', 'start', 'end', 'gene_id')
 REF_GENOME_FILE = 'genome'	# ends up as genome.fa or genome.fa.gz
 REF_FIVEP_FILE = 'fivep_sites' # ends up as fivep_sites.fa.gz, accompanied by the index files fivep_sites.fa.gz.fai and fivep_sites.fa.gz.gzi
+REF_BP_FILE = 'bp_sites' # ends up as bp_sites.fa.gz, accompanied by the index files bp_sites.fa.gz.fai and bp_sites.fa.gz.gzi
+REF_GENES_FILE = 'genes.tsv.gz'
 REF_INTRONS_FILE = 'introns.tsv.gz'
 REF_EXONS_FILE = 'exons.tsv.gz'
 REF_REPEATMASKER_FILE = 'repeatmasker.bed'
@@ -57,12 +59,12 @@ def write_metadata(args:argparse.Namespace, out_dir:str):
 
 def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	# Confirm that input files exist
-	ref_names = ['Genome fasta', 'Reference annotation']
-	ref_files = [args.genome_fasta, args.genome_anno]
+	ref_names = ['Genome fasta', 'Reference annotation', 'Branchpoint annotation']
+	ref_files = [args.genome_fasta, args.genome_anno, args.bp_bed]
 	for rn, rf in zip(ref_names, ref_files):
 		if not os.path.isfile(rf):
 			raise FileNotFoundError(f'{rn} file does not exist at {rf}')
-	genome_fasta, genome_anno = args.genome_fasta.resolve(), args.genome_anno.resolve()
+	genome_fasta, genome_anno, bp_bed = args.genome_fasta.resolve(), args.genome_anno.resolve(), args.bp_bed.resolve()
 
 	repeatmasker_bed = args.repeatmasker_bed
 	if repeatmasker_bed is not None:
@@ -109,7 +111,7 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 	if not args.threads>0:
 		parser.error(f'-t/--threads must be a positive integer. Input was "{repr(args.threads)}"')
 		
-	return genome_fasta, genome_anno, repeatmasker_bed, ref_STAR_index, ref_hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out
+	return genome_fasta, genome_anno, bp_bed, repeatmasker_bed, ref_STAR_index, ref_hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out
 
 
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
@@ -139,7 +141,7 @@ def parse_transcripts(genome_anno:str, anno_type:str, anno_gzip:bool, t_attr:str
 	else:
 		in_file = open(genome_anno)
 
-	transcripts = {}
+	transcripts, genes = {}, {}
 	for line in in_file:
 		if line=='\n' or line.startswith('#'):
 			continue
@@ -150,25 +152,34 @@ def parse_transcripts(genome_anno:str, anno_type:str, anno_gzip:bool, t_attr:str
 		except ValueError:
 			raise ValueError(f'Line: {repr(line)}')
 		
-		if feature != 'exon':
-			continue
-		start = int(start) - 1
-		end = int(end)
-		attributes = parse_attributes(attributes, anno_type)
+		if feature == 'gene':
+			attributes = parse_attributes(attributes, anno_type)
+			genes[attributes[g_attr]] = (chrom, strand, int(start)-1, int(end))
+		elif feature == 'exon':
+			start, end = int(start)-1, int(end)
+			attributes = parse_attributes(attributes, anno_type)
+			
+			if g_attr not in attributes:
+				raise ValueError(f'Attribute for gene id "{g_attr}" not found in attributes {repr(attributes)} of line "{line}"')
+			if t_attr not in attributes:
+				raise ValueError(f'Attribute for transcript id "{t_attr}" not found in attributes {repr(attributes)}of line "{line}"')
+			
+			# Add the exon to its transcript's list
+			exon = (start, end)
+			transcript_id = attributes[t_attr]
+			if transcript_id not in transcripts:
+				transcripts[transcript_id] = {'chrom': chrom, 'strand': strand, 'gene': attributes[g_attr], 'exons': []}
+			transcripts[transcript_id]['exons'].append(exon)
 
-		if g_attr not in attributes:
-			raise ValueError(f'Attribute for gene id "{g_attr}" not found in attributes {repr(attributes)} of line "{line}"')
-		if t_attr not in attributes:
-			raise ValueError(f'Attribute for transcript id "{t_attr}" not found in attributes {repr(attributes)}of line "{line}"')
-		
-		# Add the exon to its transcript's list
-		exon = (start, end)
-		transcript_id = attributes[t_attr]
-		if transcript_id not in transcripts:
-			transcripts[transcript_id] = {'chrom': chrom, 'strand': strand, 'gene': attributes[g_attr], 'exons': []}
-		transcripts[transcript_id]['exons'].append(exon)
+	return transcripts, genes
 
-	return transcripts
+def build_genes(genes:dict, out_dir:str, log) -> None:
+
+	with gzip.open(f'{out_dir}/{REF_GENES_FILE}', 'wt') as out_file:
+		out_file.write('gene_id\tchrom\tstrand\tstart\tend\n')
+		for gene_id in sorted(genes.keys(), key=lambda g:(genes[g][0], genes[g][2], genes[g][1])):
+			chrom, strand, start, end = genes[gene_id]
+			out_file.write(f'{gene_id}\t{chrom}\t{strand}\t{start}\t{end}\n')
 
 
 def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
@@ -224,6 +235,46 @@ def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
 	introns.to_csv(f'{out_dir}/{REF_INTRONS_FILE}', sep='\t', index=False, compression='gzip')
 
 	return introns
+
+def build_bp(bp_bed:pathlib.Path, genome_fasta:str, threads:int, out_dir:str, log) -> None:
+
+	bp_file = gzip.open(bp_bed, 'rt') if str(bp_bed).endswith('gz') else open(bp_bed)
+	bedtools_input = ''
+	bp_window_size = 20
+	for line in bp_file:
+		chrom, bp_pos, _, _, _, strand = line.strip().split('\t')[:6]
+		bp_site = f'{chrom};{bp_pos};{strand}'
+		#bp_window_start = int(bp_pos)-24 if strand=='+' else int(bp_pos)
+		bp_window_start = int(bp_pos)-bp_window_size-4 if strand=='+' else int(bp_pos)+5
+		bedtools_input += f'{chrom}\t{bp_window_start}\t{bp_window_start+bp_window_size}\t{bp_site}\t0\t{strand}\n'
+	bp_file.close()
+	
+	# Get fivep sequences using bedtools getfasta
+	bp_seqs = utils.getfasta(genome_fasta, bedtools_input, log=log)
+	bp_seqs = bp_seqs.rename(columns={'name': 'bp_site'})
+
+	# Parse output
+	bp_seqs[['chrom', 'pos', 'strand']] = bp_seqs.bp_site.str.split(';', expand=True)
+	bp_seqs.pos = bp_seqs.pos.astype('int')
+	# Sort to make debugging easier
+	bp_seqs = bp_seqs.sort_values(['chrom', 'pos', 'strand'])
+
+	# Write sequences to fasta file
+	with open(f'{out_dir}/{REF_BP_FILE}.fa', 'w') as fasta_out:
+		for i, row in bp_seqs.iterrows():
+			fasta_out.write(f">{row['bp_site']}\n{row['seq']}\n")
+
+	# Compress
+	log.debug('Compressing branchpoint upstream sequences FASTA...')
+	compressed_out = f"{out_dir}/{REF_BP_FILE}.fa.gz"
+	if os.path.isfile(compressed_out):
+		log.warning(f'Overwriting existing file at {compressed_out}')
+		os.remove(compressed_out)
+	utils.run_command(f'bgzip --threads {threads} {out_dir}/{REF_BP_FILE}.fa', log=log)
+	
+	# Index
+	log.debug("Building branchpoint upstream sequences FASTA index...")
+	utils.run_command(f'samtools faidx {compressed_out} --fai-idx {compressed_out}.fai --gzi-idx {compressed_out}.gzi', log=log)
 
 
 def build_fivep(introns:pd.DataFrame, genome_fasta:str, threads:int, out_dir:str, log) -> None:
@@ -288,6 +339,7 @@ if __name__ == '__main__':
 	# Required arguments
 	parser.add_argument('-f', '--genome_fasta', type=pathlib.Path, required=True, help='FASTA file of the reference genome. May be compressed with bgzip, but not with standard gzip.')
 	parser.add_argument('-a', '--genome_anno', type=pathlib.Path, required=True, help='GTF or GFF file of the reference gene annotation. May be gzip-compressed')
+	parser.add_argument('-b', '--bp_bed', type=pathlib.Path, required=True, help='BED 6+ file of branchpoint annotation. May be gzip-compressed')
 	parser.add_argument('-S', '--ref_STAR_index', type=pathlib.Path, required=True, help='STAR index of the reference genome')
 	parser.add_argument('-H', '--ref_hisat2_index', type=pathlib.Path, required=True, help='HISAT2 index of the reference genome')
 	parser.add_argument('-o', '--out_dir', type=pathlib.Path, required=True, help='Output reference directory. Will be created if it does not exist at runtime')
@@ -336,7 +388,7 @@ if __name__ == '__main__':
 	log.info(f'Arguments: \n{arg_message}')
 
 	# Validate the args and determine additional variables
-	genome_fasta, genome_anno, repeatmasker_bed, ref_STAR_index, ref_hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out = process_args(args, parser, log)
+	genome_fasta, genome_anno, bp_bed, repeatmasker_bed, ref_STAR_index, ref_hisat2_index, hisat2_extensions, anno_type, anno_gzip, genome_fasta_out = process_args(args, parser, log)
 
 	# Unpack args
 	out_dir, threads, copy, t_attr, g_attr = args.out_dir, args.threads, args.copy, args.t_attr, args.g_attr
@@ -410,13 +462,19 @@ if __name__ == '__main__':
 	utils.run_command(command, log=log)
 
 	log.info('Parsing transcripts from annotation file...')
-	transcripts = parse_transcripts(genome_anno, anno_type, anno_gzip, t_attr, g_attr, log)
+	transcripts, genes = parse_transcripts(genome_anno, anno_type, anno_gzip, t_attr, g_attr, log)
 	
+	log.info('Processing genes...')
+	build_genes(genes, out_dir, log)
+
 	log.info('Processing exons and introns...')
 	introns = build_exons_introns(transcripts, out_dir, log)
 
 	log.info("Processing 5' splice sites...")
 	build_fivep(introns, genome_fasta_out, threads, out_dir, log)
+
+	log.info("Processing branchpoints...")
+	build_bp(bp_bed, genome_fasta_out, threads, out_dir, log)
 
 	if not args.skip_r:
 		log.info('Building R objects...')

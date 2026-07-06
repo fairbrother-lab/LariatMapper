@@ -93,7 +93,28 @@ def str_join(items, join_string:str=',', unique:bool=False) -> str:
 		return join_string.join([str(item) for item in items])
 	
 
-def align_orient(flag:int) -> bool:
+CIGAR_CHARS = set('MIDNSHP=X')
+def get_cigar_tuples(cigar_str:str):
+	curr_str, cigar_tuples = '', []
+	for c in cigar_str:
+		if not c in CIGAR_CHARS:
+			curr_str += c
+		else:
+			cigar_tuples.append((int(curr_str), c))
+			curr_str = ''
+	return cigar_tuples
+
+
+CIGAR_REF_CHARS = set('MDN=X')
+def get_align_end(start_pos:int, cigar_tuples:list[tuple]):
+	ref_pos_consumed = 0
+	for op_len, op in cigar_tuples:
+		if op in CIGAR_REF_CHARS:
+			ref_pos_consumed += op_len
+	return start_pos+ref_pos_consumed
+	
+
+def align_orient(flag:int) -> str:
 	'''
 	Return True if the reverse flag bit 0x10 is 1, else False
 	'''
@@ -177,9 +198,9 @@ def get_seq(genome_fasta:str, chrom:str, start:int, end:int, rev_comp:bool) -> s
 		end (int): The end position of the sequence (0-based exclusive)
 		rev_comp (bool): Flag indicating whether to retrieve the reverse complement of the sequence.
 	"""
-	seq = pysam.FastaFile(genome_fasta).fetch(chrom, start, end)
+	seq = pysam.FastaFile(genome_fasta).fetch(chrom, start, end).upper()
 
-	if rev_comp is True:
+	if rev_comp:
 		seq = reverse_complement(seq)
 		
 	return seq
@@ -225,12 +246,14 @@ def decide_chunk_ranges(n_aligns:int, threads:int):
 	return chunk_ranges
 
 
-def get_chrom_length(faidx:str, chrom:str) -> int:
+def get_chrom_lengths(faidx:str) -> dict:
 	'''
-	Retrieve the length of a chromosome from a faidx index file (e.g. genome.fa.fai)
+	Retrieve the lengths of all chromosomes from a faidx index file (e.g. genome.fa.fai)
 	'''
+	chrom_lengths = {}
 	with open(faidx) as file_in:
 		for line in file_in:
-			line_chrom, length = line.split('\t')[:2]
-			if line_chrom == chrom:
-				return int(length)
+			chrom, length = line.split('\t')[:2]
+			chrom_lengths[chrom] = int(length)
+	
+	return chrom_lengths

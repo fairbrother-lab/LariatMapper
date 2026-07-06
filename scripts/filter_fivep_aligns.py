@@ -25,22 +25,22 @@ TAILS_FILE = "{}tails.tsv"
 HEADS_SEQ_FILE = "{}heads.fa"
 
 TAILS_COLS = ['read_id',
-			'read_seq',
-			'fivep_seq',
-			'fivep_sites',
-			'read_orient_to_gene',
-			'read_fivep_start',
-			'read_fivep_end',
-			'read_bp_pos',
-			]
+			  'read_seq',
+			  'fivep_seq',
+			  'fivep_sites',
+			  'read_orient_to_gene',
+			  'read_fivep_start',
+			  'read_fivep_end',
+			  'read_bp_pos',
+			  ]
 FAILED_FIVEPS_COLS = ['read_id',
-						'read_seq',
-						'fivep_site',
-						'read_fivep_start',
-						'read_fivep_end',
-						'read_orient_to_gene',
-						'filter_failed',
-						]
+					  'read_seq',
+					  'fivep_site',
+					  'read_fivep_start',
+					  'read_fivep_end',
+					  'read_orient_to_gene',
+					  'filter_failed',
+					  ]
 
 out_lock = mp.Lock()
 failed_out_lock = mp.Lock()
@@ -52,29 +52,33 @@ failed_out_lock = mp.Lock()
 # =============================================================================#
 #                                  Functions                                   #
 # =============================================================================#
-def get_read_seqs(unmapped_fasta:str) -> dict:
-	read_fasta = Fasta(unmapped_fasta, as_raw=True)
+def get_read_seqs(unmapped_fasta:str, read_ids_to_parse: set) -> dict:
+
 	read_seqs = {}
-	for read_id in read_fasta.keys():
-		read_seqs[read_id] = read_fasta[read_id][:]
+	with open(unmapped_fasta) as in_file:
+		read_id, read_seq = in_file.readline().strip(), in_file.readline().strip()
+		while read_id:
+			read_id = read_id[1:]
+			if read_id in read_ids_to_parse:
+				read_seqs[read_id] = read_seq.upper()
+			read_id, read_seq = in_file.readline().strip(), in_file.readline().strip()
 	
 	return read_seqs
 
 
-def get_fivep_upstream_seqs(fivep_fasta:str, genome_fasta:str, log) -> dict:
+def get_fivep_upstream_seqs(fivep_sites_to_parse:set, genome_fasta:str, log) -> dict:
 	# Prepare 5' sites for input into bedtools getfasta
 	# We're retrieving the 5bp upstream of the 5'ss, which is the last 5bp in the upstream exon
 	bedtools_input = ''
-	fivep_sites = Fasta(fivep_fasta).keys()
-	for site in fivep_sites:
+	chrom_lengths = utils.get_chrom_lengths(f'{genome_fasta}.fai')
+	for site in fivep_sites_to_parse:
 		chrom, fivep_pos, strand = site.split(';')
 		fivep_pos = int(fivep_pos)
 		if strand == '+':
 			up_pos = max(fivep_pos-5, 1) 				# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{up_pos}\t{fivep_pos}\t{site}\t0\t{strand}\n'  
 		else:
-			chrom_length = utils.get_chrom_length(f'{genome_fasta}.fai', chrom)
-			up_pos = min(fivep_pos+6, chrom_length)		# Make sure the 5bp upstream is within chrom
+			up_pos = min(fivep_pos+6, chrom_lengths[chrom])		# Make sure the 5bp upstream is within chrom
 			bedtools_input += f'{chrom}\t{fivep_pos+1}\t{up_pos}\t{site}\t0\t{strand}\n'
 
 	# Call bedtools getfasta 
@@ -281,7 +285,7 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 # =============================================================================#
 if __name__ == '__main__' :
 	# Get args
-	output_base, log_level, genome_fasta, fivep_fasta, strand, threads, = sys.argv[1:]
+	output_base, log_level, genome_fasta, strand, threads, = sys.argv[1:]
 
 	# Get logger
 	log = utils.get_logger(log_level)
@@ -289,18 +293,25 @@ if __name__ == '__main__' :
 	
 	threads = int(threads)
 
-	# Load reference info
-	read_seqs = get_read_seqs(UNMAPPED_READS_FILE.format(output_base))
-	fivep_upstream_seqs = get_fivep_upstream_seqs(fivep_fasta, genome_fasta, log)
-
-	# Get the total number of alignments
+	# Get the total number of alignments and which reads to pull sequences for
+	read_ids_to_parse, fivep_sites_to_parse, n_aligns = set(), set(), 0
 	with open(FIVEP_TO_READS_FILE.format(output_base)) as sam:
-		n_aligns = sum(1 for _ in sam)
+		for line in sam:
+			fivep_site, _, read_id = line.split('\t')[:3]
+			read_ids_to_parse.add(read_id)
+			fivep_sites_to_parse.add(fivep_site)
+			n_aligns += 1
 	log.debug(f'{n_aligns:,} read-fivep alignments')
 
 	# If there are no alignments, end the run early
 	if n_aligns == 0:
 		sys.exit(4)
+
+	# Load reference info
+	read_seqs = get_read_seqs(UNMAPPED_READS_FILE.format(output_base), read_ids_to_parse)
+	del read_ids_to_parse
+	fivep_upstream_seqs = get_fivep_upstream_seqs(fivep_sites_to_parse, genome_fasta, log)
+	del fivep_sites_to_parse
 
 	# Decide how to divide the collection of alignments into chunks
 	# for parallel processing, so each thread gets a roughly equal number
