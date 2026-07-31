@@ -168,8 +168,8 @@ def adjust_align_coords(read_bp_start, read_bp_end, read_adj_pos, read_orient_to
 	else:
 		return read_adj_pos, read_bp_end
 	
-DNTS = set(['GT'])
-def find_fivep_dnt(bp_window_seq, read_seq, read_bp_start, read_bp_end, read_orient_to_gene):
+DNTS = set(['GT', 'GC', 'AT'])
+def find_fivep_dnt(bp_window_seq, bp_downstream_seq, read_seq, read_bp_start, read_bp_end, read_orient_to_gene):
 
 	if read_orient_to_gene == 'Forward':
 		read_pos_range, read_window_seq_for = range(read_bp_end, read_bp_end+5), read_seq[read_bp_end:read_bp_end+7]
@@ -177,7 +177,7 @@ def find_fivep_dnt(bp_window_seq, read_seq, read_bp_start, read_bp_end, read_ori
 	else:
 		read_pos_range, read_window_seq_for = range(read_bp_start-1, read_bp_start-6, -1), utils.reverse_complement(read_seq[read_bp_start-7:read_bp_start])
 		adj_offset_inc, adj_offset_exc = 1, 0
-	adj_fail, out_bp_rel_pos = False, None
+	adj_fail, out_bp_rel_pos, mismatch_found = False, None, False
 	for read_pos, window_index, read_nt, bp_window_nt, bp_rel_pos in zip(read_pos_range, range(5),
 																		 read_window_seq_for[:5],
 																		 bp_window_seq, range(-4, 1)):
@@ -189,6 +189,13 @@ def find_fivep_dnt(bp_window_seq, read_seq, read_bp_start, read_bp_end, read_ori
 					out_bp_rel_pos = 0
 				else:
 					adj_fail = True
+				'''
+				if read_window_seq_for[window_index+1:window_index+3] != bp_downstream_seq[:2]:
+					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_exc, read_orient_to_gene)
+					out_bp_rel_pos = 0
+				else:
+					adj_fail = True
+				'''
 		else:
 			if bp_rel_pos == 0:
 				if read_window_seq_for[window_index+1:window_index+3] in DNTS:
@@ -203,12 +210,54 @@ def find_fivep_dnt(bp_window_seq, read_seq, read_bp_start, read_bp_end, read_ori
 				if read_window_seq_for[window_index:window_index+2] in DNTS:
 					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_inc, read_orient_to_gene)
 					out_bp_rel_pos = bp_rel_pos-1
+					break
 				elif read_window_seq_for[window_index+1:window_index+3] in DNTS:
 					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_exc, read_orient_to_gene)
 					out_bp_rel_pos = bp_rel_pos
+					break
 				else:
 					adj_fail = True
-				break
+					break
+				'''
+				elif mismatch_found:
+					adj_fail = True
+					break
+				else:
+					mismatch_found = True
+				'''
+			'''
+			if bp_rel_pos == 0:
+				if read_window_seq_for[window_index+1:window_index+3] in DNTS:
+					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_exc, read_orient_to_gene)
+					out_bp_rel_pos = 0
+				elif read_window_seq_for[window_index:window_index+2] in DNTS:
+					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_inc, read_orient_to_gene)
+					out_bp_rel_pos = -1
+				elif read_window_seq_for[window_index+1:window_index+3] != bp_downstream_seq[:2]:
+					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_exc, read_orient_to_gene)
+					out_bp_rel_pos = 0
+				else:
+					adj_fail = True
+			else:
+				if read_window_seq_for[window_index:window_index+2] in DNTS:
+					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_inc, read_orient_to_gene)
+					out_bp_rel_pos = bp_rel_pos-1
+					break
+				elif read_window_seq_for[window_index+1:window_index+3] in DNTS:
+					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_exc, read_orient_to_gene)
+					out_bp_rel_pos = bp_rel_pos
+					break
+				elif read_window_seq_for[window_index+1] != bp_window_seq[window_index+1]:
+					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_inc, read_orient_to_gene)
+					out_bp_rel_pos = bp_rel_pos-1
+					break
+				elif mismatch_found:
+					adj_fail = True
+					break
+				else:
+					mismatch_found = True
+			'''
+				
 	
 	return read_bp_start, read_bp_end, adj_fail, out_bp_rel_pos
 
@@ -260,7 +309,7 @@ def filter_reads_chunk(chunk_start:int, chunk_end:int, n_aligns:int, read_seqs:d
 			# bp_downstream_seqs[bp_site] to determine how many bp to reach downstream in the read. 
 			# In almost all cases it'll be 5bp
 
-			read_bp_start, read_bp_end, adj_fail, bp_rel_pos = find_fivep_dnt(bp_window_seqs[bp_site], read_seq, read_bp_start, read_bp_end, read_orient_to_gene)
+			read_bp_start, read_bp_end, adj_fail, bp_rel_pos = find_fivep_dnt(bp_window_seqs[bp_site], bp_downstream_seqs[bp_site], read_seq, read_bp_start, read_bp_end, read_orient_to_gene)
 			if adj_fail:
 				failed_alignments.append((read_id, read_seq, bp_site, read_bp_start, read_bp_end, alignment_score, read_orient_to_gene, 'BP_dNT_adj_fail'))
 				continue

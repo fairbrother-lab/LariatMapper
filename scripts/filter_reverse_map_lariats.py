@@ -131,6 +131,48 @@ def filter_multi_alignments(lariat_df:pandas.DataFrame, introns:dict, log):
 
 	return lariat_df
 
+
+def adjust_bp_fivep(lariat_df:pandas.DataFrame, log):
+
+	def move_values(ldf:pandas.DataFrame, index, s, dist):
+		if s=='+':
+			ldf.at[index, 'fivep_pos'] -= dist
+			ldf.at[index, 'bp_align_pos'] -= dist
+			ldf.at[index, 'fivep_dist_to_anno'] -= dist
+		else:
+			ldf.at[index, 'fivep_pos'] += dist
+			ldf.at[index, 'bp_align_pos'] += dist
+			ldf.at[index, 'fivep_dist_to_anno'] += dist
+		ldf.at[index, 'read_bp_pos'] -= dist
+		ldf.at[index, 'read_fivep_pos'] -= dist
+		return ldf
+		
+	for i, lar_info in lariat_df.iterrows():
+
+		strand, fivep_pos, fivep_nearest_anno_pos = [lar_info[c] for c in ['strand', 'fivep_pos', 'fivep_nearest_anno_pos']]
+		
+		fivep_rel_pos = fivep_pos-fivep_nearest_anno_pos if strand=='+' else fivep_nearest_anno_pos-fivep_pos
+		if fivep_rel_pos <= 3:
+			lariat_df = move_values(lariat_df, i, strand, abs(fivep_rel_pos))
+			continue
+		
+		'''
+		read_bp_pos, read_seq_forward = lariat_df.at[i, 'read_bp_pos'], lariat_df.at[i, 'read_seq_forward']
+		bp_seq, fivep_seq = read_seq_forward[read_bp_pos-4:read_bp_pos+1], read_seq_forward[read_bp_pos+1:read_bp_pos+5]
+		potential_dnt = bp_seq[-1] + fivep_seq[0]
+		if potential_dnt in ['GT', 'AT', 'GC']:
+			lariat_df = move_values(lariat_df, i, strand, 1)
+			continue
+
+		potential_dnt = bp_seq[-2:]
+		if potential_dnt in ['GT', 'AT', 'GC']:
+			lariat_df = move_values(lariat_df, i, strand, 2)
+		'''
+
+	
+	return lariat_df
+			
+
 def overlap_snaptron(lariat_pass_df:pandas.DataFrame, snaptron_file:str, log):
 
 	snaptron_columns = defaultdict(list)
@@ -196,7 +238,7 @@ if __name__ == '__main__':
 
 	lariat_df = pandas.read_csv(PUTATITVE_LARIATS_FILE, sep='\t')
 
-	lariat_df.drop(columns=['read_orient_to_gene', 'tail_align_quality', 'max_quality', 'tail_align_score', 'tail_cigar_str', 'mismatches', 'gaps'])
+	#lariat_df.drop(columns=['read_orient_to_gene', 'tail_align_quality', 'max_quality', 'tail_align_score', 'tail_cigar_str', 'mismatches', 'gaps'])
 
 	read_mate_ids = lariat_df['read_id'].str.slice(stop=-4)
 	read_mate_id_count = read_mate_ids.unique().size
@@ -205,6 +247,9 @@ if __name__ == '__main__':
 
 	genes = parse_genes(ref_genes, log)
 	introns = parse_introns(ref_introns, log)
+
+	lariat_pass_df = adjust_bp_fivep(lariat_df, log)
+	#lariat_pass_df = lariat_df
 
 	lariat_pass_df = verify_bp_alignment(lariat_df, hisat2_index, genes, threads, log)
 

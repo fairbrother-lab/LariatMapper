@@ -72,6 +72,7 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'read_orient_to_gene', 
 						'read_seq_forward', 
 						'read_bp_pos',
+						'read_fivep_pos',
 						'read_bp_nt', 
 						'genomic_bp_align_nt', 
 						'bp_mismatch',
@@ -204,6 +205,7 @@ class ReadTailAlignment():
 	align_is_reverse: bool
 	mismatches: int
 	mismatches_p: float
+	mismatch_str: str
 	gaps: list[int]
 	tail_align_quality: int
 	tail_align_score: int
@@ -230,6 +232,7 @@ class ReadTailAlignment():
 	bp_dist_to_threep: int = None
 	gene_id: str = None		
 	fivep_pos: int = None
+	read_fivep_pos: int = None
 	fivep_nearest_anno_pos: int = None
 	fivep_dist_to_anno: int = None
 
@@ -263,6 +266,7 @@ class ReadTailAlignment():
 		"""
 		mismatch_count = pysam_align.get_tag('NM')
 		mismatch_p = mismatch_count/pysam_align.query_length
+		mismatch_str = pysam_align.get_tag('MD')
 		gaps = [length for op, length in pysam_align.cigartuples if op in (1,2)]
 		return ReadTailAlignment(
 					read_id = pysam_align.query_name,
@@ -272,6 +276,7 @@ class ReadTailAlignment():
 					align_is_reverse = pysam_align.is_reverse,
 					mismatches = mismatch_count,
 					mismatches_p = mismatch_p,
+					mismatch_str=mismatch_str,
 					gaps = gaps,
 					tail_align_quality = pysam_align.mapping_quality,
 					tail_align_score = pysam_align.get_tag('AS'),
@@ -394,6 +399,8 @@ class ReadTailAlignment():
 			if col in COMMA_JOIN_COLS and isinstance(val, (list, tuple, set, frozenset, BPSite)):
 				val = utils.str_join(val, join_string=",")
 			elif col == 'read_bp_pos' and self.read_seq is not None:
+				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
+			elif col == 'read_fivep_pos' and self.read_fivep_pos is not None and self.read_seq is not None:
 				val = len(self.read_seq) - val - 1 if self.read_orient_to_gene == 'Reverse' else val
 			elif col == 'bp_pos' and val == '' and self.bp_sites is not None:
 				val = [site.pos for site in self.bp_sites]
@@ -643,6 +650,30 @@ def is_template_switch(bp_downstream_seq:str, fivep_seq:str, temp_switch_start:i
 	
 	return base_matches >= temp_switch_min_matches
 
+def adjust_tail_alignment_mismatch(strand, mismatch_str):
+	
+	if strand == '+' and mismatch_str[0] == '0':
+		match_found, i = False, 0
+		while not match_found:
+			if mismatch_str[i]=='0' and mismatch_str[i+1].isalpha():
+				i += 2
+			else:
+				match_found = True
+		starting_mismatch_count = i/2
+	elif strand == '-' and mismatch_str[-1] == '0':
+		match_found, i = False, len(mismatch_str)-1
+		while not match_found:
+			if mismatch_str[i]=='0' and mismatch_str[i-1].isalpha():
+				i -= 2
+			else:
+				match_found = True
+		starting_mismatch_count = (len(mismatch_str)-1-i)/2
+	else:
+		starting_mismatch_count = 0
+
+	return starting_mismatch_count
+
+
 
 # The info-inferring and filtering process
 def filter_tail_alignment(align:ReadTailAlignment, 
@@ -654,7 +685,8 @@ def filter_tail_alignment(align:ReadTailAlignment,
 						  fivep_sites:dict,
 						  chrom_lengths:dict,
 						  temp_switch_range:int,
-						  temp_switch_min_matches:int
+						  temp_switch_min_matches:int,
+						  log
 						  ) -> None:
 	
 	# Filter out BPs where strand doesn't agree with alignment orientation
@@ -699,12 +731,18 @@ def filter_tail_alignment(align:ReadTailAlignment,
 	align.gene_id = gene_set
 	
 	# Infer 5'ss position in genome
+	starting_mismatch_count = adjust_tail_alignment_mismatch(align.strand, align.mismatch_str)
+	if starting_mismatch_count > 2:
+		align.write_failed_out('fivep_starting_mismatch_too_long')
+		return
+	
+	align.read_fivep_pos = align.read_bp_pos+1+starting_mismatch_count if align.read_orient_to_gene=='Forward' else align.read_bp_pos-1-starting_mismatch_count
 	if align.strand == '+':
-		align.fivep_pos = align.align_start
+		align.fivep_pos = align.align_start + starting_mismatch_count
 		fivep_window_start, fivep_window_end = align.fivep_pos-FIVEP_CONTEXT_UP, align.fivep_pos+FIVEP_CONTEXT_DOWN
 		bp_window_start, bp_window_end = align.bp_align_pos, align.bp_align_pos+5
 	else:
-		align.fivep_pos = align.align_end - 1
+		align.fivep_pos = align.align_end - 1 - starting_mismatch_count
 		fivep_window_start, fivep_window_end = align.fivep_pos-FIVEP_CONTEXT_DOWN, align.fivep_pos+FIVEP_CONTEXT_UP
 		bp_window_start, bp_window_end = align.bp_align_pos-5, align.bp_align_pos
 
@@ -807,6 +845,7 @@ def filter_tail_alignment(align:ReadTailAlignment,
 
 	# Write out putative lariat
 	# It survived all the filters
+	#log.debug(f'Tail alignment: {align}')
 	align.write_lariat_out()
 
 
@@ -837,7 +876,7 @@ def filter_alignments_chunk(genome_fasta:str,
 			align.max_quality = max_quality
 			align.fill_head_info(read_head)
 
-			filter_tail_alignment(align, genome_fasta, genes, exons, introns, threep_sites, fivep_sites, chrom_lengths, temp_switch_range, temp_switch_min_matches)
+			filter_tail_alignment(align, genome_fasta, genes, exons, introns, threep_sites, fivep_sites, chrom_lengths, temp_switch_range, temp_switch_min_matches, log)
 	
 	log.debug(f'Process {os.getpid()}: Finished')
 

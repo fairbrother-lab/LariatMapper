@@ -161,6 +161,7 @@ check_exitcode() {
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
 
+
 print_message "Mapping reads to genome..."
 
 star_options="--genomeDir $STAR_GENOME_INDEX --outFileNamePrefix $OUTPUT_BASE --runThreadN $THREADS --alignEndsType EndToEnd --outSAMtype BAM Unsorted --outSAMunmapped Within"
@@ -229,7 +230,7 @@ check_exitcode
 #check_exitcode
 
 print_message "Mapping branchpoint upstream sequences to reads..."
-bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $BP_FASTA \
+bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 -L 20 -N 0 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $BP_FASTA \
 	> $bp_to_reads.tmp
 #check_exitcode
 
@@ -249,6 +250,7 @@ check_exitcode
 #	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
 #python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
 #check_exitcode
+
 
 
 ## Extract reads with a mapped 5' splice site and trim it off
