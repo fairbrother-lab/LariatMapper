@@ -139,7 +139,7 @@ def parse_transcripts(genome_anno:str, anno_type:str, anno_gzip:bool, t_attr:str
 	else:
 		in_file = open(genome_anno)
 
-	transcripts = {}
+	transcripts, genes = {}, {}
 	for line in in_file:
 		if line=='\n' or line.startswith('#'):
 			continue
@@ -149,26 +149,28 @@ def parse_transcripts(genome_anno:str, anno_type:str, anno_gzip:bool, t_attr:str
 			chrom, _, feature, start, end, _, strand, _, attributes = line.strip().split('\t')
 		except ValueError:
 			raise ValueError(f'Line: {repr(line)}')
-		
-		if feature != 'exon':
-			continue
-		start = int(start) - 1
-		end = int(end)
-		attributes = parse_attributes(attributes, anno_type)
 
-		if g_attr not in attributes:
-			raise ValueError(f'Attribute for gene id "{g_attr}" not found in attributes {repr(attributes)} of line "{line}"')
-		if t_attr not in attributes:
-			raise ValueError(f'Attribute for transcript id "{t_attr}" not found in attributes {repr(attributes)}of line "{line}"')
-		
-		# Add the exon to its transcript's list
-		exon = (start, end)
-		transcript_id = attributes[t_attr]
-		if transcript_id not in transcripts:
-			transcripts[transcript_id] = {'chrom': chrom, 'strand': strand, 'gene': attributes[g_attr], 'exons': []}
-		transcripts[transcript_id]['exons'].append(exon)
+		if feature == 'gene':
+			attributes = parse_attributes(attributes, anno_type)
+			genes[attributes[g_attr]] = (chrom, strand, int(start)-1, int(end))
+		elif feature == 'exon':
+			start = int(start) - 1
+			end = int(end)
+			attributes = parse_attributes(attributes, anno_type)
 
-	return transcripts
+			if g_attr not in attributes:
+				raise ValueError(f'Attribute for gene id "{g_attr}" not found in attributes {repr(attributes)} of line "{line}"')
+			if t_attr not in attributes:
+				raise ValueError(f'Attribute for transcript id "{t_attr}" not found in attributes {repr(attributes)}of line "{line}"')
+			
+			# Add the exon to its transcript's list
+			exon = (start, end)
+			transcript_id = attributes[t_attr]
+			if transcript_id not in transcripts:
+				transcripts[transcript_id] = {'chrom': chrom, 'strand': strand, 'gene': attributes[g_attr], 'exons': []}
+			transcripts[transcript_id]['exons'].append(exon)
+
+	return transcripts, genes
 
 
 def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
