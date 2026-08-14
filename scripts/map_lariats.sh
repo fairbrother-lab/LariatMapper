@@ -217,25 +217,12 @@ bowtie2-build --quiet --threads $THREADS $unmapped_fasta $unmapped_fasta
 check_exitcode 
 
 
-## Align fasta file of all 5' splice sites (first 20nts of introns) to unmapped reads index
+## Align fasta file of predicted branchpoint sequences (-25 to -6 upstream of cBPs) to unmapped reads index
 # We need to order the output SAM by read_id (which is the reference in this case)
 # so we can process all the alignments to each read together in the following filtering 
-#print_message "Mapping 5' splice sites to reads..."
-#bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $FIVEP_FASTA \
-#	> $fivep_to_reads.tmp
-#check_exitcode
-#samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $fivep_to_reads.tmp \
-#	| samtools view \
-#	> $fivep_to_reads
-#check_exitcode
-
 print_message "Mapping branchpoint upstream sequences to reads..."
 bowtie2 --end-to-end --sensitive --no-unal -f -k 10000 -L 20 -N 0 --score-min C,0,0 --threads $THREADS -x $unmapped_fasta -U $BP_FASTA \
 	> $bp_to_reads.tmp
-#check_exitcode
-
-#bowtie2 --local --sensitive-local --no-unal -f -k 10000 -L 19 --mp 3,3 --score-min C,36,0 -i C,1,0 --threads $THREADS -x $unmapped_fasta -U $BP_FASTA \
-#	> $bp_to_reads.tmp
 check_exitcode
 
 samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $bp_to_reads.tmp \
@@ -244,33 +231,13 @@ samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM $bp_to_reads.tmp
 check_exitcode
 
 
-## Extract reads with a mapped 5' splice site and trim it off
-#print_message "Finding 5' read alignments and trimming reads..."
-# scalene --profile-interval 5 --json --outfile "$OUTPUT_BASE"filter_fivep_aligns.json \
-#	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
-#python -u $PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
-#check_exitcode
-
-
-
-## Extract reads with a mapped 5' splice site and trim it off
+## Extract reads with a mapped branchpoint sequence and trim it off
 print_message "Finding branchpoint alignments and trimming reads..."
-# scalene --profile-interval 5 --json --outfile "$OUTPUT_BASE"filter_fivep_aligns.json \
-#	$PIPELINE_DIR/scripts/filter_fivep_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
+# scalene --profile-interval 5 --json --outfile "$OUTPUT_BASE"filter_bp_aligns.json \
+#	$PIPELINE_DIR/scripts/filter_bp_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
 python -u $PIPELINE_DIR/scripts/filter_bp_aligns.py $OUTPUT_BASE $LOG_LEVEL $GENOME_FASTA $STRAND $THREADS
 check_exitcode
 
-### Map read heads to genome
-#print_message "Mapping heads to genome..."
-#hisat2 --no-softclip --no-spliced-alignment --very-sensitive -k 100 \
-#	   --no-unal --threads $THREADS -f -x $HISAT2_GENOME_INDEX -U $heads_to_genome \
-#	> $heads_to_genome.tmp
-#check_exitcode
-# We need to order the output SAM by read_id 
-# so we can process all the alignments to each read together in the following filtering 
-#samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $heads_to_genome.tmp \
-#	> $heads_to_genome
-#check_exitcode
 
 ### Map read tails to genome
 print_message "Mapping tails to genome..."
@@ -284,18 +251,10 @@ samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $tails_to_gen
 	> $tails_to_genome
 check_exitcode
 
-
-### Filter head alignments
-#print_message "Analyzing head alignments and outputting lariat table..."
-# scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
-#	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
-#python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
-#check_exitcode
-
 ### Filter tail alignments
 print_message "Analyzing tail alignments and outputting lariat table..."
-# scalene --html --outfile "$OUTPUT_BASE"filter_head_aligns.html \
-#	$PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
+# scalene --html --outfile "$OUTPUT_BASE"filter_tail_aligns.html \
+#	$PIPELINE_DIR/scripts/filter_tail_aligns.py $THREADS $GENES_TSV $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
 python -u $PIPELINE_DIR/scripts/filter_tail_aligns.py $THREADS $GENES_TSV $EXONS_TSV $INTRONS_TSV $GENOME_FASTA $TEMP_SWITCH_FILTER $OUTPUT_BASE $LOG_LEVEL 
 check_exitcode
 
@@ -306,11 +265,6 @@ python -u $PIPELINE_DIR/scripts/filter_reverse_map_lariats.py $THREADS $OUTPUT_B
 check_exitcode
 
 exit
-
-### Filter lariat mappings and choose 1 for each read
-#print_message "Filtering putative lariat alignments..."
-#python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED
-#check_exitcode
 
 
 ### Correct branchpoint positions, if extra files are provided
