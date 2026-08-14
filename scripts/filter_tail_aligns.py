@@ -20,7 +20,7 @@ import utils
 #                                  Globals                                     #
 # =============================================================================#
 MAX_MISMATCHES = 5
-MAX_MISMATCH_PERCENT = 0.1
+MAX_MISMATCH_PROP = 0.1
 MAX_GAP_LENGTH = 3
 BP_CONTEXT_LENGTH = 8
 FIVEP_CONTEXT_UP = 2
@@ -76,11 +76,11 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'read_bp_nt', 
 						'genomic_bp_align_nt', 
 						'bp_mismatch',
-						'genomic_fivep_context', 
-						'tail_align_quality',
-						'tail_cigar_str',
+						'genomic_fivep_context', 	
+						'fivep_mismatch_count',					
 						'tail_align_start_pos',
 						'tail_align_end_pos',
+						'tail_cigar_str',
 						'tail_mismatches',
 						'tail_gaps'
 						]
@@ -88,10 +88,10 @@ TEMP_SWITCH_COLS = PUTATITVE_LARIATS_COLS + ['genomic_bp_downstream']
 
 
 COL_NAME_TO_ATTR_NAME = {'read_tail_end_pos': 'read_bp_pos',
-						 'align_start': 'tail_align_start_pos',
-						 'align_end': 'tail_align_end_pos',
-						 'mismatches': 'tail_mismatches',
-						 'gaps': 'tail_gaps',
+						 'tail_align_start_pos': 'align_start',
+						 'tail_align_end_pos': 'align_end',
+						 'tail_mismatches': 'mismatches',
+						 'tail_gaps': 'gaps',
 						 'head_chrom': 'chrom',
 						 'head_strand': 'strand',
 						 'head_gene_id': 'gene_id',
@@ -237,6 +237,7 @@ class ReadTailAlignment():
 	gene_id: str = None		
 	fivep_pos: int = None
 	read_fivep_pos: int = None
+	fivep_mismatch_count: int = None
 	fivep_nearest_anno_pos: int = None
 	fivep_dist_to_anno: int = None
 
@@ -675,8 +676,7 @@ def adjust_tail_alignment_mismatch(strand, mismatch_str):
 	else:
 		starting_mismatch_count = 0
 
-	return starting_mismatch_count
-
+	return int(starting_mismatch_count)
 
 
 # The info-inferring and filtering process
@@ -741,6 +741,7 @@ def filter_tail_alignment(align:ReadTailAlignment,
 		return
 	
 	align.read_fivep_pos = align.read_bp_pos+1+starting_mismatch_count if align.read_orient_to_gene=='Forward' else align.read_bp_pos-1-starting_mismatch_count
+	align.fivep_mismatch_count = starting_mismatch_count
 	if align.strand == '+':
 		align.fivep_pos = align.align_start + starting_mismatch_count
 		fivep_window_start, fivep_window_end = align.fivep_pos-FIVEP_CONTEXT_UP, align.fivep_pos+FIVEP_CONTEXT_DOWN
@@ -781,7 +782,7 @@ def filter_tail_alignment(align:ReadTailAlignment,
 	if align.mismatches > MAX_MISMATCHES:
 		align.write_failed_out('mismatches')
 		return
-	if align.mismatches_p > MAX_MISMATCH_PERCENT:
+	if align.mismatches_p > MAX_MISMATCH_PROP:
 		align.write_failed_out('mismatches')
 		return
 	if len(align.gaps) > 1:
@@ -974,7 +975,7 @@ if __name__ == '__main__':
 
 	# Count the number of tail alignments
 	n_aligns = pysam.AlignmentFile(TAILS_TO_GENOME_FILE).count()
-	log.debug(f'{n_aligns:,} head alignments')
+	log.debug(f'{n_aligns:,} tail alignments')
 	# If there are no reads left, end the run early 
 	if n_aligns == 0:
 		sys.exit(4)

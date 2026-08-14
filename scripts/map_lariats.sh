@@ -161,7 +161,6 @@ check_exitcode() {
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
 
-
 print_message "Mapping reads to genome..."
 
 star_options="--genomeDir $STAR_GENOME_INDEX --outFileNamePrefix $OUTPUT_BASE --runThreadN $THREADS --alignEndsType EndToEnd --outSAMtype BAM Unsorted --outSAMunmapped Within"
@@ -250,6 +249,7 @@ check_exitcode
 samtools sort --threads $THREADS --verbosity 0 --output-fmt SAM -n $tails_to_genome.tmp \
 	> $tails_to_genome
 check_exitcode
+
 
 ### Filter tail alignments
 print_message "Analyzing tail alignments and outputting lariat table..."

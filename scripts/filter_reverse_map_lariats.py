@@ -49,9 +49,12 @@ def parse_line(sam_line:str):
 	cigar_tuples = utils.get_cigar_tuples(cigar_str)
 	start_pos = int(start_pos)-1
 	end_pos = utils.get_align_end(start_pos, cigar_tuples)
+	gaps = [length for length, op in cigar_tuples if op in 'ID']
+	query_length = sum([length for length, op in cigar_tuples if op in 'MIS=X'])
+	mismatch_p = mismatch_count/float(query_length)
 	read_orient_to_chrom = utils.align_orient(flag)
 
-	return read_id, chrom, start_pos, end_pos, read_orient_to_chrom, cigar_str, alignment_score, mismatch_count
+	return read_id, chrom, start_pos, end_pos, read_orient_to_chrom, cigar_str, mismatch_count, mismatch_p, gaps
 
 def verify_bp_alignment(lariat_df:pandas.DataFrame, hisat2_index:str, genes:dict, threads:str, log):
 
@@ -65,16 +68,29 @@ def verify_bp_alignment(lariat_df:pandas.DataFrame, hisat2_index:str, genes:dict
 			out_file.write(f'>{tmp_read_id}\n{tmp_read_seq}\n')
 			read_info_dict[tmp_read_id] = read_info
 		
-	hisat2_cmd = f"hisat2 --no-softclip --no-spliced-alignment --sensitive -k 5 --no-unal --threads {threads} -f -x {hisat2_index} -U {tmp_fasta}"
+	hisat2_cmd = f"hisat2 --no-softclip --no-spliced-alignment --no-unal --sensitive -k 5 --threads {threads} -f -x {hisat2_index} -U {tmp_fasta}"
 	hisat2_output = subprocess.run(hisat2_cmd, shell=True, capture_output=True, text=True).stdout.strip().split('\n')
 	passed_alignments = []
 	read_failures = defaultdict(list)
 	for sam_line in hisat2_output:
 		if sam_line[0] != '@':
-			tmp_read_id, chrom, start_pos, end_pos, read_orient_to_chrom, cigar_str, alignment_score, mismatch_count = parse_line(sam_line)
+			tmp_read_id, chrom, start_pos, end_pos, read_orient_to_chrom, cigar_str, mismatch_count, mismatch_p, gaps = parse_line(sam_line)
 			read_id, bp_id = tmp_read_id.split('|')
 			read_mate_id = read_id[:-4]
 			bp_chrom, bp_pos, bp_strand, bp_align_pos = bp_id.split(';')
+
+			if mismatch_p > 0.1:
+				read_failures[read_mate_id].append('mismatch_rate')
+				continue
+
+			if len(gaps) > 1:
+				read_failures[read_mate_id].append('multiple_gaps')
+				continue
+
+			if sum(gaps) > 3:
+				read_failures[read_mate_id].append('long_gap')
+				continue
+
 			if bp_chrom != chrom or (bp_strand == '+' and read_orient_to_chrom == 'Reverse') or (bp_strand == '-' and read_orient_to_chrom == 'Forward'):
 				read_failures[read_mate_id].append('chrom_strand_mismatch')
 				continue
@@ -91,18 +107,37 @@ def verify_bp_alignment(lariat_df:pandas.DataFrame, hisat2_index:str, genes:dict
 				read_failures[read_mate_id].append('bp_align_pos_mismatch')
 				continue
 
-			passed_alignments.append([read_id, chrom, bp_strand, int(bp_pos), int(bp_align_pos), start_pos, end_pos-1, cigar_str, alignment_score, mismatch_count])
+			gaps = 'NA' if len(gaps)==0 else str(gaps[0])
+
+			passed_alignments.append([read_id, chrom, bp_strand, int(bp_pos), int(bp_align_pos), start_pos, end_pos, cigar_str, mismatch_count, gaps])
 	
 	failure_score = {'chrom_strand_mismatch':0, 'gene_mismatch':1, 'bp_align_pos_mismatch':2}
 	read_failure_counts = Counter([max(read_failures[rid], key=lambda f:failure_score[f]) for rid in read_failures])
-	log.info(f"Putative lariat filter failures:\n{read_failure_counts}")
+	log.info(f"Putative lariat filter failures: {read_failure_counts}")
 	
-	passed_alignments = pandas.DataFrame(passed_alignments, columns=['read_id', 'chrom', 'strand', 'bp_pos', 'bp_align_pos', 'head_start_pos', 'head_end_pos',
-																     'head_cigar_str', 'head_align_score', 'head_mismatches'])
+	passed_alignments = pandas.DataFrame(passed_alignments, columns=['read_id', 'chrom', 'strand', 'bp_pos', 'bp_align_pos', 'head_align_start_pos', 'head_align_end_pos',
+																     'head_cigar_str', 'head_mismatches', 'head_gaps'])
 	
 	lariat_pass_df = pandas.merge(lariat_df, passed_alignments, on=['read_id', 'chrom', 'strand', 'bp_pos', 'bp_align_pos'], how='right')
 	
 	return lariat_pass_df
+
+def filter_nested_reads(lariat_df:pandas.DataFrame, log):
+
+	align_pass = []
+	for _, align_info in lariat_df.iterrows():
+		head_align_start_pos, head_align_end_pos, tail_align_start_pos, tail_align_end_pos = [align_info[c] for c in ['head_align_start_pos', 'head_align_end_pos', 'tail_align_start_pos', 'tail_align_end_pos']]
+
+		if head_align_start_pos >= tail_align_start_pos and head_align_end_pos <= tail_align_end_pos:
+			align_pass.append(False)
+		elif tail_align_start_pos >= head_align_start_pos and tail_align_end_pos <= head_align_end_pos:
+			align_pass.append(False)
+		else:
+			align_pass.append(True)
+	
+	lariat_df = lariat_df[align_pass]
+
+	return lariat_df
 
 def filter_multi_alignments(lariat_df:pandas.DataFrame, introns:dict, log):
 	
@@ -125,9 +160,12 @@ def filter_multi_alignments(lariat_df:pandas.DataFrame, introns:dict, log):
 	lariat_df.loc[:, 'read_id_base'] = lariat_df['read_id'].str.slice(stop=-6)
 	align_counts = Counter(lariat_df.groupby('read_id_base').size())
 
-	log.info(f"Remaining alignment counts after intron filter:\n{align_counts}")
+	log.info(f"Remaining alignment counts after intron filter: {align_counts}")
 
 	lariat_df = lariat_df.groupby('read_id_base').sample(n=1)
+
+	lariat_df.loc[:, 'read_id'] = lariat_df['read_id_base']
+	lariat_df = lariat_df.drop(columns=['read_id_base'])
 
 	return lariat_df
 
@@ -155,20 +193,6 @@ def adjust_bp_fivep(lariat_df:pandas.DataFrame, log):
 		if fivep_rel_pos <= 3:
 			lariat_df = move_values(lariat_df, i, strand, abs(fivep_rel_pos))
 			continue
-		
-		'''
-		read_bp_pos, read_seq_forward = lariat_df.at[i, 'read_bp_pos'], lariat_df.at[i, 'read_seq_forward']
-		bp_seq, fivep_seq = read_seq_forward[read_bp_pos-4:read_bp_pos+1], read_seq_forward[read_bp_pos+1:read_bp_pos+5]
-		potential_dnt = bp_seq[-1] + fivep_seq[0]
-		if potential_dnt in ['GT', 'AT', 'GC']:
-			lariat_df = move_values(lariat_df, i, strand, 1)
-			continue
-
-		potential_dnt = bp_seq[-2:]
-		if potential_dnt in ['GT', 'AT', 'GC']:
-			lariat_df = move_values(lariat_df, i, strand, 2)
-		'''
-
 	
 	return lariat_df
 			
@@ -238,8 +262,6 @@ if __name__ == '__main__':
 
 	lariat_df = pandas.read_csv(PUTATITVE_LARIATS_FILE, sep='\t')
 
-	#lariat_df.drop(columns=['read_orient_to_gene', 'tail_align_quality', 'max_quality', 'tail_align_score', 'tail_cigar_str', 'mismatches', 'gaps'])
-
 	read_mate_ids = lariat_df['read_id'].str.slice(stop=-4)
 	read_mate_id_count = read_mate_ids.unique().size
 	read_id_count = read_mate_ids.str.slice(stop=-2).unique().size
@@ -249,9 +271,10 @@ if __name__ == '__main__':
 	introns = parse_introns(ref_introns, log)
 
 	lariat_pass_df = adjust_bp_fivep(lariat_df, log)
-	#lariat_pass_df = lariat_df
 
 	lariat_pass_df = verify_bp_alignment(lariat_df, hisat2_index, genes, threads, log)
+
+	lariat_pass_df = filter_nested_reads(lariat_pass_df, log)
 
 	lariat_pass_df = filter_multi_alignments(lariat_pass_df, introns, log)
 
