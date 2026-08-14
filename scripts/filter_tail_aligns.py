@@ -78,26 +78,30 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'bp_mismatch',
 						'genomic_fivep_context', 
 						'tail_align_quality',
-						'max_quality',
-						'tail_align_score',
 						'tail_cigar_str',
-						'mismatches',
-						'gaps'
+						'tail_align_start_pos',
+						'tail_align_end_pos',
+						'tail_mismatches',
+						'tail_gaps'
 						]
 TEMP_SWITCH_COLS = PUTATITVE_LARIATS_COLS + ['genomic_bp_downstream']
 
 
 COL_NAME_TO_ATTR_NAME = {'read_tail_end_pos': 'read_bp_pos',
-						'head_chrom': 'chrom',
-						'head_strand': 'strand',
-						'head_gene_id': 'gene_id',
-						'head_first_pos': 'align_start',
-						'head_last_pos': 'align_end',
-						'head_end_pos': 'bp_pos',
-						'head_end_dist_to_threep': 'bp_dist_to_threep',
-						'read_head_end_nt': 'read_bp_nt',
-						'genomic_head_end_nt': 'genomic_bp_nt',
-						'genomic_head_end_context': 'genomic_bp_context',
+						 'align_start': 'tail_align_start_pos',
+						 'align_end': 'tail_align_end_pos',
+						 'mismatches': 'tail_mismatches',
+						 'gaps': 'tail_gaps',
+						 'head_chrom': 'chrom',
+						 'head_strand': 'strand',
+						 'head_gene_id': 'gene_id',
+						 'head_first_pos': 'align_start',
+						 'head_last_pos': 'align_end',
+						 'head_end_pos': 'bp_pos',
+						 'head_end_dist_to_threep': 'bp_dist_to_threep',
+						 'read_head_end_nt': 'read_bp_nt',
+						 'genomic_head_end_nt': 'genomic_bp_nt',
+						 'genomic_head_end_context': 'genomic_bp_context',
 						}
 COMMA_JOIN_COLS = ('gaps', 'exons', 'introns', 'gene_id', 'fivep_sites')
 ROW_JOIN_CHAR = "|"
