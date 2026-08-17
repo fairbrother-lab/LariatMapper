@@ -20,6 +20,7 @@ from scripts import utils
 EXON_INTRON_COLUMNS = ('chrom', 'strand', 'start', 'end', 'gene_id')
 REF_GENOME_FILE = 'genome'	# ends up as genome.fa or genome.fa.gz
 REF_FIVEP_FILE = 'fivep_sites' # ends up as fivep_sites.fa.gz, accompanied by the index files fivep_sites.fa.gz.fai and fivep_sites.fa.gz.gzi
+REF_GENES_FILE = 'genes.tsv.gz'
 REF_INTRONS_FILE = 'introns.tsv.gz'
 REF_EXONS_FILE = 'exons.tsv.gz'
 REF_REPEATMASKER_FILE = 'repeatmasker.bed'
@@ -171,6 +172,14 @@ def parse_transcripts(genome_anno:str, anno_type:str, anno_gzip:bool, t_attr:str
 			transcripts[transcript_id]['exons'].append(exon)
 
 	return transcripts, genes
+
+def build_genes(genes:dict, out_dir:str, log) -> None:
+
+	with gzip.open(f'{out_dir}/{REF_GENES_FILE}', 'wt') as out_file:
+		out_file.write('gene_id\tchrom\tstrand\tstart\tend\n')
+		for gene_id in sorted(genes.keys(), key=lambda g:(genes[g][0], genes[g][2], genes[g][1])):
+			chrom, strand, start, end = genes[gene_id]
+			out_file.write(f'{gene_id}\t{chrom}\t{strand}\t{start}\t{end}\n')
 
 
 def build_exons_introns(transcripts:dict, out_dir:str, log) -> pd.DataFrame:
@@ -412,7 +421,10 @@ if __name__ == '__main__':
 	utils.run_command(command, log=log)
 
 	log.info('Parsing transcripts from annotation file...')
-	transcripts = parse_transcripts(genome_anno, anno_type, anno_gzip, t_attr, g_attr, log)
+	transcripts, genes = parse_transcripts(genome_anno, anno_type, anno_gzip, t_attr, g_attr, log)
+
+	log.info('Processing genes...')
+	build_genes(genes, out_dir, log)
 	
 	log.info('Processing exons and introns...')
 	introns = build_exons_introns(transcripts, out_dir, log)

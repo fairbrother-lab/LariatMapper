@@ -70,12 +70,23 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 						'read_bp_nt', 
 						'genomic_bp_nt', 
 						'bp_mismatch',
-						'genomic_bp_context', 
-						'head_align_quality',
-						'max_quality',
+						'genomic_bp_context',
+						'head_align_score',
+						'head_max_score',
+						'head_align_start_pos',
+						'head_align_end_pos',
+						'head_cigar_str',
+						'head_mismatches',
+						'head_gaps'
 						]
 
+
 COL_NAME_TO_ATTR_NAME = {'read_head_end_pos': 'read_bp_pos',
+						'head_max_score': 'max_score',
+						'head_align_start_pos': 'align_start',
+						'head_align_end_pos': 'align_end',
+						'head_mismatches': 'mismatches',
+						'head_gaps': 'gaps',
 						'head_chrom': 'chrom',
 						'head_strand': 'strand',
 						'head_gene_id': 'gene_id',
@@ -191,7 +202,8 @@ class ReadHeadAlignment():
 	mismatches: int
 	mismatches_p: float
 	gaps: list[int]
-	head_align_quality: int
+	head_align_score: int
+	head_cigar_str: str
 	
 	# Copied from the ReadTail object 
 	read_orient_to_gene: str = None
@@ -202,7 +214,7 @@ class ReadHeadAlignment():
 	read_bp_nt: str = None
 
 	# Determined during filtering
-	max_quality: int = None
+	max_score: int = None
 	strand: str = None
 	bp_pos: int	= None
 	genomic_bp_context: str	= None
@@ -241,18 +253,21 @@ class ReadHeadAlignment():
 		"""
 		For building ReadHeadAlignment objects from the heads_to_genome output file
 		"""
-		mismatch_p = pysam_align.get_tag('NM')/pysam_align.query_length
-		gaps = [length for op, length in pysam_align.cigartuples if op in (1,2)]
+		mismatch_count = pysam_align.get_tag('NM')
+		mismatch_p = mismatch_count/pysam_align.query_length
+		gap_list = [length for op, length in pysam_align.cigartuples if op in (1,2)]
+		gap_list = [0] if len(gap_list)==0 else gap_list
 		return ReadHeadAlignment(
 					read_id = pysam_align.query_name,
 					chrom = pysam_align.reference_name,
 					align_start = pysam_align.reference_start,
 					align_end = pysam_align.reference_end,
 					align_is_reverse = pysam_align.is_reverse,
-					mismatches = pysam_align.get_tag('NM'),
+					mismatches = mismatch_count,
 					mismatches_p = mismatch_p,
-					gaps = gaps,
-					head_align_quality = pysam_align.mapping_quality
+					gaps = gap_list,
+					head_align_score = pysam_align.get_tag('AS'),
+					head_cigar_str = pysam_align.cigarstring
 		)
 
 	def from_row(row:pd.Series):
@@ -548,9 +563,9 @@ def yield_read_aligns(chunk_start:int, chunk_end:int):
 		# If we've reached the first alignment for a new read...
 		else:
 			# Find the max alignment quality among all of the current read's alignments
-			max_quality = max(align.head_align_quality for align in read_aligns)
+			max_score = max(align.head_align_score for align in read_aligns)
 			# Yield the current read's alignments
-			yield current_read_id, read_aligns, max_quality
+			yield current_read_id, read_aligns, max_score
 
 			# Set to processing next read's alignments
 			current_read_id = align.read_id
@@ -565,9 +580,9 @@ def yield_read_aligns(chunk_start:int, chunk_end:int):
 	# If this is the last set of read alignments in the file, yield it
 	if align_num == n_aligns:
 		# Find the max alignment quality among all of the current read's alignments
-		max_quality = max(align.head_align_quality for align in read_aligns)
+		max_score = max(align.head_align_score for align in read_aligns)
 		# Yield the current read's alignments
-		yield current_read_id, read_aligns, max_quality
+		yield current_read_id, read_aligns, max_score
 
 
 # Inferring info and filtering
@@ -711,13 +726,13 @@ def filter_alignments_chunk(genome_fasta:str,
 	log = utils.get_logger(log_level)
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
-	for read_id, read_aligns, max_quality in yield_read_aligns(chunk_start, chunk_end):
+	for read_id, read_aligns, max_score in yield_read_aligns(chunk_start, chunk_end):
 		read_tail = tails[read_id]
 
 		# Go through each alignment for the read
 		# filling in information and filtering out bad alignments
 		for align in read_aligns:
-			align.max_quality = max_quality
+			align.max_score = max_score
 			align.fill_tail_info(read_tail)
 
 			# Infer strand from the alignment orientation

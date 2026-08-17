@@ -17,37 +17,39 @@ HISAT2_GENOME_INDEX="${4}"
 GENOME_FASTA="${5}"
 # FASTA file of 5' splice sites (first 20nts of all introns)
 FIVEP_FASTA="${6}"
+# Annotated genes
+GENES_TSV="${7}"
 # Annotated exons
-EXONS_TSV="${7}"
+EXONS_TSV="${8}"
 # Annotated introns
-INTRONS_TSV="${8}"
+INTRONS_TSV="${9}"
 # Strand-specificity of the RNA-seq data. "Unstranded, "Forward", or "Reverse"
-STRAND="${9}"
+STRAND="${10}"
 # Parameters of the template-switching filter
-TEMP_SWITCH_FILTER="${10}"
+TEMP_SWITCH_FILTER="${11}"
 # Annotated repeat regions
-REPEATS_BED="${11}"
+REPEATS_BED="${12}"
 # A comma-seperated list of PWM files or a single model file
-PWM_FILES="${12}"
-MODEL_FILE="${13}"
+PWM_FILES="${13}"
+MODEL_FILE="${14}"
 # Run make_track.py after filter_lariats.py. true or false, default false
-UCSC_TRACK="${14}"
+UCSC_TRACK="${15}"
 # Keep output.bam
-KEEP_BAM="${15}"
+KEEP_BAM="${16}"
 # Keep read_classes.tsv.gz. true or false, default false
-KEEP_CLASSES="${16}"
+KEEP_CLASSES="${17}"
 # Keep the temp files created during the run. true or false, default false
-KEEP_TEMP="${17}"
+KEEP_TEMP="${18}"
 # Number of threads to use
-THREADS="${18}"
+THREADS="${19}"
 # Type of sequencing data. "single" or "paired"
-SEQ_TYPE="${19}"
+SEQ_TYPE="${20}"
 # Output directory 
-OUTPUT_BASE="${20}"
+OUTPUT_BASE="${21}"
 # Level for python logging. "DEBUG", "INFO", "WARNING", or "ERROR"
-LOG_LEVEL="${21}"
+LOG_LEVEL="${22}"
 # Directory containing lariat mapping pipeline files
-PIPELINE_DIR="${22}"
+PIPELINE_DIR="${23}"
 
 
 
@@ -154,6 +156,7 @@ check_exitcode() {
 #                                    Calls                                    #
 #=============================================================================#
 ### Map filtered reads to genome and keep unmapped reads. Lariat reads crossing the brachpoint will not be able to map to the gene they're from
+
 print_message "Mapping reads to genome..."
 
 star_options="--genomeDir $STAR_GENOME_INDEX --outFileNamePrefix $OUTPUT_BASE --runThreadN $THREADS --alignEndsType EndToEnd --outSAMtype BAM Unsorted --outSAMunmapped Within"
@@ -251,10 +254,13 @@ python -u $PIPELINE_DIR/scripts/filter_head_aligns.py $THREADS $EXONS_TSV $INTRO
 check_exitcode
 
 
+
 ### Filter lariat mappings and choose 1 for each read
 print_message "Filtering putative lariat alignments..."
-python -u $PIPELINE_DIR/scripts/filter_lariats.py $OUTPUT_BASE $LOG_LEVEL $SEQ_TYPE $GENOME_FASTA $REPEATS_BED
+python -u $PIPELINE_DIR/scripts/filter_lariats.py $THREADS $OUTPUT_BASE $HISAT2_GENOME_INDEX $GENES_TSV $INTRONS_TSV $REPEATS_BED $LOG_LEVEL
 check_exitcode
+
+exit
 
 
 ### Correct branchpoint positions, if extra files are provided

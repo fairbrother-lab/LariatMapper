@@ -27,13 +27,14 @@ class Settings:
 			 	('ref_hisat2_index', 'hisat2_index/genome'),
 				('ref_fasta', 'genome.fa'),
 				('ref_5p_fasta', 'fivep_sites.fa'),
+				('ref_genes', 'genes.tsv.gz'),
 				('ref_exons', 'exons.tsv.gz'),
 				('ref_introns', 'introns.tsv.gz'))
 	PATH_SETTINGS = ('read_file', 'read_one', 'read_two', 'ref_dir', 'ref_STAR_index', 'ref_fasta', 
-					'ref_5p_fasta', 'ref_exons', 'ref_introns', 'output_dir', 'ref_repeatmasker', 
+					'ref_5p_fasta', 'ref_genes', 'ref_exons', 'ref_introns', 'output_dir', 'ref_repeatmasker', 
 					'model_correction', 'pipeline_dir')
 	ARGS_TO_MAP_LARIATS = ('input_reads', 'ref_dir', 'ref_STAR_index', 'ref_hisat2_index', 'ref_fasta', 'ref_5p_fasta', 
-						'ref_exons', 'ref_introns', 'strand', 'temp_switch_filter', 
+						'ref_genes', 'ref_exons', 'ref_introns', 'strand', 'temp_switch_filter', 
 						'ref_repeatmasker', 'pwm_correction', 'model_correction', 'ucsc_track', 
 						'keep_bam', 'keep_classes', 'keep_temp', 'threads', 'seq_type', 
 						'output_base', 'log_level', 'pipeline_dir')
@@ -48,6 +49,7 @@ class Settings:
 	ref_hisat2_index: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/hisat2_index
 	ref_fasta: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/genome.fa
 	ref_5p_fasta: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/fivep_sites.fa
+	ref_genes: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/genes.tsv.gz
 	ref_exons: pathlib.Path			# If ref_dir is supplied and this is not, will be set to {ref_dir}/exons.tsv.gz
 	ref_introns: pathlib.Path		# If ref_dir is supplied and this is not, will be set to {ref_dir}/introns.tsv.gz
 	output_dir: pathlib.Path
@@ -248,6 +250,7 @@ if __name__ == '__main__':
 	optional_args.add_argument('-H', '--ref_hisat2_index', type=pathlib.Path, help='HISAT2 index of the reference genome. (Default = REF_DIR/hisat2_index)')
 	optional_args.add_argument('-g', '--ref_fasta', type=pathlib.Path, help='FASTA file of the reference genome. May be gzip-compressed. (Default = REF_DIR/genome.fa.gz)')
 	optional_args.add_argument('-5', '--ref_5p_fasta', type=pathlib.Path, help="FASTA file of 5' splice site sequences, i.e. the first 20nt of all annotated introns. (Default = REF_DIR/fivep_sites.fa)")
+	optional_args.add_argument('-G', '--ref_genes', type=pathlib.Path, help='TSV file of all annotated genes. (Default = REF_DIR/genes.tsv.gz)')
 	optional_args.add_argument('-e', '--ref_exons', type=pathlib.Path, help='TSV file of all annotated introns. (Default = REF_DIR/exons.tsv.gz)')
 	optional_args.add_argument('-i', '--ref_introns', type=pathlib.Path, help='TSV file of all annotated introns. (Default = REF_DIR/introns.tsv.gz)')
 	bp_correction = optional_args.add_mutually_exclusive_group()

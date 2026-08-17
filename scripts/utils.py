@@ -91,6 +91,27 @@ def str_join(items, join_string:str=',', unique:bool=False) -> str:
 	
 	else:
 		return join_string.join([str(item) for item in items])
+
+
+CIGAR_CHARS = set('MIDNSHP=X')
+def get_cigar_tuples(cigar_str:str):
+	curr_str, cigar_tuples = '', []
+	for c in cigar_str:
+		if not c in CIGAR_CHARS:
+			curr_str += c
+		else:
+			cigar_tuples.append((int(curr_str), c))
+			curr_str = ''
+	return cigar_tuples
+
+
+CIGAR_REF_CHARS = set('MDN=X')
+def get_align_end(start_pos:int, cigar_tuples:list[tuple]):
+	ref_pos_consumed = 0
+	for op_len, op in cigar_tuples:
+		if op in CIGAR_REF_CHARS:
+			ref_pos_consumed += op_len
+	return start_pos+ref_pos_consumed
 	
 
 def align_orient(flag:int) -> bool:
