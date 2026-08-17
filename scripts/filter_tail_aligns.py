@@ -87,7 +87,7 @@ PUTATITVE_LARIATS_COLS = ['read_id',
 TEMP_SWITCH_COLS = PUTATITVE_LARIATS_COLS + ['genomic_bp_downstream']
 
 
-COL_NAME_TO_ATTR_NAME = {'read_tail_end_pos': 'read_bp_pos',
+COL_NAME_TO_ATTR_NAME = {'read_head_end_pos': 'read_bp_pos',
 						 'tail_align_start_pos': 'align_start',
 						 'tail_align_end_pos': 'align_end',
 						 'tail_mismatches': 'mismatches',
@@ -211,11 +211,10 @@ class ReadTailAlignment():
 	mismatches_p: float
 	mismatch_str: str
 	gaps: list[int]
-	tail_align_quality: int
 	tail_align_score: int
 	tail_cigar_str: str
 	
-	# Copied from the ReadTail object 
+	# Copied from the ReadHead object 
 	read_orient_to_gene: str = None
 	read_seq: str = None
 	bp_seq: str = None
@@ -224,7 +223,7 @@ class ReadTailAlignment():
 	read_bp_nt: str = None
 
 	# Determined during filtering
-	max_quality: int = None
+	max_score: int = None
 	strand: str = None
 	bp_pos: int	= None
 	genomic_fivep_context: str	= None
@@ -272,7 +271,8 @@ class ReadTailAlignment():
 		mismatch_count = pysam_align.get_tag('NM')
 		mismatch_p = mismatch_count/pysam_align.query_length
 		mismatch_str = pysam_align.get_tag('MD')
-		gaps = [length for op, length in pysam_align.cigartuples if op in (1,2)]
+		gap_list = [length for op, length in pysam_align.cigartuples if op in (1,2)]
+		gap_list = [0] if len(gap_list)==0 else gap_list
 		return ReadTailAlignment(
 					read_id = pysam_align.query_name,
 					chrom = pysam_align.reference_name,
@@ -282,8 +282,7 @@ class ReadTailAlignment():
 					mismatches = mismatch_count,
 					mismatches_p = mismatch_p,
 					mismatch_str=mismatch_str,
-					gaps = gaps,
-					tail_align_quality = pysam_align.mapping_quality,
+					gaps = gap_list,
 					tail_align_score = pysam_align.get_tag('AS'),
 					tail_cigar_str = pysam_align.cigarstring
 		)
@@ -586,9 +585,9 @@ def yield_read_aligns(chunk_start:int, chunk_end:int):
 		# If we've reached the first alignment for a new read...
 		else:
 			# Find the max alignment quality among all of the current read's alignments
-			max_quality = max(align.tail_align_score for align in read_aligns)
+			max_score = max(align.tail_align_score for align in read_aligns)
 			# Yield the current read's alignments
-			yield current_read_id, read_aligns, max_quality
+			yield current_read_id, read_aligns, max_score
 
 			# Set to processing next read's alignments
 			current_read_id = align.read_id
@@ -603,9 +602,9 @@ def yield_read_aligns(chunk_start:int, chunk_end:int):
 	# If this is the last set of read alignments in the file, yield it
 	if align_num == n_aligns:
 		# Find the max alignment quality among all of the current read's alignments
-		max_quality = max(align.tail_align_score for align in read_aligns)
+		max_score = max(align.tail_align_score for align in read_aligns)
 		# Yield the current read's alignments
-		yield current_read_id, read_aligns, max_quality
+		yield current_read_id, read_aligns, max_score
 
 
 # Inferring info and filtering
@@ -872,13 +871,13 @@ def filter_alignments_chunk(genome_fasta:str,
 	log = utils.get_logger(log_level)
 	log.debug(f'Process {os.getpid()}: Born and assigned lines {chunk_start:,}-{chunk_end:,}')
 
-	for read_id, read_aligns, max_quality in yield_read_aligns(chunk_start, chunk_end):
+	for read_id, read_aligns, max_score in yield_read_aligns(chunk_start, chunk_end):
 		read_head = heads[read_id]
 
 		# Go through each alignment for the read
 		# filling in information and filtering out bad alignments
 		for align in read_aligns:
-			align.max_quality = max_quality
+			align.max_score = max_score
 			align.fill_head_info(read_head)
 
 			filter_tail_alignment(align, genome_fasta, genes, exons, introns, threep_sites, fivep_sites, chrom_lengths, temp_switch_range, temp_switch_min_matches, log)

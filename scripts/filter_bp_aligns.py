@@ -215,16 +215,11 @@ def find_fivep_dnt(bp_window_seq, bp_downstream_seq, read_seq, read_bp_start, re
 					read_bp_start, read_bp_end = adjust_align_coords(read_bp_start, read_bp_end, read_pos+adj_offset_exc, read_orient_to_gene)
 					out_bp_rel_pos = bp_rel_pos
 					break
-				else:
-					adj_fail = True
-					break
-				'''
 				elif mismatch_found:
 					adj_fail = True
 					break
 				else:
 					mismatch_found = True
-				'''
 			'''
 			if bp_rel_pos == 0:
 				if read_window_seq_for[window_index+1:window_index+3] in DNTS:

@@ -118,7 +118,7 @@ def verify_bp_alignment(lariat_df:pandas.DataFrame, output_base:str, hisat2_inde
 				read_failures[read_mate_id].append('bp_align_pos_mismatch')
 				continue
 
-			gaps = 'NA' if len(gaps)==0 else str(gaps[0])
+			gaps = '0' if len(gaps)==0 else str(gaps[0])
 
 			passed_alignments.append([read_id, chrom, bp_strand, int(bp_pos), int(bp_align_pos), start_pos, end_pos, cigar_str, mismatch_count, gaps])
 	
@@ -139,8 +139,8 @@ def verify_bp_alignment(lariat_df:pandas.DataFrame, output_base:str, hisat2_inde
 def filter_nested_reads(lariat_df:pandas.DataFrame, log):
 
 	align_pass = []
-	for _, align_info in lariat_df.iterrows():
-		head_align_start_pos, head_align_end_pos, tail_align_start_pos, tail_align_end_pos = [align_info[c] for c in ['head_align_start_pos', 'head_align_end_pos', 'tail_align_start_pos', 'tail_align_end_pos']]
+	for _, read_info in lariat_df.iterrows():
+		head_align_start_pos, head_align_end_pos, tail_align_start_pos, tail_align_end_pos = [read_info[c] for c in ['head_align_start_pos', 'head_align_end_pos', 'tail_align_start_pos', 'tail_align_end_pos']]
 
 		if head_align_start_pos >= tail_align_start_pos and head_align_end_pos <= tail_align_end_pos:
 			align_pass.append(False)
@@ -158,8 +158,8 @@ def filter_nested_reads(lariat_df:pandas.DataFrame, log):
 def filter_multi_alignments(lariat_df:pandas.DataFrame, introns:dict, log):
 	
 	align_pass, align_tail_introns, align_head_introns = [], [], []
-	for _, align_info in lariat_df.iterrows():
-		chrom, strand, head_align_start_pos, head_align_end_pos, tail_align_start_pos, tail_align_end_pos = [align_info[c] for c in ['chrom', 'strand', 'head_align_start_pos', 'head_align_end_pos', 'tail_align_start_pos', 'tail_align_end_pos']]
+	for _, read_info in lariat_df.iterrows():
+		chrom, strand, head_align_start_pos, head_align_end_pos, tail_align_start_pos, tail_align_end_pos = [read_info[c] for c in ['chrom', 'strand', 'head_align_start_pos', 'head_align_end_pos', 'tail_align_start_pos', 'tail_align_end_pos']]
 		# Confirm tail and head alignments exist entirely within introns
 		tail_introns = [i for i in introns[chrom][strand].overlap(tail_align_start_pos, tail_align_end_pos-1) if i.begin<=tail_align_start_pos and i.end>=tail_align_end_pos]
 		head_introns = [i for i in introns[chrom][strand].overlap(head_align_start_pos, head_align_end_pos-1) if i.begin<=head_align_start_pos and i.end>=head_align_end_pos]
@@ -185,16 +185,17 @@ def filter_multi_alignments(lariat_df:pandas.DataFrame, introns:dict, log):
 	lariat_df['head_introns'] = align_head_introns
 	lariat_df = lariat_df[align_pass]
 
-	lariat_df.loc[:, 'read_id_base'] = lariat_df['read_id'].str.slice(stop=-6)
-	align_counts = Counter(lariat_df.groupby('read_id_base').size())
+	lariat_df.read_id = lariat_df.read_id.str.slice(0,-4)
+	lariat_df[['read_id', 'read_num']] = lariat_df.read_id.str.split('/', expand=True)
+	lariat_df.read_num = lariat_df.read_num.astype(int)
+	lariat_df.insert(1, 'read_num', lariat_df.pop('read_num'))
+
+	align_counts = Counter(lariat_df.groupby('read_id').size())
 
 	log.info(f"Putative lariat intron filter failures: {align_counts}")
 	log.info(f"Remaining alignment counts after intron filter: {align_counts}")
 
-	lariat_df = lariat_df.groupby('read_id_base').sample(n=1)
-
-	lariat_df.loc[:, 'read_id'] = lariat_df['read_id_base']
-	lariat_df = lariat_df.drop(columns=['read_id_base'])
+	lariat_df = lariat_df.groupby('read_id').sample(n=1, random_state=1)
 
 	return lariat_df
 
@@ -232,8 +233,8 @@ def overlap_snaptron(lariat_pass_df:pandas.DataFrame, snaptron_file:str, log):
 	juncs_to_process = sum((lariat_pass_df['fivep_pos']!=lariat_pass_df['fivep_nearest_anno_pos']))
 	log.info(f'Pulling Snaptron junction info for {juncs_to_process} alignments')
 	aligns_done = 0
-	for _, align_info in lariat_pass_df.iterrows():
-		chrom, strand, fivep_pos, fivep_nearest_anno_pos = [align_info[c] for c in ['chrom', 'strand', 'fivep_pos', 'fivep_nearest_anno_pos']]
+	for _, read_info in lariat_pass_df.iterrows():
+		chrom, strand, fivep_pos, fivep_nearest_anno_pos = [read_info[c] for c in ['chrom', 'strand', 'fivep_pos', 'fivep_nearest_anno_pos']]
 		if fivep_pos != fivep_nearest_anno_pos:
 			tabix_cmd = f'tabix {snaptron_file} {chrom}:{fivep_pos-1}-{fivep_pos+1}'
 			junction_lines = subprocess.run(tabix_cmd, shell=True, capture_output=True, text=True).stdout.strip().split('\n')
@@ -299,9 +300,6 @@ if __name__ == '__main__':
 	genes = parse_genes(ref_genes, log)
 	introns = parse_introns(ref_introns, log)
 
-	# Get splice junction count
-	lariat_df['sj_count_total'] = parse_splice_junction_count(OUTPUT_SJ_FILE.format(output_base), log)
-
 	lariat_pass_df = adjust_bp_fivep(lariat_df, log)
 
 	lariat_pass_df = verify_bp_alignment(lariat_df, output_base, hisat2_index, genes, threads, log)
@@ -309,6 +307,9 @@ if __name__ == '__main__':
 	lariat_pass_df = filter_nested_reads(lariat_pass_df, log)
 
 	lariat_pass_df = filter_multi_alignments(lariat_pass_df, introns, log)
+
+	# Get splice junction count
+	lariat_df['sj_count_total'] = parse_splice_junction_count(OUTPUT_SJ_FILE.format(output_base), log)
 
 	snaptron_path = '/users/jbuerer/scratch/genomes/snaptron/srav3_hg38_junctions.bgz'
 	lariat_pass_df = overlap_snaptron(lariat_pass_df, snaptron_path, log)

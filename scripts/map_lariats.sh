@@ -264,6 +264,8 @@ print_message "Filtering putative lariat alignments..."
 python -u $PIPELINE_DIR/scripts/filter_reverse_map_lariats.py $THREADS $OUTPUT_BASE $HISAT2_GENOME_INDEX $GENES_TSV $INTRONS_TSV $LOG_LEVEL
 check_exitcode
 
+exit
+
 
 ### Correct branchpoint positions, if extra files are provided
 if ! [ "$PWM_FILES" == "" ]; then
