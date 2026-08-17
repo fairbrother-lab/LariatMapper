@@ -8,12 +8,11 @@ from intervaltree import Interval, IntervalTree
 
 import utils
 
-output_base = sys.argv[2]
-
-# Input file
-PUTATITVE_LARIATS_FILE = f"{output_base}putative_lariats.tsv"
+# Input files
+OUTPUT_SJ_FILE = "{}SJ.out.tab"
+PUTATITVE_LARIATS_FILE = "{}putative_lariats.tsv"
 # Output file
-FILTERED_LARIATS_FILE = f"{output_base}reverse_mapped_lariats_filtered.tsv"
+FILTERED_LARIATS_FILE = "{}reverse_mapped_lariats_filtered.tsv"
 
 def parse_genes(ref_genes:str, log) -> dict[str, dict[str, IntervalTree]]:
 	genes_df, genes = pandas.read_csv(ref_genes, sep='\t'), {}
@@ -28,7 +27,7 @@ def parse_genes(ref_genes:str, log) -> dict[str, dict[str, IntervalTree]]:
 def parse_introns(ref_introns:str, log) -> dict[str, dict[str, IntervalTree]]:
 											
 	introns_df = pandas.read_csv(ref_introns, sep='\t', na_filter=False)
-	introns_df['gene_id'] = introns_df.gene_id.transform(lambda gene_id: frozenset(gene_id.split(',')))
+	introns_df['gene_id'] = introns_df.gene_id.transform(lambda gene_id: set(gene_id.split(',')))
 
 	chromosomes = set(introns_df.chrom.unique())
 	introns = {chrom:{'+': IntervalTree(), '-': IntervalTree()} for chrom in chromosomes}
@@ -38,6 +37,18 @@ def parse_introns(ref_introns:str, log) -> dict[str, dict[str, IntervalTree]]:
 		introns[chrom][strand].add(Interval(start, end, {'gene_id': intron_info['gene_id'], 'intron_id':intron_id}))
 	
 	return introns
+
+def parse_splice_junction_count(sj_file:str, log) -> int:
+	'''
+	Get the total count of splice junctions from the SJ.out.tab file output by STAR
+	'''
+	total_sj_count = 0
+	with open(sj_file) as in_file:
+		for line in in_file:
+			uniq_read_count = line.strip().split('\t')[6]
+			total_sj_count += int(uniq_read_count)
+
+	return total_sj_count
 
 def parse_line(sam_line:str):
 	alignment_info = sam_line.split('\t')
@@ -56,7 +67,7 @@ def parse_line(sam_line:str):
 
 	return read_id, chrom, start_pos, end_pos, read_orient_to_chrom, cigar_str, mismatch_count, mismatch_p, gaps
 
-def verify_bp_alignment(lariat_df:pandas.DataFrame, hisat2_index:str, genes:dict, threads:str, log):
+def verify_bp_alignment(lariat_df:pandas.DataFrame, output_base:str, hisat2_index:str, genes:dict, threads:str, log):
 
 	tmp_fasta = f"{output_base}head_full_seq.tmp.fa"
 	read_info_dict = {}
@@ -111,14 +122,17 @@ def verify_bp_alignment(lariat_df:pandas.DataFrame, hisat2_index:str, genes:dict
 
 			passed_alignments.append([read_id, chrom, bp_strand, int(bp_pos), int(bp_align_pos), start_pos, end_pos, cigar_str, mismatch_count, gaps])
 	
-	failure_score = {'chrom_strand_mismatch':0, 'gene_mismatch':1, 'bp_align_pos_mismatch':2}
+	failure_score = {'mismatch_rate':0, 'multiple_gaps':1, 'long_gap':2,
+				     'chrom_strand_mismatch':3, 'gene_mismatch':4, 'bp_align_pos_mismatch':5}
 	read_failure_counts = Counter([max(read_failures[rid], key=lambda f:failure_score[f]) for rid in read_failures])
-	log.info(f"Putative lariat filter failures: {read_failure_counts}")
+	log.info(f"Putative lariat branchpoint alignment filter failures: {read_failure_counts}")
 	
 	passed_alignments = pandas.DataFrame(passed_alignments, columns=['read_id', 'chrom', 'strand', 'bp_pos', 'bp_align_pos', 'head_align_start_pos', 'head_align_end_pos',
 																     'head_cigar_str', 'head_mismatches', 'head_gaps'])
 	
 	lariat_pass_df = pandas.merge(lariat_df, passed_alignments, on=['read_id', 'chrom', 'strand', 'bp_pos', 'bp_align_pos'], how='right')
+
+	os.remove(tmp_fasta)
 	
 	return lariat_pass_df
 
@@ -134,6 +148,8 @@ def filter_nested_reads(lariat_df:pandas.DataFrame, log):
 			align_pass.append(False)
 		else:
 			align_pass.append(True)
+
+	log.info(f'Putative lariat nested read filter failures: {len(align_pass)-sum(align_pass)}')
 	
 	lariat_df = lariat_df[align_pass]
 
@@ -141,25 +157,38 @@ def filter_nested_reads(lariat_df:pandas.DataFrame, log):
 
 def filter_multi_alignments(lariat_df:pandas.DataFrame, introns:dict, log):
 	
-	align_pass, align_introns = [], []
+	align_pass, align_tail_introns, align_head_introns = [], [], []
 	for _, align_info in lariat_df.iterrows():
-		chrom, strand, fivep_pos, bp_pos = [align_info[c] for c in ['chrom', 'strand', 'fivep_pos', 'bp_pos']]
-		fivep_introns = set([i.data['intron_id'] for i in introns[chrom][strand].at(fivep_pos)])
-		bp_introns = set([i.data['intron_id'] for i in introns[chrom][strand].at(bp_pos)])
-		overlap_introns = fivep_introns.intersection(bp_introns)
-		if len(overlap_introns) == 0:
-			align_pass.append(False)
-			align_introns.append('NA')
+		chrom, strand, head_align_start_pos, head_align_end_pos, tail_align_start_pos, tail_align_end_pos = [align_info[c] for c in ['chrom', 'strand', 'head_align_start_pos', 'head_align_end_pos', 'tail_align_start_pos', 'tail_align_end_pos']]
+		# Confirm tail and head alignments exist entirely within introns
+		tail_introns = [i for i in introns[chrom][strand].overlap(tail_align_start_pos, tail_align_end_pos-1) if i.begin<=tail_align_start_pos and i.end>=tail_align_end_pos]
+		head_introns = [i for i in introns[chrom][strand].overlap(head_align_start_pos, head_align_end_pos-1) if i.begin<=head_align_start_pos and i.end>=head_align_end_pos]
+		pass_align = False
+		if len(tail_introns) > 0 and len(head_introns) > 0:
+			# Limit to introns within the same genes
+			tail_genes, head_genes = set.union(*[i.data['gene_id'] for i in tail_introns]), set.union(*[i.data['gene_id'] for i in head_introns])
+			overlap_genes = tail_genes.intersection(head_genes)
+			tail_introns = [i for i in tail_introns if len(i.data['gene_id'].intersection(overlap_genes))>0]
+			head_introns = [i for i in head_introns if len(i.data['gene_id'].intersection(overlap_genes))>0]
+			if len(tail_introns) > 0 and len(head_introns) > 0:
+				pass_align = True
+				
+		align_pass.append(pass_align)
+		if pass_align:
+			align_tail_introns.append(';'.join([i.data['intron_id'] for i in tail_introns]))
+			align_head_introns.append(';'.join([i.data['intron_id'] for i in head_introns]))
 		else:
-			align_pass.append(True)
-			align_introns.append(';'.join(overlap_introns))
+			align_tail_introns.append('NA')
+			align_head_introns.append('NA')
 	
-	lariat_df['introns'] = align_introns
+	lariat_df['tail_introns'] = align_tail_introns
+	lariat_df['head_introns'] = align_head_introns
 	lariat_df = lariat_df[align_pass]
 
 	lariat_df.loc[:, 'read_id_base'] = lariat_df['read_id'].str.slice(stop=-6)
 	align_counts = Counter(lariat_df.groupby('read_id_base').size())
 
+	log.info(f"Putative lariat intron filter failures: {align_counts}")
 	log.info(f"Remaining alignment counts after intron filter: {align_counts}")
 
 	lariat_df = lariat_df.groupby('read_id_base').sample(n=1)
@@ -260,7 +289,7 @@ if __name__ == '__main__':
 	log = utils.get_logger(log_level)
 	log.debug(f'Args recieved: {sys.argv[1:]}')
 
-	lariat_df = pandas.read_csv(PUTATITVE_LARIATS_FILE, sep='\t')
+	lariat_df = pandas.read_csv(PUTATITVE_LARIATS_FILE.format(output_base), sep='\t')
 
 	read_mate_ids = lariat_df['read_id'].str.slice(stop=-4)
 	read_mate_id_count = read_mate_ids.unique().size
@@ -270,9 +299,12 @@ if __name__ == '__main__':
 	genes = parse_genes(ref_genes, log)
 	introns = parse_introns(ref_introns, log)
 
+	# Get splice junction count
+	lariat_df['sj_count_total'] = parse_splice_junction_count(OUTPUT_SJ_FILE.format(output_base), log)
+
 	lariat_pass_df = adjust_bp_fivep(lariat_df, log)
 
-	lariat_pass_df = verify_bp_alignment(lariat_df, hisat2_index, genes, threads, log)
+	lariat_pass_df = verify_bp_alignment(lariat_df, output_base, hisat2_index, genes, threads, log)
 
 	lariat_pass_df = filter_nested_reads(lariat_pass_df, log)
 
@@ -281,7 +313,7 @@ if __name__ == '__main__':
 	snaptron_path = '/users/jbuerer/scratch/genomes/snaptron/srav3_hg38_junctions.bgz'
 	lariat_pass_df = overlap_snaptron(lariat_pass_df, snaptron_path, log)
 
-	lariat_pass_df.to_csv(FILTERED_LARIATS_FILE, sep='\t', index=False)
+	lariat_pass_df.to_csv(FILTERED_LARIATS_FILE.format(output_base), sep='\t', index=False)
 
 
 
