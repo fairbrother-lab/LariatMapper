@@ -110,7 +110,7 @@ def process_args(args:argparse.Namespace, parser:argparse.ArgumentParser, log):
 def parse_attributes(attribute_string:str, file_type:str) -> dict:
 	if file_type == '.gtf':
 		attributes = attribute_string.rstrip('";').split('; ')
-		attributes = [attr.split(' ') for attr in attributes]
+		attributes = [attr.split(' ', 1) for attr in attributes]
 		tags = [attr_val.strip('"') for attr_name, attr_val in attributes if attr_name=='tag']
 		attributes = {attr_name: attr_val.strip('"') for attr_name, attr_val in attributes if attr_name!='tag'}
 		attributes['tags'] = tags
